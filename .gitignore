@@ -35,6 +35,8 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
 
 # Logs
 logs/
@@ -57,6 +59,26 @@ ai_reports/
 *.tmp
 *.bak
 *.swp
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# TypeScript
+dist/
+build/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+.nyc_output/
+.coverage/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.test.env
 
 # Initialization marker (should be committed for tracking)
 # .initialized

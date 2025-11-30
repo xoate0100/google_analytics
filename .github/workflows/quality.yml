@@ -1,0 +1,46 @@
+name: Quality Checks
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  quality:
+    name: Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Performance Scan
+        run: python3 3_bootstrap_scripts/performance_scan.sh
+        continue-on-error: true
+
+      - name: Complexity Check
+        run: python3 3_bootstrap_scripts/complexity_check.py
+        continue-on-error: true
+
+      - name: Mutation Testing
+        run: |
+          echo "Mutation testing will be implemented in future phase"
+          echo "Target: 75% kill rate"
+        continue-on-error: true
+

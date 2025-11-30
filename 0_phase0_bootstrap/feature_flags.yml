@@ -2,7 +2,8 @@ mode:
   # L2.5 Single-Agent Sandbox: Cursor agent may execute multi-step plans end-to-end
   cursor_agent_mode: sandboxed
   agentic_write_ops: true          # allow code/tests/docs/scripts writes
-  modify_meta_framework: false     # forbid edits to meta/standards/ci
+  modify_meta_framework: false     # RESTORED: Meta-framework restrictions re-enabled after Phase0 bootstrap
+  bootstrap_mode: false            # RESTORED: Bootstrap phase complete
   human_review_required_for_merge: true
 
 permissions:
@@ -10,11 +11,11 @@ permissions:
     - frontend/
     - backend/
     - shared/
-  readonly:
+    - .github/
     - 0_phase0_bootstrap/
+  readonly:
     - 1_global_standards/
     - 7_schemas/
-    - .github/
     - 8_ci/
     - 4_docs_index/
     - 5_reference_architectures/

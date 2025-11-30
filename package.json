@@ -1,0 +1,72 @@
+{
+  "name": "mcp-google-marketing",
+  "version": "0.1.0",
+  "description": "MCP server for Google Ads, Google Tag Manager, and Google Analytics 4",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "docker:build": "docker build -t mcp-google-marketing:latest .",
+    "docker:build:dev": "docker build -f Dockerfile.dev -t mcp-google-marketing:dev .",
+    "docker:up": "docker-compose up",
+    "docker:up:prod": "docker-compose -f docker-compose.prod.yml up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:contract": "vitest run test/contract",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,json,md,yaml,yml}\"",
+    "type-check": "tsc --noEmit",
+    "dead-code:check": "ts-prune"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "google-analytics",
+    "google-tag-manager",
+    "google-ads",
+    "marketing-ops"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "google-auth-library": "^9.0.0",
+    "googleapis": "^129.0.0",
+    "google-ads-api": "^21.0.1",
+    "zod": "^3.22.0",
+    "pino": "^9.0.0",
+    "pino-pretty": "^11.0.0",
+    "libsodium": "^0.7.13",
+    "libsodium-wrappers": "^0.7.13"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/libsodium-wrappers": "^0.7.12",
+    "@eslint/js": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "typescript-eslint": "^8.0.0",
+    "@vitest/coverage-v8": "^1.1.0",
+    "@vitest/ui": "^1.1.0",
+    "eslint": "^9.0.0",
+    "nock": "^13.4.0",
+    "prettier": "^3.1.1",
+    "husky": "^9.0.0",
+    "ts-prune": "^0.10.3",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+

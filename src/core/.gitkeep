@@ -1,0 +1,3 @@
+# Core module
+# Will contain: opEnvelope.ts, logger.ts, cache.ts, limiter.ts, errors.ts, validation.ts, capabilities.ts
+

@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: mcp-google-marketing
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      # Environment variables from .env file
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_ADS_DEV_TOKEN=${GOOGLE_ADS_DEV_TOKEN}
+      - LOGIN_CUSTOMER_ID=${LOGIN_CUSTOMER_ID}
+      - GA4_MEASUREMENT_PROTOCOL_SECRET=${GA4_MEASUREMENT_PROTOCOL_SECRET}
+      - MCP_MARKETING_DRY_RUN=${MCP_MARKETING_DRY_RUN:-0}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      # Mount source code for hot reload in development
+      - ./src:/app/src:ro
+      - ./test:/app/test:ro
+      # Mount MCP config directory (persists credentials and config)
+      - mcp-config:/app/.mcp/google
+      # Mount node_modules to avoid permission issues
+      - node-modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('OK')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mcp-network
+
+volumes:
+  mcp-config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${HOME:-${USERPROFILE}}/.mcp/google  # Works on both Unix and Windows
+  node-modules:
+    driver: local
+
+networks:
+  mcp-network:
+    driver: bridge
+
