@@ -131,8 +131,13 @@ describe("CapabilitiesRegistry", () => {
   });
 
   describe("refresh", () => {
-    it("should be callable (stub for now)", async () => {
-      await expect(registry.refresh()).resolves.toBeUndefined();
+    it("should call discovery routines for all products", async () => {
+      await registry.refresh();
+
+      // Should have populated capabilities for all products
+      expect(registry.hasCapability("ga4", "data_api")).toBe(true);
+      expect(registry.hasCapability("gtm", "accounts")).toBe(true);
+      expect(registry.hasCapability("ads", "customer_ids")).toBe(true);
     });
   });
 

@@ -6,7 +6,13 @@
 import type {
   ICapabilitiesRegistry,
   ProductCapabilities,
+  ILogger,
 } from "./types.js";
+import {
+  discoverGA4Capabilities,
+  discoverGTMCapabilities,
+  discoverAdsCapabilities,
+} from "./discovery.js";
 
 /**
  * Capabilities registry implementation
@@ -53,9 +59,28 @@ export class CapabilitiesRegistry implements ICapabilitiesRegistry {
   }
 
   async refresh(): Promise<void> {
-    // Stub for now - will be implemented in task 1.7.2
-    // This will call discovery routines per product
-    return Promise.resolve();
+    // Call discovery routines per product
+    // Use a minimal logger for discovery
+    const discoveryLogger = {
+      info: () => {},
+      debug: () => {},
+      warn: () => {},
+      error: () => {},
+      child: () => discoveryLogger,
+    } as ILogger;
+
+    await discoverGA4Capabilities({
+      registry: this,
+      logger: discoveryLogger,
+    });
+    await discoverGTMCapabilities({
+      registry: this,
+      logger: discoveryLogger,
+    });
+    await discoverAdsCapabilities({
+      registry: this,
+      logger: discoveryLogger,
+    });
   }
 }
 
