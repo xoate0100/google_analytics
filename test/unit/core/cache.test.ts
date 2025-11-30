@@ -168,5 +168,105 @@ describe("LRUCache", () => {
       expect(typeof cache.invalidate).toBe("function");
     });
   });
+
+  describe("ETag support", () => {
+    it("should store ETag with cache entry", async () => {
+      const cacheWithETag = new LRUCache({ maxSize: 10, defaultTTL: 1000 });
+      await cacheWithETag.set("key1", "value1", undefined, "etag-123");
+      const etag = await cacheWithETag.getETag("key1");
+      expect(etag).toBe("etag-123");
+    });
+
+    it("should return undefined ETag for non-existent keys", async () => {
+      const cacheWithETag = new LRUCache({ maxSize: 10, defaultTTL: 1000 });
+      const etag = await cacheWithETag.getETag("nonexistent");
+      expect(etag).toBeUndefined();
+    });
+
+    it("should check If-None-Match and return cached value if match", async () => {
+      const cacheWithETag = new LRUCache({ maxSize: 10, defaultTTL: 1000 });
+      await cacheWithETag.set("key1", "value1", undefined, "etag-123");
+      const result = await cacheWithETag.getWithETag<string>("key1", "etag-123");
+      expect(result).toEqual({ value: "value1", etag: "etag-123", cached: true });
+    });
+
+    it("should return value and new ETag if If-None-Match does not match", async () => {
+      const cacheWithETag = new LRUCache({ maxSize: 10, defaultTTL: 1000 });
+      await cacheWithETag.set("key1", "value1", undefined, "etag-123");
+      const result = await cacheWithETag.getWithETag<string>("key1", "etag-456");
+      expect(result).toEqual({ value: "value1", etag: "etag-123", cached: false });
+    });
+
+    it("should update ETag when value is updated", async () => {
+      const cacheWithETag = new LRUCache({ maxSize: 10, defaultTTL: 1000 });
+      await cacheWithETag.set("key1", "value1", undefined, "etag-123");
+      await cacheWithETag.set("key1", "value2", undefined, "etag-456");
+      const etag = await cacheWithETag.getETag("key1");
+      expect(etag).toBe("etag-456");
+    });
+  });
+
+  describe("Write-through invalidation", () => {
+    it("should invalidate related keys after write", async () => {
+      const cacheWithInvalidation = new LRUCache({
+        maxSize: 10,
+        defaultTTL: 1000,
+        onWrite: async (key: string) => {
+          // Invalidate related keys
+          await cacheWithInvalidation.invalidate(`${key}:related:*`);
+        },
+      });
+      await cacheWithInvalidation.set("ga4:report:123", "value1");
+      await cacheWithInvalidation.set("ga4:report:123:related:meta", "meta1");
+      await cacheWithInvalidation.set("ga4:report:123", "value2"); // Write should invalidate related
+      expect(await cacheWithInvalidation.get<string>("ga4:report:123")).toBe("value2");
+      expect(await cacheWithInvalidation.get<string>("ga4:report:123:related:meta")).toBeUndefined();
+    });
+
+    it("should support custom invalidation patterns", async () => {
+      const invalidationPatterns: string[] = [];
+      const cacheWithInvalidation = new LRUCache({
+        maxSize: 10,
+        defaultTTL: 1000,
+        onWrite: async (key: string) => {
+          if (key.startsWith("ga4:report:")) {
+            // Invalidate other reports, but not the one being written
+            invalidationPatterns.push("ga4:report:*");
+            // Invalidate all except the current key
+            const keysToInvalidate: string[] = [];
+            for (const cacheKey of cacheWithInvalidation["entries"].keys()) {
+              if (cacheKey.startsWith("ga4:report:") && cacheKey !== key) {
+                keysToInvalidate.push(cacheKey);
+              }
+            }
+            for (const cacheKey of keysToInvalidate) {
+              await cacheWithInvalidation.delete(cacheKey);
+            }
+          }
+        },
+      });
+      await cacheWithInvalidation.set("ga4:report:123", "value1");
+      await cacheWithInvalidation.set("ga4:report:456", "value2");
+      await cacheWithInvalidation.set("ga4:report:123", "value3"); // Should invalidate other reports
+      expect(await cacheWithInvalidation.get<string>("ga4:report:123")).toBe("value3");
+      expect(await cacheWithInvalidation.get<string>("ga4:report:456")).toBeUndefined();
+      expect(invalidationPatterns.length).toBeGreaterThan(0);
+    });
+
+    it("should not invalidate unrelated keys", async () => {
+      const cacheWithInvalidation = new LRUCache({
+        maxSize: 10,
+        defaultTTL: 1000,
+        onWrite: async (key: string) => {
+          if (key.startsWith("ga4:")) {
+            await cacheWithInvalidation.invalidate("ga4:*");
+          }
+        },
+      });
+      await cacheWithInvalidation.set("gtm:container:123", "value1");
+      await cacheWithInvalidation.set("ga4:report:123", "value2");
+      expect(await cacheWithInvalidation.get<string>("gtm:container:123")).toBe("value1");
+    });
+  });
 });
 

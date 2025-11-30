@@ -12,6 +12,7 @@ interface CacheEntry<T> {
   value: T;
   expiresAt: number; // 0 means no expiration
   accessTime: number;
+  etag?: string; // ETag for HTTP cache validation
 }
 
 /**
@@ -33,6 +34,7 @@ function getNextAccessTime(): number {
 export interface LRUCacheOptions {
   maxSize: number;
   defaultTTL?: number; // in milliseconds, 0 means infinite
+  onWrite?: (key: string) => Promise<void>; // Callback for write-through invalidation
 }
 
 /**
@@ -40,15 +42,26 @@ export interface LRUCacheOptions {
  * Evicts least recently used entries when max size is reached
  * Supports TTL expiration
  */
+/**
+ * Result of getWithETag operation
+ */
+export interface CacheResultWithETag<T> {
+  value: T;
+  etag: string;
+  cached: boolean; // true if If-None-Match matched (304 Not Modified scenario)
+}
+
 export class LRUCache implements ICache {
   private readonly entries: Map<string, CacheEntry<unknown>>;
   private readonly maxSize: number;
   private readonly defaultTTL: number;
+  private readonly onWrite: ((key: string) => Promise<void>) | undefined;
 
   constructor(options: LRUCacheOptions) {
     this.entries = new Map();
     this.maxSize = options.maxSize;
     this.defaultTTL = options.defaultTTL ?? 0;
+    this.onWrite = options.onWrite;
   }
 
   async get<T>(key: string): Promise<T | undefined> {
@@ -68,7 +81,7 @@ export class LRUCache implements ICache {
     return Promise.resolve(entry.value as T);
   }
 
-  async set<T>(key: string, value: T, ttl?: number): Promise<void> {
+  async set<T>(key: string, value: T, ttl?: number, etag?: string): Promise<void> {
     const now = Date.now();
     const ttlMs = ttl ?? this.defaultTTL;
     const expiresAt = ttlMs > 0 ? now + ttlMs : 0;
@@ -79,6 +92,13 @@ export class LRUCache implements ICache {
       entry.value = value;
       entry.expiresAt = expiresAt;
       entry.accessTime = getNextAccessTime();
+      if (etag !== undefined) {
+        entry.etag = etag;
+      }
+      // Trigger write-through invalidation
+      if (this.onWrite) {
+        await this.onWrite(key);
+      }
       return Promise.resolve();
     }
 
@@ -88,11 +108,19 @@ export class LRUCache implements ICache {
     }
 
     // Add new entry
-    this.entries.set(key, {
+    const entry: CacheEntry<unknown> = {
       value,
       expiresAt,
       accessTime: getNextAccessTime(),
-    });
+    };
+    if (etag !== undefined) {
+      entry.etag = etag;
+    }
+    this.entries.set(key, entry);
+    // Trigger write-through invalidation
+    if (this.onWrite) {
+      await this.onWrite(key);
+    }
     return Promise.resolve();
   }
 
@@ -153,6 +181,48 @@ export class LRUCache implements ICache {
     if (oldestKey) {
       this.entries.delete(oldestKey);
     }
+  }
+
+  /**
+   * Get ETag for a cache entry
+   */
+  async getETag(key: string): Promise<string | undefined> {
+    const entry = this.entries.get(key);
+    if (!entry || this.isExpired(entry)) {
+      return Promise.resolve(undefined);
+    }
+    return Promise.resolve(entry.etag);
+  }
+
+  /**
+   * Get value with ETag checking (If-None-Match support)
+   * Returns cached=true if ETag matches (304 Not Modified scenario)
+   */
+  async getWithETag<T>(
+    key: string,
+    ifNoneMatch?: string
+  ): Promise<CacheResultWithETag<T> | undefined> {
+    const entry = this.entries.get(key);
+    if (!entry) {
+      return Promise.resolve(undefined);
+    }
+
+    // Check expiration
+    if (this.isExpired(entry)) {
+      this.entries.delete(key);
+      return Promise.resolve(undefined);
+    }
+
+    // Update access time for LRU
+    entry.accessTime = getNextAccessTime();
+
+    // Check ETag match
+    const cached = ifNoneMatch !== undefined && entry.etag === ifNoneMatch;
+    return Promise.resolve({
+      value: entry.value as T,
+      etag: entry.etag || "",
+      cached,
+    });
   }
 }
 
