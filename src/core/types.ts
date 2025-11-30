@@ -161,3 +161,23 @@ export interface IRateLimiter {
   getState(product: string): RateLimiterState | undefined;
 }
 
+/**
+ * Product capabilities type
+ * Represents capabilities for a specific product (ga4, gtm, ads)
+ */
+export type ProductCapabilities = Record<string, unknown>;
+
+/**
+ * Capabilities registry interface (ISP: ≤10 methods)
+ * Tracks available capabilities per product
+ */
+export interface ICapabilitiesRegistry {
+  hasCapability(product: string, capability: string): boolean;
+  getProductCapabilities(product: string): ProductCapabilities | undefined;
+  setProductCapabilities(
+    product: string,
+    capabilities: ProductCapabilities
+  ): void;
+  refresh(): Promise<void>;
+}
+
