@@ -13,6 +13,8 @@ import {
   runReportResponseSchema,
   batchRunReportsRequestSchema,
   batchRunReportsResponseSchema,
+  runPivotReportRequestSchema,
+  runPivotReportResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -41,6 +43,7 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   // Data API tools
   registerReportRunTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerReportBatchTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerReportPivotTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   logger.info("GA4 tools registered");
 }
@@ -309,6 +312,140 @@ function registerReportBatchTool(
           logger.error("ga4.report.batch failed", error);
         } else {
           logger.error("ga4.report.batch failed", new Error(String(error)));
+        }
+        throw error;
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return if found (for pivot reports)
+ */
+async function checkPivotCacheAndReturn(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof runPivotReportResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for pivot report", { cacheKey });
+    return validateSchema(runPivotReportResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute pivot API request and validate response
+ */
+async function executePivotAPIRequest(
+  validatedRequest: z.infer<typeof runPivotReportRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof runPivotReportResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "runPivotReport");
+  const dataClient = ga4Client.getAnalyticsDataClient();
+
+  // Convert validated request to API format (handle optional name as null)
+  const apiRequest = {
+    ...validatedRequest,
+    dateRanges: validatedRequest.dateRanges.map((dr) => ({
+      startDate: dr.startDate,
+      endDate: dr.endDate,
+      name: dr.name ?? null,
+    })),
+  };
+
+  const response = await dataClient.properties.runPivotReport({
+    property: validatedRequest.property,
+    requestBody: apiRequest as never,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No data returned from GA4 API", {
+      property: validatedRequest.property,
+    });
+  }
+
+  return validateSchema(runPivotReportResponseSchema, responseData.data);
+}
+
+/**
+ * Execute pivot report run operation
+ */
+async function executePivotReportRun(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<unknown> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.report.pivot",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.report.pivot", { opId: envelope.opId });
+
+  // Validate input
+  const validatedRequest = validateSchema(runPivotReportRequestSchema, args);
+
+  // Pre-check: verify capability
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "data_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Data API v1 capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Check cache
+  const cacheKey = `ga4:pivot:${envelope.idempotencyKey}`;
+  const cached = await checkPivotCacheAndReturn(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  // Execute API request
+  const validatedResponse = await executePivotAPIRequest(validatedRequest, ga4Client);
+
+  // Cache response (TTL: 5 minutes for reports)
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.report.pivot completed", {
+    opId: envelope.opId,
+    pivotHeaderCount: validatedResponse.pivotHeaders.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.report.pivot tool
+ */
+function registerReportPivotTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.report.pivot",
+    description:
+      "Run a GA4 pivot table report query. Returns pivoted dimensions, metrics, and rows for the specified date range.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executePivotReportRun(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.report.pivot failed", error);
+        } else {
+          logger.error("ga4.report.pivot failed", new Error(String(error)));
         }
         throw error;
       }
