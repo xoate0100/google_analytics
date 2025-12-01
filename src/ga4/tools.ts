@@ -15,6 +15,8 @@ import {
   batchRunReportsResponseSchema,
   runPivotReportRequestSchema,
   runPivotReportResponseSchema,
+  runRealtimeReportRequestSchema,
+  runRealtimeReportResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -44,6 +46,7 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerReportRunTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerReportBatchTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerReportPivotTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerRealtimeSnapshotTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   logger.info("GA4 tools registered");
 }
@@ -446,6 +449,130 @@ function registerReportPivotTool(
           logger.error("ga4.report.pivot failed", error);
         } else {
           logger.error("ga4.report.pivot failed", new Error(String(error)));
+        }
+        throw error;
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return if found (for realtime reports)
+ */
+async function checkRealtimeCacheAndReturn(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof runRealtimeReportResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for realtime report", { cacheKey });
+    return validateSchema(runRealtimeReportResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute realtime API request and validate response
+ */
+async function executeRealtimeAPIRequest(
+  validatedRequest: z.infer<typeof runRealtimeReportRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof runRealtimeReportResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "runRealtimeReport");
+  const dataClient = ga4Client.getAnalyticsDataClient();
+
+  const response = await dataClient.properties.runRealtimeReport({
+    property: validatedRequest.property,
+    requestBody: validatedRequest as never,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No data returned from GA4 API", {
+      property: validatedRequest.property,
+    });
+  }
+
+  return validateSchema(runRealtimeReportResponseSchema, responseData.data);
+}
+
+/**
+ * Execute realtime snapshot operation
+ */
+async function executeRealtimeSnapshot(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<unknown> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.realtime.snapshot",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.realtime.snapshot", { opId: envelope.opId });
+
+  // Validate input
+  const validatedRequest = validateSchema(runRealtimeReportRequestSchema, args);
+
+  // Pre-check: verify capability
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "data_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Data API v1 capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Check cache (shorter TTL for realtime data - 30 seconds)
+  const cacheKey = `ga4:realtime:${envelope.idempotencyKey}`;
+  const cached = await checkRealtimeCacheAndReturn(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  // Execute API request
+  const validatedResponse = await executeRealtimeAPIRequest(validatedRequest, ga4Client);
+
+  // Cache response (TTL: 30 seconds for realtime data)
+  await cache.set(cacheKey, validatedResponse, 30000);
+
+  logger.info("ga4.realtime.snapshot completed", {
+    opId: envelope.opId,
+    rowCount: validatedResponse.rowCount,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.realtime.snapshot tool
+ */
+function registerRealtimeSnapshotTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.realtime.snapshot",
+    description:
+      "Get a real-time snapshot of GA4 data. Returns current active users, events, and other real-time metrics.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeRealtimeSnapshot(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.realtime.snapshot failed", error);
+        } else {
+          logger.error("ga4.realtime.snapshot failed", new Error(String(error)));
         }
         throw error;
       }
