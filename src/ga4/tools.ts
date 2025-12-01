@@ -11,6 +11,8 @@ import type { ICapabilitiesRegistry } from "../core/types.js";
 import {
   runReportRequestSchema,
   runReportResponseSchema,
+  batchRunReportsRequestSchema,
+  batchRunReportsResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -38,12 +40,13 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
 
   // Data API tools
   registerReportRunTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerReportBatchTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   logger.info("GA4 tools registered");
 }
 
 /**
- * Check cache and return if found
+ * Check cache and return if found (for single report)
  */
 async function checkCacheAndReturn(
   cacheKey: string,
@@ -54,6 +57,22 @@ async function checkCacheAndReturn(
   if (cached) {
     logger.debug("Cache hit for report", { cacheKey });
     return validateSchema(runReportResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Check cache and return if found (for batch reports)
+ */
+async function checkBatchCacheAndReturn(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof batchRunReportsResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for batch report", { cacheKey });
+    return validateSchema(batchRunReportsResponseSchema, cached);
   }
   return null;
 }
@@ -169,6 +188,127 @@ function registerReportRunTool(
           logger.error("ga4.report.run failed", error);
         } else {
           logger.error("ga4.report.run failed", new Error(String(error)));
+        }
+        throw error;
+      }
+    },
+  });
+}
+
+/**
+ * Execute batch API request and validate response
+ */
+async function executeBatchAPIRequest(
+  validatedRequest: z.infer<typeof batchRunReportsRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof batchRunReportsResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "batchRunReports");
+  const dataClient = ga4Client.getAnalyticsDataClient();
+
+  // Convert validated request to API format (handle optional name as null)
+  const apiRequest = {
+    ...validatedRequest,
+    requests: validatedRequest.requests.map((req) => ({
+      ...req,
+      dateRanges: req.dateRanges.map((dr) => ({
+        startDate: dr.startDate,
+        endDate: dr.endDate,
+        name: dr.name ?? null,
+      })),
+    })),
+  };
+
+  const response = await dataClient.properties.batchRunReports({
+    property: validatedRequest.property,
+    requestBody: apiRequest as never,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No data returned from GA4 API", {
+      property: validatedRequest.property,
+    });
+  }
+
+  return validateSchema(batchRunReportsResponseSchema, responseData.data);
+}
+
+/**
+ * Execute batch report run operation
+ */
+async function executeBatchReportRun(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<unknown> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.report.batch",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.report.batch", { opId: envelope.opId });
+
+  // Validate input
+  const validatedRequest = validateSchema(batchRunReportsRequestSchema, args);
+
+  // Pre-check: verify capability
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "data_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Data API v1 capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Check cache
+  const cacheKey = `ga4:batch:${envelope.idempotencyKey}`;
+  const cached = await checkBatchCacheAndReturn(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  // Execute API request
+  const validatedResponse = await executeBatchAPIRequest(validatedRequest, ga4Client);
+
+  // Cache response (TTL: 5 minutes for reports)
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.report.batch completed", {
+    opId: envelope.opId,
+    reportCount: validatedResponse.reports.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.report.batch tool
+ */
+function registerReportBatchTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.report.batch",
+    description:
+      "Run multiple GA4 report queries in a single batch request. Returns an array of report results.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeBatchReportRun(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.report.batch failed", error);
+        } else {
+          logger.error("ga4.report.batch failed", new Error(String(error)));
         }
         throw error;
       }

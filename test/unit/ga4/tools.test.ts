@@ -65,6 +65,18 @@ describe("GA4 Tools", () => {
       expect(registeredTools.has("ga4.report.run")).toBe(true);
     });
 
+    it("should register ga4.report.batch tool", () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      expect(registeredTools.has("ga4.report.batch")).toBe(true);
+    });
+
     it("should register tool with correct schema", () => {
       registerGA4Tools({
         bootstrap: mockBootstrap,
@@ -154,6 +166,86 @@ describe("GA4 Tools", () => {
       const checkRateLimitMock = mockGA4Client.checkRateLimit as ReturnType<typeof vi.fn>;
       const checkRateLimitCalls = checkRateLimitMock.mock.calls;
       expect(checkRateLimitCalls.some((call) => call[0] === "ga4" && call[1] === "runReport")).toBe(true);
+    });
+  });
+
+  describe("ga4.report.batch handler", () => {
+    it("should validate request schema", async () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      const tool = registeredTools.get("ga4.report.batch") as {
+        handler: (args: unknown) => Promise<unknown>;
+      };
+
+      const invalidArgs = {
+        property: "invalid",
+        requests: [],
+      };
+
+      await expect(tool.handler(invalidArgs)).rejects.toThrow();
+    });
+
+    it("should check rate limit before making request", async () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      const tool = registeredTools.get("ga4.report.batch") as {
+        handler: (args: unknown) => Promise<unknown>;
+      };
+
+      const validArgs = {
+        property: "properties/123456789",
+        requests: [
+          {
+            dateRanges: [{ startDate: "2024-01-01", endDate: "2024-01-31" }],
+            metrics: [{ name: "sessions" }],
+          },
+        ],
+      };
+
+      // Mock the analytics data client
+      const mockDataClient = {
+        properties: {
+          batchRunReports: vi.fn().mockResolvedValue({
+            data: {
+              reports: [
+                {
+                  dimensionHeaders: [],
+                  metricHeaders: [{ name: "sessions", type: "TYPE_INTEGER" }],
+                  rows: [],
+                  rowCount: 0,
+                  metadata: {
+                    currencyCode: "USD",
+                    dataLossFromOtherRow: false,
+                    subjectToThresholding: false,
+                    timeZone: "America/New_York",
+                  },
+                },
+              ],
+            },
+          }),
+        },
+      };
+
+      vi.mocked(mockGA4Client.getAnalyticsDataClient).mockReturnValue(mockDataClient as never);
+
+      await tool.handler(validArgs);
+
+      const checkRateLimitFn = mockGA4Client.checkRateLimit;
+      const checkRateLimitMock = checkRateLimitFn as ReturnType<typeof vi.fn>;
+      const checkRateLimitCalls = checkRateLimitMock.mock.calls;
+      expect(checkRateLimitCalls.some((call) => call[0] === "ga4" && call[1] === "batchRunReports")).toBe(true);
     });
   });
 });
