@@ -74,7 +74,7 @@ export class MCPServerBootstrap {
     );
 
     // Set up error handler
-    this.server.onerror = (error: Error) => {
+    this.server.onerror = (error: Error): void => {
       this.logger.error(`Server error: ${error.message}`);
     };
 

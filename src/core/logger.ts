@@ -32,7 +32,7 @@ export class PinoLogger implements ILogger {
     if (write) {
       // Custom write stream for testing
       const stream = {
-        write: (chunk: string) => {
+        write: (chunk: string): void => {
           write(chunk);
         },
       };

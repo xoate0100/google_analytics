@@ -11,7 +11,7 @@ describe("PinoLogger", () => {
     logger = new PinoLogger({
       level: "debug",
       // Capture logs for testing
-      write: (chunk: string) => {
+      write: (chunk: string): void => {
         logOutput.push(chunk.toString());
       },
     });

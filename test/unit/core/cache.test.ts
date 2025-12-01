@@ -211,7 +211,7 @@ describe("LRUCache", () => {
       const cacheWithInvalidation = new LRUCache({
         maxSize: 10,
         defaultTTL: 1000,
-        onWrite: async (key: string) => {
+        onWrite: async (key: string): Promise<void> => {
           // Invalidate related keys
           await cacheWithInvalidation.invalidate(`${key}:related:*`);
         },
@@ -228,7 +228,7 @@ describe("LRUCache", () => {
       const cacheWithInvalidation = new LRUCache({
         maxSize: 10,
         defaultTTL: 1000,
-        onWrite: async (key: string) => {
+        onWrite: async (key: string): Promise<void> => {
           if (key.startsWith("ga4:report:")) {
             // Invalidate other reports, but not the one being written
             invalidationPatterns.push("ga4:report:*");
@@ -257,7 +257,7 @@ describe("LRUCache", () => {
       const cacheWithInvalidation = new LRUCache({
         maxSize: 10,
         defaultTTL: 1000,
-        onWrite: async (key: string) => {
+        onWrite: async (key: string): Promise<void> => {
           if (key.startsWith("ga4:")) {
             await cacheWithInvalidation.invalidate("ga4:*");
           }
