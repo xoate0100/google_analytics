@@ -38,6 +38,72 @@ const metricSchema = z.object({
 });
 
 /**
+ * String filter schema
+ */
+const stringFilterSchema = z.object({
+  matchType: z.enum([
+    "EXACT",
+    "BEGINS_WITH",
+    "ENDS_WITH",
+    "CONTAINS",
+    "FULL_REGEXP",
+    "PARTIAL_REGEXP",
+  ]),
+  value: z.string(),
+  caseSensitive: z.boolean().optional(),
+});
+
+/**
+ * In-list filter schema
+ */
+const inListFilterSchema = z.object({
+  values: z.array(z.string()),
+  caseSensitive: z.boolean().optional(),
+});
+
+/**
+ * Numeric value schema
+ */
+const numericValueSchema = z.union([
+  z.object({ int64Value: z.string() }),
+  z.object({ doubleValue: z.number() }),
+]);
+
+/**
+ * Numeric filter schema
+ */
+const numericFilterSchema = z.object({
+  operation: z.enum([
+    "EQUAL",
+    "LESS_THAN",
+    "LESS_THAN_OR_EQUAL",
+    "GREATER_THAN",
+    "GREATER_THAN_OR_EQUAL",
+    "BETWEEN",
+  ]),
+  value: numericValueSchema,
+});
+
+/**
+ * Between filter schema
+ */
+const betweenFilterSchema = z.object({
+  fromValue: numericValueSchema,
+  toValue: numericValueSchema,
+});
+
+/**
+ * Filter schema
+ */
+const filterSchema = z.object({
+  fieldName: z.string(),
+  stringFilter: stringFilterSchema.optional(),
+  inListFilter: inListFilterSchema.optional(),
+  numericFilter: numericFilterSchema.optional(),
+  betweenFilter: betweenFilterSchema.optional(),
+});
+
+/**
  * Filter expression schema
  */
 const filterExpressionSchema: z.ZodType<unknown> = z.lazy(() =>
@@ -56,57 +122,7 @@ const filterExpressionSchema: z.ZodType<unknown> = z.lazy(() =>
       notExpression: filterExpressionSchema,
     }),
     z.object({
-      filter: z.object({
-        fieldName: z.string(),
-        stringFilter: z
-          .object({
-            matchType: z.enum([
-              "EXACT",
-              "BEGINS_WITH",
-              "ENDS_WITH",
-              "CONTAINS",
-              "FULL_REGEXP",
-              "PARTIAL_REGEXP",
-            ]),
-            value: z.string(),
-            caseSensitive: z.boolean().optional(),
-          })
-          .optional(),
-        inListFilter: z
-          .object({
-            values: z.array(z.string()),
-            caseSensitive: z.boolean().optional(),
-          })
-          .optional(),
-        numericFilter: z
-          .object({
-            operation: z.enum([
-              "EQUAL",
-              "LESS_THAN",
-              "LESS_THAN_OR_EQUAL",
-              "GREATER_THAN",
-              "GREATER_THAN_OR_EQUAL",
-              "BETWEEN",
-            ]),
-            value: z.union([
-              z.object({ int64Value: z.string() }),
-              z.object({ doubleValue: z.number() }),
-            ]),
-          })
-          .optional(),
-        betweenFilter: z
-          .object({
-            fromValue: z.union([
-              z.object({ int64Value: z.string() }),
-              z.object({ doubleValue: z.number() }),
-            ]),
-            toValue: z.union([
-              z.object({ int64Value: z.string() }),
-              z.object({ doubleValue: z.number() }),
-            ]),
-          })
-          .optional(),
-      }),
+      filter: filterSchema,
     }),
   ])
 );
