@@ -29,6 +29,15 @@ import {
   dataRetentionGetRequestSchema,
   dataRetentionResponseSchema,
   dataRetentionUpdateRequestSchema,
+  dataFilterListRequestSchema,
+  dataFilterListResponseSchema,
+  dataFilterGetRequestSchema,
+  dataFilterGetResponseSchema,
+  dataFilterCreateRequestSchema,
+  dataFilterCreateResponseSchema,
+  dataFilterUpdateRequestSchema,
+  dataFilterUpdateResponseSchema,
+  dataFilterDeleteRequestSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -78,6 +87,13 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   // Admin API tools - Data Retention
   registerDataRetentionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataRetentionUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Data Filters
+  registerDataFilterListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataFilterGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataFilterCreateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataFilterUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataFilterDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   logger.info("GA4 tools registered");
 }
@@ -1471,6 +1487,616 @@ function registerDataRetentionUpdateTool(
           logger.error("ga4.property.dataRetention.update failed", error);
         } else {
           logger.error("ga4.property.dataRetention.update failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list data filters
+ */
+async function executeDataFilterListAPIRequest(
+  property: string,
+  pageSize: number | undefined,
+  pageToken: string | undefined,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof dataFilterListResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "listDataFilters");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const params: { parent: string; pageSize?: number; pageToken?: string } = {
+    parent: property,
+  };
+  if (pageSize !== undefined) {
+    params.pageSize = pageSize;
+  }
+  if (pageToken !== undefined) {
+    params.pageToken = pageToken;
+  }
+  const response = (await (adminClient.properties as { dataFilters?: { list?: (params: { parent: string; pageSize?: number; pageToken?: string }) => Promise<{ data?: unknown }> } }).dataFilters?.list?.(params)) as { data?: unknown };
+  
+  if (!response || !response.data) {
+    throw createPreconditionError("not_found", "Data filters not found", {
+      property,
+    });
+  }
+
+  return validateSchema(dataFilterListResponseSchema, response.data);
+}
+
+/**
+ * Execute data filter list operation
+ */
+async function executeDataFilterList(
+  args: unknown,
+  ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof dataFilterListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.dataFilter.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.dataFilter.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataFilterListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeDataFilterListAPIRequest(
+    validatedRequest.property,
+    validatedRequest.pageSize,
+    validatedRequest.pageToken,
+    ga4Client
+  );
+
+  logger.info("ga4.dataFilter.list completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+    count: validatedResponse.dataFilters.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.dataFilter.list tool
+ */
+function registerDataFilterListTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.dataFilter.list",
+    description:
+      "List data filters for a GA4 property. Data filters include internal traffic filters, bot filters, and exclusion rules.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataFilterList(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.dataFilter.list failed", error);
+        } else {
+          logger.error("ga4.dataFilter.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return data filter if found
+ */
+async function checkDataFilterCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof dataFilterGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for data filter", { cacheKey });
+    return validateSchema(dataFilterGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get data filter
+ */
+async function executeDataFilterGetAPIRequest(
+  property: string,
+  filterId: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof dataFilterGetResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "getDataFilter");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = (await (adminClient.properties as { dataFilters?: { get?: (params: { name: string }) => Promise<{ data?: unknown }> } }).dataFilters?.get?.({
+    name: `${property}/${filterId}`,
+  })) as { data?: unknown };
+  
+  if (!response || !response.data) {
+    throw createPreconditionError("not_found", "Data filter not found", {
+      property,
+      filterId,
+    });
+  }
+
+  return validateSchema(dataFilterGetResponseSchema, response.data);
+}
+
+/**
+ * Execute data filter get operation
+ */
+async function executeDataFilterGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof dataFilterGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.dataFilter.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.dataFilter.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataFilterGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:property:${validatedRequest.property}:dataFilter:${validatedRequest.filterId}`;
+  const cached = await checkDataFilterCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeDataFilterGetAPIRequest(
+    validatedRequest.property,
+    validatedRequest.filterId,
+    ga4Client
+  );
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.dataFilter.get completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+    filterId: validatedRequest.filterId,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.dataFilter.get tool
+ */
+function registerDataFilterGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.dataFilter.get",
+    description:
+      "Get details of a specific data filter for a GA4 property.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataFilterGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.dataFilter.get failed", error);
+        } else {
+          logger.error("ga4.dataFilter.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create data filter
+ */
+async function executeDataFilterCreateAPIRequest(
+  property: string,
+  request: z.infer<typeof dataFilterCreateRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof dataFilterCreateResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "createDataFilter");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = (await (adminClient.properties as { dataFilters?: { create?: (params: { parent: string; dataFilter: unknown }) => Promise<{ data?: unknown }> } }).dataFilters?.create?.({
+    parent: property,
+    dataFilter: {
+      displayName: request.name,
+      type: request.type,
+      filterExpression: request.filterExpression,
+      applyTo: request.applyTo,
+      eventNames: request.eventNames,
+    } as never,
+  })) as { data?: unknown };
+  
+  if (!response || !response.data) {
+    throw createPreconditionError("precheck_failed", "Failed to create data filter", {
+      property,
+    });
+  }
+
+  return validateSchema(dataFilterCreateResponseSchema, response.data);
+}
+
+/**
+ * Execute data filter create operation
+ */
+async function executeDataFilterCreate(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof dataFilterCreateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.dataFilter.create",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.dataFilter.create", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataFilterCreateRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeDataFilterCreateAPIRequest(
+    validatedRequest.property,
+    validatedRequest,
+    ga4Client
+  );
+
+  const cacheKey = `ga4:property:${validatedRequest.property}:dataFilter:${validatedResponse.filterId || "unknown"}`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.dataFilter.create completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+    filterName: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.dataFilter.create tool
+ */
+function registerDataFilterCreateTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.dataFilter.create",
+    description:
+      "Create a new data filter for a GA4 property. Supports internal traffic filters, bot filters, and exclusion rules.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataFilterCreate(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.dataFilter.create failed", error);
+        } else {
+          logger.error("ga4.dataFilter.create failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Build update mask from request
+ */
+function buildDataFilterUpdateMask(
+  request: z.infer<typeof dataFilterUpdateRequestSchema>
+): string {
+  const fields: string[] = [];
+  if (request.displayName !== undefined) {
+    fields.push("displayName");
+  }
+  if (request.state !== undefined) {
+    fields.push("state");
+  }
+  if (request.filterExpression !== undefined) {
+    fields.push("filterExpression");
+  }
+  if (request.applyTo !== undefined) {
+    fields.push("applyTo");
+  }
+  if (request.eventNames !== undefined) {
+    fields.push("eventNames");
+  }
+  return fields.join(",");
+}
+
+/**
+ * Build updates object from request
+ */
+function buildDataFilterUpdates(
+  request: z.infer<typeof dataFilterUpdateRequestSchema>
+): {
+  displayName?: string;
+  state?: string;
+  filterExpression?: unknown;
+  applyTo?: string;
+  eventNames?: string[];
+} {
+  const updates: {
+    displayName?: string;
+    state?: string;
+    filterExpression?: unknown;
+    applyTo?: string;
+    eventNames?: string[];
+  } = {};
+
+  if (request.displayName !== undefined) {
+    updates.displayName = request.displayName;
+  }
+  if (request.state !== undefined) {
+    updates.state = request.state;
+  }
+  if (request.filterExpression !== undefined) {
+    updates.filterExpression = request.filterExpression;
+  }
+  if (request.applyTo !== undefined) {
+    updates.applyTo = request.applyTo;
+  }
+  if (request.eventNames !== undefined) {
+    updates.eventNames = request.eventNames;
+  }
+
+  return updates;
+}
+
+/**
+ * Execute API request to update data filter
+ */
+async function executeDataFilterUpdateAPIRequest(
+  property: string,
+  filterId: string,
+  updateMask: string,
+  updates: {
+    displayName?: string;
+    state?: string;
+    filterExpression?: unknown;
+    applyTo?: string;
+    eventNames?: string[];
+  },
+  ga4Client: GA4Client
+): Promise<z.infer<typeof dataFilterUpdateResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "updateDataFilter");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = (await (adminClient.properties as { dataFilters?: { patch?: (params: { name: string; updateMask: string; dataFilter: unknown }) => Promise<{ data?: unknown }> } }).dataFilters?.patch?.({
+    name: `${property}/${filterId}`,
+    updateMask,
+    dataFilter: updates as never,
+  })) as { data?: unknown };
+  
+  if (!response || !response.data) {
+    throw createPreconditionError("not_found", "Data filter not found", {
+      property,
+      filterId,
+    });
+  }
+
+  return validateSchema(dataFilterUpdateResponseSchema, response.data);
+}
+
+/**
+ * Execute data filter update operation
+ */
+async function executeDataFilterUpdate(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof dataFilterUpdateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.dataFilter.update",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.dataFilter.update", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataFilterUpdateRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const updateMask = buildDataFilterUpdateMask(validatedRequest);
+  const updates = buildDataFilterUpdates(validatedRequest);
+
+  const validatedResponse = await executeDataFilterUpdateAPIRequest(
+    validatedRequest.property,
+    validatedRequest.filterId,
+    updateMask,
+    updates,
+    ga4Client
+  );
+
+  const cacheKey = `ga4:property:${validatedRequest.property}:dataFilter:${validatedRequest.filterId}`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.dataFilter.update completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+    filterId: validatedRequest.filterId,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.dataFilter.update tool
+ */
+function registerDataFilterUpdateTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.dataFilter.update",
+    description:
+      "Update an existing data filter for a GA4 property.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataFilterUpdate(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.dataFilter.update failed", error);
+        } else {
+          logger.error("ga4.dataFilter.update failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to delete data filter
+ */
+async function executeDataFilterDeleteAPIRequest(
+  property: string,
+  filterId: string,
+  ga4Client: GA4Client
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "deleteDataFilter");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  await (adminClient.properties as { dataFilters?: { delete?: (params: { name: string }) => Promise<void> } }).dataFilters?.delete?.({
+    name: `${property}/${filterId}`,
+  });
+}
+
+/**
+ * Execute data filter delete operation
+ */
+async function executeDataFilterDelete(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<void> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.dataFilter.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.dataFilter.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataFilterDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  await executeDataFilterDeleteAPIRequest(
+    validatedRequest.property,
+    validatedRequest.filterId,
+    ga4Client
+  );
+
+  const cacheKey = `ga4:property:${validatedRequest.property}:dataFilter:${validatedRequest.filterId}`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.dataFilter.delete completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+    filterId: validatedRequest.filterId,
+  });
+}
+
+/**
+ * Register ga4.dataFilter.delete tool
+ */
+function registerDataFilterDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.dataFilter.delete",
+    description:
+      "Delete a data filter from a GA4 property.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataFilterDelete(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.dataFilter.delete failed", error);
+        } else {
+          logger.error("ga4.dataFilter.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
