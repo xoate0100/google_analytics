@@ -17,6 +17,14 @@ import {
   containerUpsertResponseSchema,
   containerDeleteRequestSchema,
   containerDeleteResponseSchema,
+  workspaceListRequestSchema,
+  workspaceListResponseSchema,
+  workspaceGetRequestSchema,
+  workspaceGetResponseSchema,
+  workspaceCreateRequestSchema,
+  workspaceCreateResponseSchema,
+  workspaceMergeRequestSchema,
+  workspaceMergeResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -45,6 +53,12 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   registerContainerGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerContainerUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerContainerDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+
+  // Workspace tools
+  registerWorkspaceListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerWorkspaceGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerWorkspaceCreateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerWorkspaceMergeTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -551,6 +565,511 @@ function registerContainerDeleteTool(
           logger.error("gtm.container.delete failed", error);
         } else {
           logger.error("gtm.container.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list workspaces
+ */
+async function executeWorkspaceListAPIRequest(
+  validatedRequest: z.infer<typeof workspaceListRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof workspaceListResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "workspace.list");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const response = await tagManagerClient.accounts.containers.workspaces.list({
+    parent: validatedRequest.parent,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No workspaces found", {});
+  }
+
+  // Transform workspace array to workspaces format
+  const workspacesData = responseData.data as { workspace?: unknown[] };
+  return validateSchema(workspaceListResponseSchema, {
+    workspaces: workspacesData.workspace || [],
+  });
+}
+
+/**
+ * Execute workspace list operation
+ */
+async function executeWorkspaceList(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof workspaceListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.workspace.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { parent: string }).parent.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.workspace.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(workspaceListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const validatedResponse = await executeWorkspaceListAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.workspace.list completed", {
+    opId: envelope.opId,
+    workspaceCount: validatedResponse.workspaces.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.workspace.list tool
+ */
+function registerWorkspaceListTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.workspace.list",
+    description: "List GTM workspaces for a container",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Container path in format accounts/123456/containers/987654",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeWorkspaceList(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.workspace.list failed", error);
+        } else {
+          logger.error("gtm.workspace.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return workspace if found
+ */
+async function checkWorkspaceCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof workspaceGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for workspace", { cacheKey });
+    return validateSchema(workspaceGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get workspace
+ */
+async function executeWorkspaceGetAPIRequest(
+  workspacePath: string,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof workspaceGetResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "workspace.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = await tagManagerClient.accounts.containers.workspaces.get({
+    path: workspacePath,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Workspace not found", {
+      workspace: workspacePath,
+    });
+  }
+
+  return validateSchema(workspaceGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute workspace get operation
+ */
+async function executeWorkspaceGet(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof workspaceGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.workspace.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { path: string }).path.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.workspace.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(workspaceGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const cacheKey = `gtm:workspace:${validatedRequest.path}`;
+  const cached = await checkWorkspaceCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeWorkspaceGetAPIRequest(validatedRequest.path, gtmClient);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("gtm.workspace.get completed", {
+    opId: envelope.opId,
+    workspace: validatedRequest.path,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.workspace.get tool
+ */
+function registerWorkspaceGetTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.workspace.get",
+    description: "Get GTM workspace details by workspace path",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeWorkspaceGet(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.workspace.get failed", error);
+        } else {
+          logger.error("gtm.workspace.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create workspace
+ */
+async function executeWorkspaceCreateAPIRequest(
+  validatedRequest: z.infer<typeof workspaceCreateRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof workspaceCreateResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "workspace.create");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const workspaceData: Record<string, unknown> = {
+    name: validatedRequest.name,
+  };
+  if (validatedRequest.description) {
+    workspaceData.description = validatedRequest.description;
+  }
+
+  const response = await tagManagerClient.accounts.containers.workspaces.create({
+    parent: validatedRequest.parent,
+    requestBody: workspaceData,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Workspace creation failed", {});
+  }
+
+  return validateSchema(workspaceCreateResponseSchema, responseData.data);
+}
+
+/**
+ * Execute workspace create operation
+ */
+async function executeWorkspaceCreate(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof workspaceCreateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.workspace.create",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { parent: string }).parent.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.workspace.create", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(workspaceCreateRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const validatedResponse = await executeWorkspaceCreateAPIRequest(validatedRequest, gtmClient);
+
+  // Post-check: verify workspace was created
+  const workspacePath = `${validatedResponse.accountId ? `accounts/${validatedResponse.accountId}` : validatedRequest.parent}/workspaces/${validatedResponse.workspaceId}`;
+  const cacheKey = `gtm:workspace:${workspacePath}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("gtm.workspace.create completed", {
+    opId: envelope.opId,
+    workspace: workspacePath,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.workspace.create tool
+ */
+function registerWorkspaceCreateTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.workspace.create",
+    description: "Create GTM workspace",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Container path in format accounts/123456/containers/987654",
+        },
+        name: {
+          type: "string",
+          description: "Workspace name",
+        },
+        description: {
+          type: "string",
+          description: "Workspace description",
+        },
+      },
+      required: ["parent", "name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeWorkspaceCreate(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.workspace.create failed", error);
+        } else {
+          logger.error("gtm.workspace.create failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute workspace merge operation with rollback
+ */
+async function executeWorkspaceMerge(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof workspaceMergeResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.workspace.merge",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { path: string }).path.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.workspace.merge", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(workspaceMergeRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  // Pre-check: verify both workspaces exist
+  await gtmClient.checkRateLimit("gtm", "workspace.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  try {
+    await tagManagerClient.accounts.containers.workspaces.get({ path: validatedRequest.path });
+    await tagManagerClient.accounts.containers.workspaces.get({
+      path: validatedRequest.sourceWorkspacePath,
+    });
+  } catch {
+    throw createPreconditionError("not_found", "One or both workspaces not found", {
+      workspace: validatedRequest.path,
+      sourceWorkspace: validatedRequest.sourceWorkspacePath,
+    });
+  }
+
+  // Merge workspaces
+  await gtmClient.checkRateLimit("gtm", "workspace.merge");
+  let mergedWorkspace;
+  try {
+    const workspaces = tagManagerClient.accounts.containers.workspaces as unknown as {
+      merge?: (params: {
+        path: string;
+        sourceWorkspacePath: string;
+      }) => Promise<{ data?: unknown }>;
+    };
+
+    if (!workspaces.merge) {
+      throw createPreconditionError("not_found", "Workspace merge API not available", {});
+    }
+
+    const response = await workspaces.merge({
+      path: validatedRequest.path,
+      sourceWorkspacePath: validatedRequest.sourceWorkspacePath,
+    });
+    const responseData = response as { data?: unknown };
+    if (responseData.data) {
+      mergedWorkspace = validateSchema(workspaceGetResponseSchema, responseData.data);
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Workspace merge failed", error);
+    } else {
+      logger.error("Workspace merge failed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Post-check: verify merge succeeded
+  if (mergedWorkspace) {
+    const cacheKey = `gtm:workspace:${validatedRequest.path}`;
+    await cache.invalidate(cacheKey);
+    await cache.set(cacheKey, mergedWorkspace, 300000);
+  }
+
+  // Invalidate source workspace cache
+  const sourceCacheKey = `gtm:workspace:${validatedRequest.sourceWorkspacePath}`;
+  await cache.delete(sourceCacheKey);
+
+  logger.info("gtm.workspace.merge completed", {
+    opId: envelope.opId,
+    workspace: validatedRequest.path,
+    sourceWorkspace: validatedRequest.sourceWorkspacePath,
+  });
+
+  return {
+    success: true,
+    path: validatedRequest.path,
+    mergedWorkspace,
+  };
+}
+
+/**
+ * Register gtm.workspace.merge tool
+ */
+function registerWorkspaceMergeTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.workspace.merge",
+    description: "Merge source workspace into target workspace with conflict resolution",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Target workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+        sourceWorkspacePath: {
+          type: "string",
+          description: "Source workspace path in format accounts/123456/containers/987654/workspaces/222222",
+        },
+      },
+      required: ["path", "sourceWorkspacePath"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeWorkspaceMerge(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.workspace.merge failed", error);
+        } else {
+          logger.error("gtm.workspace.merge failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

@@ -103,3 +103,86 @@ export const containerDeleteResponseSchema = z.object({
   path: z.string(),
 });
 
+/**
+ * Workspace path schema (format: accounts/123456/containers/987654/workspaces/111111)
+ */
+export const workspacePathSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+\/workspaces\/\d+$/,
+    "Workspace path must be in format accounts/123456/containers/987654/workspaces/111111"
+  );
+
+/**
+ * Workspace List Request Schema
+ */
+export const workspaceListRequestSchema = z.object({
+  parent: containerPathSchema,
+});
+
+/**
+ * Workspace List Response Schema
+ */
+export const workspaceListResponseSchema = z.object({
+  workspaces: z.array(
+    z.object({
+      accountId: z.string().optional(),
+      containerId: z.string().optional(),
+      workspaceId: z.string().optional(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      fingerprint: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Workspace Get Request Schema
+ */
+export const workspaceGetRequestSchema = z.object({
+  path: workspacePathSchema,
+});
+
+/**
+ * Workspace Get Response Schema
+ */
+export const workspaceGetResponseSchema = z.object({
+  accountId: z.string().optional(),
+  containerId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  fingerprint: z.string().optional(),
+});
+
+/**
+ * Workspace Create Request Schema
+ */
+export const workspaceCreateRequestSchema = z.object({
+  parent: containerPathSchema,
+  name: z.string().min(1, "Workspace name is required"),
+  description: z.string().optional(),
+});
+
+/**
+ * Workspace Create Response Schema
+ */
+export const workspaceCreateResponseSchema = workspaceGetResponseSchema;
+
+/**
+ * Workspace Merge Request Schema
+ */
+export const workspaceMergeRequestSchema = z.object({
+  path: workspacePathSchema,
+  sourceWorkspacePath: workspacePathSchema,
+});
+
+/**
+ * Workspace Merge Response Schema
+ */
+export const workspaceMergeResponseSchema = z.object({
+  success: z.boolean(),
+  path: z.string(),
+  mergedWorkspace: workspaceGetResponseSchema.optional(),
+});
+
