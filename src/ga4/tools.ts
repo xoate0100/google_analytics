@@ -20,6 +20,9 @@ import {
   runRealtimeReportResponseSchema,
   measurementRequestSchema,
   measurementValidationResponseSchema,
+  propertySettingsGetRequestSchema,
+  propertySettingsResponseSchema,
+  propertySettingsUpdateRequestSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -57,6 +60,10 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
     registerMeasurementSendTool(bootstrap, options.measurementClient, logger);
     registerMeasurementValidateTool(bootstrap, options.measurementClient, logger);
   }
+
+  // Admin API tools - Property Settings
+  registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerPropertySettingsUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   logger.info("GA4 tools registered");
 }
@@ -702,6 +709,208 @@ function registerMeasurementValidateTool(
           logger.error("ga4.measurement.validate failed", error);
         } else {
           logger.error("ga4.measurement.validate failed", new Error(String(error)));
+        }
+        throw error;
+      }
+    },
+  });
+}
+
+/**
+ * Execute property settings get operation
+ */
+async function executePropertySettingsGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof propertySettingsResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.property.settings.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.property.settings.get", { opId: envelope.opId });
+
+  // Validate input
+  const validatedRequest = validateSchema(propertySettingsGetRequestSchema, args);
+
+  // Pre-check: verify capability
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Check cache
+  const cacheKey = `ga4:property:${validatedRequest.property}:settings`;
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for property settings", { cacheKey });
+    return validateSchema(propertySettingsResponseSchema, cached);
+  }
+
+  // Check rate limit
+  await ga4Client.checkRateLimit("ga4", "getProperty");
+
+  // Get property settings
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = await adminClient.properties.get({
+    name: validatedRequest.property,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Property not found", {
+      property: validatedRequest.property,
+    });
+  }
+
+  const validatedResponse = validateSchema(propertySettingsResponseSchema, responseData.data);
+
+  // Cache response (TTL: 5 minutes)
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.property.settings.get completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.property.settings.get tool
+ */
+function registerPropertySettingsGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.property.settings.get",
+    description:
+      "Get GA4 property settings including currency, timezone, display name, and industry category.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executePropertySettingsGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.property.settings.get failed", error);
+        } else {
+          logger.error("ga4.property.settings.get failed", new Error(String(error)));
+        }
+        throw error;
+      }
+    },
+  });
+}
+
+/**
+ * Execute property settings update operation
+ */
+async function executePropertySettingsUpdate(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof propertySettingsResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.property.settings.update",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.property.settings.update", { opId: envelope.opId });
+
+  // Validate input
+  const validatedRequest = validateSchema(propertySettingsUpdateRequestSchema, args);
+
+  // Pre-check: verify capability
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Check rate limit
+  await ga4Client.checkRateLimit("ga4", "updateProperty");
+
+  // Update property settings
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const updateMask = Object.keys(validatedRequest)
+    .filter((key) => key !== "property" && validatedRequest[key as keyof typeof validatedRequest] !== undefined)
+    .join(",");
+
+  const response = await adminClient.properties.patch({
+    name: validatedRequest.property,
+    updateMask,
+    requestBody: {
+      displayName: validatedRequest.displayName,
+      currencyCode: validatedRequest.currencyCode,
+      timeZone: validatedRequest.timeZone,
+      industryCategory: validatedRequest.industryCategory,
+    } as never,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Property not found", {
+      property: validatedRequest.property,
+    });
+  }
+
+  const validatedResponse = validateSchema(propertySettingsResponseSchema, responseData.data);
+
+  // Invalidate cache
+  const cacheKey = `ga4:property:${validatedRequest.property}:settings`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.property.settings.update completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.property.settings.update tool
+ */
+function registerPropertySettingsUpdateTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.property.settings.update",
+    description:
+      "Update GA4 property settings including currency, timezone, display name, and industry category.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executePropertySettingsUpdate(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.property.settings.update failed", error);
+        } else {
+          logger.error("ga4.property.settings.update failed", new Error(String(error)));
         }
         throw error;
       }

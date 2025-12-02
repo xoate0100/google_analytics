@@ -462,3 +462,36 @@ export const measurementValidationResponseSchema = z.object({
   ),
 });
 
+/**
+ * Property Settings Get Request Schema
+ */
+export const propertySettingsGetRequestSchema = z.object({
+  property: propertyIdSchema,
+});
+
+/**
+ * Property Settings Response Schema
+ */
+export const propertySettingsResponseSchema = z.object({
+  name: z.string(),
+  displayName: z.string().optional(),
+  currencyCode: z.string().optional(),
+  timeZone: z.string().optional(),
+  industryCategory: z.string().optional(),
+  serviceLevel: z.enum(["ANALYTICS_360", "GOOGLE_ANALYTICS"]).optional(),
+  account: z.string().optional(),
+  createTime: z.string().optional(),
+  updateTime: z.string().optional(),
+});
+
+/**
+ * Property Settings Update Request Schema
+ */
+export const propertySettingsUpdateRequestSchema = z.object({
+  property: propertyIdSchema,
+  displayName: z.string().optional(),
+  currencyCode: z.string().optional(),
+  timeZone: z.string().optional(),
+  industryCategory: z.string().optional(),
+});
+
