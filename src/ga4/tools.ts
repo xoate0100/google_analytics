@@ -717,6 +717,45 @@ function registerMeasurementValidateTool(
 }
 
 /**
+ * Check cache and return property settings if found
+ */
+async function checkPropertySettingsCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof propertySettingsResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for property settings", { cacheKey });
+    return validateSchema(propertySettingsResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get property settings
+ */
+async function executePropertySettingsAPIRequest(
+  property: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof propertySettingsResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "getProperty");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = await adminClient.properties.get({
+    name: property,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Property not found", {
+      property,
+    });
+  }
+
+  return validateSchema(propertySettingsResponseSchema, responseData.data);
+}
+
+/**
  * Execute property settings get operation
  */
 async function executePropertySettingsGet(
@@ -735,10 +774,8 @@ async function executePropertySettingsGet(
 
   logger.info("Executing ga4.property.settings.get", { opId: envelope.opId });
 
-  // Validate input
   const validatedRequest = validateSchema(propertySettingsGetRequestSchema, args);
 
-  // Pre-check: verify capability
   const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
   if (!hasCapability) {
     throw createPreconditionError(
@@ -748,33 +785,14 @@ async function executePropertySettingsGet(
     );
   }
 
-  // Check cache
   const cacheKey = `ga4:property:${validatedRequest.property}:settings`;
-  const cached = await cache.get<unknown>(cacheKey);
+  const cached = await checkPropertySettingsCache(cacheKey, cache, logger);
   if (cached) {
-    logger.debug("Cache hit for property settings", { cacheKey });
-    return validateSchema(propertySettingsResponseSchema, cached);
+    return cached;
   }
 
-  // Check rate limit
-  await ga4Client.checkRateLimit("ga4", "getProperty");
+  const validatedResponse = await executePropertySettingsAPIRequest(validatedRequest.property, ga4Client);
 
-  // Get property settings
-  const adminClient = ga4Client.getAnalyticsAdminClient();
-  const response = await adminClient.properties.get({
-    name: validatedRequest.property,
-  });
-
-  const responseData = response as { data?: unknown };
-  if (!responseData.data) {
-    throw createPreconditionError("not_found", "Property not found", {
-      property: validatedRequest.property,
-    });
-  }
-
-  const validatedResponse = validateSchema(propertySettingsResponseSchema, responseData.data);
-
-  // Cache response (TTL: 5 minutes)
   await cache.set(cacheKey, validatedResponse, 300000);
 
   logger.info("ga4.property.settings.get completed", {
@@ -816,6 +834,83 @@ function registerPropertySettingsGetTool(
 }
 
 /**
+ * Build update mask from request
+ */
+function buildUpdateMask(
+  request: z.infer<typeof propertySettingsUpdateRequestSchema>
+): string {
+  return Object.keys(request)
+    .filter((key) => key !== "property" && request[key as keyof typeof request] !== undefined)
+    .join(",");
+}
+
+/**
+ * Execute API request to update property settings
+ */
+async function executePropertySettingsUpdateAPIRequest(
+  property: string,
+  updateMask: string,
+  updates: {
+    displayName?: string;
+    currencyCode?: string;
+    timeZone?: string;
+    industryCategory?: string;
+  },
+  ga4Client: GA4Client
+): Promise<z.infer<typeof propertySettingsResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "updateProperty");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = await adminClient.properties.patch({
+    name: property,
+    updateMask,
+    requestBody: updates as never,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Property not found", {
+      property,
+    });
+  }
+
+  return validateSchema(propertySettingsResponseSchema, responseData.data);
+}
+
+/**
+ * Build updates object from request
+ */
+function buildPropertySettingsUpdates(
+  request: z.infer<typeof propertySettingsUpdateRequestSchema>
+): {
+  displayName?: string;
+  currencyCode?: string;
+  timeZone?: string;
+  industryCategory?: string;
+} {
+  const updates: {
+    displayName?: string;
+    currencyCode?: string;
+    timeZone?: string;
+    industryCategory?: string;
+  } = {};
+
+  if (request.displayName !== undefined) {
+    updates.displayName = request.displayName;
+  }
+  if (request.currencyCode !== undefined) {
+    updates.currencyCode = request.currencyCode;
+  }
+  if (request.timeZone !== undefined) {
+    updates.timeZone = request.timeZone;
+  }
+  if (request.industryCategory !== undefined) {
+    updates.industryCategory = request.industryCategory;
+  }
+
+  return updates;
+}
+
+/**
  * Execute property settings update operation
  */
 async function executePropertySettingsUpdate(
@@ -834,10 +929,8 @@ async function executePropertySettingsUpdate(
 
   logger.info("Executing ga4.property.settings.update", { opId: envelope.opId });
 
-  // Validate input
   const validatedRequest = validateSchema(propertySettingsUpdateRequestSchema, args);
 
-  // Pre-check: verify capability
   const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
   if (!hasCapability) {
     throw createPreconditionError(
@@ -847,36 +940,15 @@ async function executePropertySettingsUpdate(
     );
   }
 
-  // Check rate limit
-  await ga4Client.checkRateLimit("ga4", "updateProperty");
-
-  // Update property settings
-  const adminClient = ga4Client.getAnalyticsAdminClient();
-  const updateMask = Object.keys(validatedRequest)
-    .filter((key) => key !== "property" && validatedRequest[key as keyof typeof validatedRequest] !== undefined)
-    .join(",");
-
-  const response = await adminClient.properties.patch({
-    name: validatedRequest.property,
+  const updateMask = buildUpdateMask(validatedRequest);
+  const updates = buildPropertySettingsUpdates(validatedRequest);
+  const validatedResponse = await executePropertySettingsUpdateAPIRequest(
+    validatedRequest.property,
     updateMask,
-    requestBody: {
-      displayName: validatedRequest.displayName,
-      currencyCode: validatedRequest.currencyCode,
-      timeZone: validatedRequest.timeZone,
-      industryCategory: validatedRequest.industryCategory,
-    } as never,
-  });
+    updates,
+    ga4Client
+  );
 
-  const responseData = response as { data?: unknown };
-  if (!responseData.data) {
-    throw createPreconditionError("not_found", "Property not found", {
-      property: validatedRequest.property,
-    });
-  }
-
-  const validatedResponse = validateSchema(propertySettingsResponseSchema, responseData.data);
-
-  // Invalidate cache
   const cacheKey = `ga4:property:${validatedRequest.property}:settings`;
   await cache.delete(cacheKey);
 
