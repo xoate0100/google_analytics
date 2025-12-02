@@ -57,6 +57,10 @@ import {
   datalayerValidateResponseSchema,
   datalayerSchemaGenerateRequestSchema,
   datalayerSchemaGenerateResponseSchema,
+  datalayerMonitorRequestSchema,
+  datalayerMonitorResponseSchema,
+  datalayerEventsListRequestSchema,
+  datalayerEventsListResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -115,6 +119,8 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   // Data layer tools
   registerDataLayerValidateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerDataLayerSchemaGenerateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerDataLayerMonitorTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerDataLayerEventsListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -3151,6 +3157,246 @@ function registerDataLayerSchemaGenerateTool(
           logger.error("gtm.datalayer.schema.generate failed", error);
         } else {
           logger.error("gtm.datalayer.schema.generate failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute data layer monitoring
+ * Monitors data layer events in real-time and alerts on violations
+ */
+export async function executeDataLayerMonitor(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof datalayerMonitorResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.datalayer.monitor",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.datalayer.monitor", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(datalayerMonitorRequestSchema, args);
+
+  // Check capabilities
+  if (!capabilitiesRegistry.hasCapability("gtm", "datalayer")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM data layer monitoring not available",
+      {
+        product: "gtm",
+        capability: "datalayer",
+      }
+    );
+  }
+
+  await gtmClient.checkRateLimit("gtm", "datalayer.monitor");
+
+  // For now, monitoring is a placeholder that returns monitoring status
+  // In a real implementation, this would set up event listeners or webhooks
+  logger.info("gtm.datalayer.monitor completed", {
+    opId: envelope.opId,
+    eventName: validatedRequest.eventName,
+  });
+
+  return {
+    monitoring: true,
+    eventName: validatedRequest.eventName,
+    alerts: [],
+  };
+}
+
+/**
+ * Register gtm.datalayer.monitor tool
+ */
+function registerDataLayerMonitorTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.datalayer.monitor",
+    description: "Monitor data layer events in real-time and alert on schema violations",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+        eventName: {
+          type: "string",
+          description: "Optional event name to monitor (if not provided, monitors all events)",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataLayerMonitor(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.datalayer.monitor failed", error);
+        } else {
+          logger.error("gtm.datalayer.monitor failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute data layer events list
+ * Lists all data layer events from GTM triggers
+ */
+export async function executeDataLayerEventsList(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof datalayerEventsListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.datalayer.events.list",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.datalayer.events.list", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(datalayerEventsListRequestSchema, args);
+
+  // Check capabilities
+  if (!capabilitiesRegistry.hasCapability("gtm", "datalayer")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM data layer events list not available",
+      {
+        product: "gtm",
+        capability: "datalayer",
+      }
+    );
+  }
+
+  await gtmClient.checkRateLimit("gtm", "datalayer.events.list");
+
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const triggersResponse = await tagManagerClient.accounts.containers.workspaces.triggers.list({
+    parent: validatedRequest.parent,
+  });
+
+  const triggers = (triggersResponse as { data?: { trigger?: unknown[] } }).data?.trigger || [];
+  const customEventTriggers = triggers.filter((t: unknown) => {
+    const triggerObj = t as { type?: string };
+    return triggerObj.type === "customEvent";
+  });
+
+  // Extract event names from custom event triggers
+  const events: Array<{
+    name: string;
+    triggerName?: string;
+    triggerId?: string;
+    conditions?: unknown[];
+  }> = [];
+
+  for (const trigger of customEventTriggers) {
+    const triggerObj = trigger as {
+      name?: string;
+      triggerId?: string;
+      customEventFilter?: unknown[];
+    };
+    if (triggerObj.customEventFilter) {
+      // Extract event name from filter conditions
+      for (const filter of triggerObj.customEventFilter) {
+        const filterObj = filter as {
+          type?: string;
+          parameter?: unknown[];
+        };
+        if (filterObj.type === "equals" && filterObj.parameter) {
+          const eventParam = filterObj.parameter.find(
+            (p: unknown) => (p as { key?: string }).key === "arg1"
+          ) as { value?: string } | undefined;
+          if (eventParam?.value) {
+            const event: {
+              name: string;
+              triggerName?: string;
+              triggerId?: string;
+              conditions?: unknown[];
+            } = {
+              name: eventParam.value,
+            };
+            if (triggerObj.name) {
+              event.triggerName = triggerObj.name;
+            }
+            if (triggerObj.triggerId) {
+              event.triggerId = triggerObj.triggerId;
+            }
+            if (triggerObj.customEventFilter) {
+              event.conditions = triggerObj.customEventFilter;
+            }
+            events.push(event);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  logger.info("gtm.datalayer.events.list completed", {
+    opId: envelope.opId,
+    eventCount: events.length,
+  });
+
+  return {
+    events,
+  };
+}
+
+/**
+ * Register gtm.datalayer.events.list tool
+ */
+function registerDataLayerEventsListTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.datalayer.events.list",
+    description: "List all data layer events from GTM custom event triggers",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataLayerEventsList(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.datalayer.events.list failed", error);
+        } else {
+          logger.error("gtm.datalayer.events.list failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

@@ -550,3 +550,49 @@ export const datalayerSchemaGenerateResponseSchema = z.object({
   ),
 });
 
+/**
+ * Data Layer Monitor Request Schema
+ */
+export const datalayerMonitorRequestSchema = z.object({
+  parent: workspacePathSchema,
+  eventName: z.string().optional(), // Optional event name to monitor
+});
+
+/**
+ * Data Layer Monitor Response Schema
+ */
+export const datalayerMonitorResponseSchema = z.object({
+  monitoring: z.boolean(),
+  eventName: z.string().optional(),
+  alerts: z
+    .array(
+      z.object({
+        type: z.enum(["schema_violation", "missing_field", "type_mismatch"]),
+        message: z.string(),
+        timestamp: z.string().optional(),
+      })
+    )
+    .optional(),
+});
+
+/**
+ * Data Layer Events List Request Schema
+ */
+export const datalayerEventsListRequestSchema = z.object({
+  parent: workspacePathSchema,
+});
+
+/**
+ * Data Layer Events List Response Schema
+ */
+export const datalayerEventsListResponseSchema = z.object({
+  events: z.array(
+    z.object({
+      name: z.string(),
+      triggerName: z.string().optional(),
+      triggerId: z.string().optional(),
+      conditions: z.array(z.unknown()).optional(),
+    })
+  ),
+});
+
