@@ -56,6 +56,12 @@ import {
   customMetricUpsertResponseSchema,
   customMetricDeleteRequestSchema,
   customMetricDeleteResponseSchema,
+  eventListRequestSchema,
+  eventListResponseSchema,
+  eventGetRequestSchema,
+  eventGetResponseSchema,
+  eventUpsertRequestSchema,
+  eventUpsertResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -137,6 +143,11 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerCustomMetricGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerCustomMetricUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerCustomMetricDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Events
+  registerEventListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerEventGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerEventUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -3376,6 +3387,477 @@ function registerCustomMetricDeleteTool(
           logger.error("ga4.customMetric.delete failed", error);
         } else {
           logger.error("ga4.customMetric.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list events
+ */
+async function executeEventListAPIRequest(
+  validatedRequest: z.infer<typeof eventListRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof eventListResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "event.list");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const params: Record<string, unknown> = {
+    parent: validatedRequest.parent,
+  };
+  if (validatedRequest.pageSize) {
+    params.pageSize = validatedRequest.pageSize;
+  }
+  if (validatedRequest.pageToken) {
+    params.pageToken = validatedRequest.pageToken;
+  }
+
+  const eventCreateRules = (
+    adminClient.properties as {
+      eventCreateRules?: {
+        list: (params: Record<string, unknown>) => Promise<{ data?: unknown }>;
+      };
+    }
+  ).eventCreateRules;
+
+  if (!eventCreateRules) {
+    throw createPreconditionError("not_found", "Event create rules API not available", {});
+  }
+
+  const response = await eventCreateRules.list(params);
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No events found", {});
+  }
+
+  // Transform eventCreateRules to events format
+  const rulesData = responseData.data as { eventCreateRules?: unknown[]; nextPageToken?: string };
+  return validateSchema(eventListResponseSchema, {
+    events: rulesData.eventCreateRules || [],
+    nextPageToken: rulesData.nextPageToken,
+  });
+}
+
+/**
+ * Execute event list operation
+ */
+async function executeEventList(
+  args: unknown,
+  ga4Client: GA4Client,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof eventListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.event.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { parent: string }).parent },
+  });
+
+  logger.info("Executing ga4.event.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(eventListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeEventListAPIRequest(validatedRequest, ga4Client);
+
+  logger.info("ga4.event.list completed", {
+    opId: envelope.opId,
+    eventCount: validatedResponse.events.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.event.list tool
+ */
+function registerEventListTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.event.list",
+    description: "List event definitions for a GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        pageSize: {
+          type: "number",
+          description: "Maximum number of events to return (1-200)",
+        },
+        pageToken: {
+          type: "string",
+          description: "Token for pagination",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeEventList(args, ga4Client, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.event.list failed", error);
+        } else {
+          logger.error("ga4.event.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return event if found
+ */
+async function checkEventCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof eventGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for event", { cacheKey });
+    return validateSchema(eventGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get event
+ */
+async function executeEventGetAPIRequest(
+  eventName: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof eventGetResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "event.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const eventCreateRules = (
+    adminClient.properties as {
+      eventCreateRules?: {
+        get: (params: { name: string }) => Promise<{ data?: unknown }>;
+      };
+    }
+  ).eventCreateRules;
+
+  if (!eventCreateRules) {
+    throw createPreconditionError("not_found", "Event create rules API not available", {
+      event: eventName,
+    });
+  }
+
+  const response = await eventCreateRules.get({
+    name: eventName,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Event not found", {
+      event: eventName,
+    });
+  }
+
+  return validateSchema(eventGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute event get operation
+ */
+async function executeEventGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof eventGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.event.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/eventCreateRules/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.event.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(eventGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:event:${validatedRequest.name}`;
+  const cached = await checkEventCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeEventGetAPIRequest(validatedRequest.name, ga4Client);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.event.get completed", {
+    opId: envelope.opId,
+    event: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.event.get tool
+ */
+function registerEventGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.event.get",
+    description: "Get GA4 event definition by event ID",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Event create rule ID in format properties/123456789/eventCreateRules/event_name",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeEventGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.event.get failed", error);
+        } else {
+          logger.error("ga4.event.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create/update event
+ */
+async function executeEventUpsertAPIRequest(
+  validatedRequest: z.infer<typeof eventUpsertRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof eventUpsertResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "event.upsert");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const eventData: Record<string, unknown> = {
+    eventName: validatedRequest.eventName,
+  };
+  if (validatedRequest.createEvent !== undefined) {
+    eventData.createEvent = validatedRequest.createEvent;
+  }
+  if (validatedRequest.matchingCondition) {
+    eventData.matchingCondition = validatedRequest.matchingCondition;
+  }
+
+  // Check if event exists by trying to get it
+  const eventName = `${validatedRequest.parent}/eventCreateRules/${validatedRequest.eventName}`;
+  const eventCreateRules = (
+    adminClient.properties as {
+      eventCreateRules?: {
+        get: (params: { name: string }) => Promise<{ data?: unknown }>;
+        patch: (params: {
+          name: string;
+          updateMask?: string;
+          requestBody?: Record<string, unknown>;
+        }) => Promise<{ data?: unknown }>;
+        create: (params: { requestBody?: Record<string, unknown> }) => Promise<{ data?: unknown }>;
+      };
+    }
+  ).eventCreateRules;
+
+  if (!eventCreateRules) {
+    throw createPreconditionError("not_found", "Event create rules API not available", {});
+  }
+
+  let response;
+  try {
+    await eventCreateRules.get({ name: eventName });
+    // Event exists, update it
+    response = await eventCreateRules.patch({
+      name: eventName,
+      updateMask: "createEvent,matchingCondition",
+      requestBody: eventData,
+    });
+  } catch {
+    // Event doesn't exist, create it
+    eventData.parent = validatedRequest.parent;
+    response = await eventCreateRules.create({
+      requestBody: eventData,
+    });
+  }
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Event operation failed", {});
+  }
+
+  return validateSchema(eventUpsertResponseSchema, responseData.data);
+}
+
+/**
+ * Execute event upsert operation with pre-check for conflicts
+ */
+async function executeEventUpsert(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof eventUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.event.upsert",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { parent: string }).parent,
+    },
+  });
+
+  logger.info("Executing ga4.event.upsert", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(eventUpsertRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Pre-check: verify no event name conflicts
+  const eventName = `${validatedRequest.parent}/eventCreateRules/${validatedRequest.eventName}`;
+  try {
+    await ga4Client.checkRateLimit("ga4", "event.get");
+    const adminClient = ga4Client.getAnalyticsAdminClient();
+    const eventCreateRules = (
+      adminClient.properties as {
+        eventCreateRules?: {
+          get: (params: { name: string }) => Promise<{ data?: unknown }>;
+        };
+      }
+    ).eventCreateRules;
+    if (eventCreateRules) {
+      await eventCreateRules.get({ name: eventName });
+      // Event exists, will update
+    }
+  } catch {
+    // Event doesn't exist, will create
+  }
+
+  const validatedResponse = await executeEventUpsertAPIRequest(validatedRequest, ga4Client);
+
+  // Post-check: verify event was created/updated
+  const cacheKey = `ga4:event:${validatedResponse.name}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.event.upsert completed", {
+    opId: envelope.opId,
+    event: validatedResponse.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.event.upsert tool
+ */
+function registerEventUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.event.upsert",
+    description: "Create or update GA4 event definition with custom parameters",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        eventName: {
+          type: "string",
+          description: "Event name",
+        },
+        createEvent: {
+          type: "boolean",
+          description: "Whether to create the event",
+        },
+        matchingCondition: {
+          type: "object",
+          properties: {
+            field: {
+              type: "string",
+              description: "Field to match",
+            },
+            comparisonType: {
+              type: "string",
+              description: "Comparison type",
+            },
+            value: {
+              type: "string",
+              description: "Value to match",
+            },
+          },
+          description: "Matching condition for event creation",
+        },
+      },
+      required: ["parent", "eventName"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeEventUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.event.upsert failed", error);
+        } else {
+          logger.error("ga4.event.upsert failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

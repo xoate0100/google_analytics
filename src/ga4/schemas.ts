@@ -979,6 +979,90 @@ export const customMetricDeleteResponseSchema = z.object({
 });
 
 /**
+ * Event Create Rule ID schema (format: properties/123456789/eventCreateRules/event_name)
+ */
+const eventCreateRuleIdSchema = z
+  .string()
+  .regex(
+    /^properties\/\d+\/eventCreateRules\/[a-zA-Z0-9_]+$/,
+    "Event create rule ID must be in format properties/123456789/eventCreateRules/event_name"
+  );
+
+/**
+ * Event List Request Schema
+ */
+export const eventListRequestSchema = z.object({
+  parent: propertyIdSchema,
+  pageSize: z.number().int().positive().max(200).optional(),
+  pageToken: z.string().optional(),
+});
+
+/**
+ * Event List Response Schema
+ */
+export const eventListResponseSchema = z.object({
+  events: z.array(
+    z.object({
+      name: z.string(),
+      eventName: z.string().optional(),
+      createEvent: z.boolean().optional(),
+      matchingCondition: z
+        .object({
+          field: z.string().optional(),
+          comparisonType: z.string().optional(),
+          value: z.string().optional(),
+        })
+        .optional(),
+    })
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+/**
+ * Event Get Request Schema
+ */
+export const eventGetRequestSchema = z.object({
+  name: eventCreateRuleIdSchema,
+});
+
+/**
+ * Event Get Response Schema
+ */
+export const eventGetResponseSchema = z.object({
+  name: z.string(),
+  eventName: z.string().optional(),
+  createEvent: z.boolean().optional(),
+  matchingCondition: z
+    .object({
+      field: z.string().optional(),
+      comparisonType: z.string().optional(),
+      value: z.string().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * Event Upsert Request Schema
+ */
+export const eventUpsertRequestSchema = z.object({
+  parent: propertyIdSchema,
+  eventName: z.string().min(1, "Event name is required"),
+  createEvent: z.boolean().optional(),
+  matchingCondition: z
+    .object({
+      field: z.string().optional(),
+      comparisonType: z.string().optional(),
+      value: z.string().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * Event Upsert Response Schema
+ */
+export const eventUpsertResponseSchema = eventGetResponseSchema;
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({
