@@ -1295,6 +1295,102 @@ export const audienceDeleteResponseSchema = z.object({
 });
 
 /**
+ * Attribution Settings ID schema (format: properties/123456789/attributionSettings)
+ */
+const attributionSettingsIdSchema = z
+  .string()
+  .regex(
+    /^properties\/\d+\/attributionSettings$/,
+    "Attribution settings ID must be in format properties/123456789/attributionSettings"
+  );
+
+/**
+ * Attribution Get Request Schema
+ */
+export const attributionGetRequestSchema = z.object({
+  name: attributionSettingsIdSchema,
+});
+
+/**
+ * Attribution Get Response Schema
+ */
+export const attributionGetResponseSchema = z.object({
+  name: z.string(),
+  acquisitionConversionEventLookbackWindow: z
+    .enum([
+      "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_UNSPECIFIED",
+      "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_7_DAYS",
+      "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_30_DAYS",
+      "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_60_DAYS",
+      "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_90_DAYS",
+    ])
+    .optional(),
+  attributionLookbackWindow: z
+    .enum([
+      "ATTRIBUTION_LOOKBACK_WINDOW_UNSPECIFIED",
+      "ATTRIBUTION_LOOKBACK_WINDOW_7_DAYS",
+      "ATTRIBUTION_LOOKBACK_WINDOW_30_DAYS",
+      "ATTRIBUTION_LOOKBACK_WINDOW_60_DAYS",
+      "ATTRIBUTION_LOOKBACK_WINDOW_90_DAYS",
+    ])
+    .optional(),
+  attributionModel: z
+    .enum([
+      "ATTRIBUTION_MODEL_UNSPECIFIED",
+      "CROSS_CHANNEL_LAST_CLICK",
+      "CROSS_CHANNEL_DATA_DRIVEN",
+      "CROSS_CHANNEL_FIRST_CLICK",
+      "CROSS_CHANNEL_LINEAR",
+      "CROSS_CHANNEL_POSITION_BASED",
+      "CROSS_CHANNEL_TIME_DECAY",
+      "ADS_PREFERRED_LAST_CLICK",
+    ])
+    .optional(),
+});
+
+/**
+ * Attribution Update Request Schema
+ */
+export const attributionUpdateRequestSchema = z.object({
+  name: attributionSettingsIdSchema,
+  acquisitionConversionEventLookbackWindow: z
+    .enum([
+      "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_UNSPECIFIED",
+      "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_7_DAYS",
+      "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_30_DAYS",
+      "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_60_DAYS",
+      "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_90_DAYS",
+    ])
+    .optional(),
+  attributionLookbackWindow: z
+    .enum([
+      "ATTRIBUTION_LOOKBACK_WINDOW_UNSPECIFIED",
+      "ATTRIBUTION_LOOKBACK_WINDOW_7_DAYS",
+      "ATTRIBUTION_LOOKBACK_WINDOW_30_DAYS",
+      "ATTRIBUTION_LOOKBACK_WINDOW_60_DAYS",
+      "ATTRIBUTION_LOOKBACK_WINDOW_90_DAYS",
+    ])
+    .optional(),
+  attributionModel: z
+    .enum([
+      "ATTRIBUTION_MODEL_UNSPECIFIED",
+      "CROSS_CHANNEL_LAST_CLICK",
+      "CROSS_CHANNEL_DATA_DRIVEN",
+      "CROSS_CHANNEL_FIRST_CLICK",
+      "CROSS_CHANNEL_LINEAR",
+      "CROSS_CHANNEL_POSITION_BASED",
+      "CROSS_CHANNEL_TIME_DECAY",
+      "ADS_PREFERRED_LAST_CLICK",
+    ])
+    .optional(),
+});
+
+/**
+ * Attribution Update Response Schema
+ */
+export const attributionUpdateResponseSchema = attributionGetResponseSchema;
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({

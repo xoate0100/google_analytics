@@ -84,6 +84,10 @@ import {
   audienceUpsertResponseSchema,
   audienceDeleteRequestSchema,
   audienceDeleteResponseSchema,
+  attributionGetRequestSchema,
+  attributionGetResponseSchema,
+  attributionUpdateRequestSchema,
+  attributionUpdateResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -185,6 +189,10 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerAudienceGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerAudienceUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerAudienceDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Attribution
+  registerAttributionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerAttributionUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -5240,6 +5248,319 @@ function registerAudienceDeleteTool(
           logger.error("ga4.audience.delete failed", error);
         } else {
           logger.error("ga4.audience.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return attribution settings if found
+ */
+async function checkAttributionCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof attributionGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for attribution settings", { cacheKey });
+    return validateSchema(attributionGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get attribution settings
+ */
+async function executeAttributionGetAPIRequest(
+  settingsName: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof attributionGetResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "attribution.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const properties = adminClient.properties as {
+    getAttributionSettings?: (params: { name: string }) => Promise<{ data?: unknown }>;
+  };
+
+  if (!properties.getAttributionSettings) {
+    throw createPreconditionError("not_found", "Attribution settings API not available", {
+      settings: settingsName,
+    });
+  }
+
+  const response = await properties.getAttributionSettings({
+    name: settingsName,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Attribution settings not found", {
+      settings: settingsName,
+    });
+  }
+
+  return validateSchema(attributionGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute attribution get operation
+ */
+async function executeAttributionGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof attributionGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.attribution.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/attributionSettings")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.attribution.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(attributionGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:attribution:${validatedRequest.name}`;
+  const cached = await checkAttributionCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeAttributionGetAPIRequest(validatedRequest.name, ga4Client);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.attribution.get completed", {
+    opId: envelope.opId,
+    settings: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.attribution.get tool
+ */
+function registerAttributionGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.attribution.get",
+    description: "Get GA4 attribution settings for a property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Attribution settings ID in format properties/123456789/attributionSettings",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeAttributionGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.attribution.get failed", error);
+        } else {
+          logger.error("ga4.attribution.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to update attribution settings
+ */
+async function executeAttributionUpdateAPIRequest(
+  validatedRequest: z.infer<typeof attributionUpdateRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof attributionUpdateResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "attribution.update");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const updateMask: string[] = [];
+  const settingsData: Record<string, unknown> = {};
+
+  if (validatedRequest.acquisitionConversionEventLookbackWindow) {
+    updateMask.push("acquisitionConversionEventLookbackWindow");
+    settingsData.acquisitionConversionEventLookbackWindow =
+      validatedRequest.acquisitionConversionEventLookbackWindow;
+  }
+  if (validatedRequest.attributionLookbackWindow) {
+    updateMask.push("attributionLookbackWindow");
+    settingsData.attributionLookbackWindow = validatedRequest.attributionLookbackWindow;
+  }
+  if (validatedRequest.attributionModel) {
+    updateMask.push("attributionModel");
+    settingsData.attributionModel = validatedRequest.attributionModel;
+  }
+
+  const properties = adminClient.properties as {
+    updateAttributionSettings?: (params: {
+      name: string;
+      updateMask?: string;
+      requestBody?: Record<string, unknown>;
+    }) => Promise<{ data?: unknown }>;
+  };
+
+  if (!properties.updateAttributionSettings) {
+    throw createPreconditionError("not_found", "Attribution settings update API not available", {});
+  }
+
+  const response = await properties.updateAttributionSettings({
+    name: validatedRequest.name,
+    updateMask: updateMask.join(","),
+    requestBody: settingsData,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Attribution settings update failed", {});
+  }
+
+  return validateSchema(attributionUpdateResponseSchema, responseData.data);
+}
+
+/**
+ * Execute attribution update operation
+ */
+async function executeAttributionUpdate(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof attributionUpdateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.attribution.update",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/attributionSettings")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.attribution.update", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(attributionUpdateRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeAttributionUpdateAPIRequest(validatedRequest, ga4Client);
+
+  // Post-check: verify settings were updated
+  const cacheKey = `ga4:attribution:${validatedResponse.name}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.attribution.update completed", {
+    opId: envelope.opId,
+    settings: validatedResponse.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.attribution.update tool
+ */
+function registerAttributionUpdateTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.attribution.update",
+    description: "Update GA4 attribution settings (models, lookback windows)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Attribution settings ID in format properties/123456789/attributionSettings",
+        },
+        acquisitionConversionEventLookbackWindow: {
+          type: "string",
+          enum: [
+            "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_UNSPECIFIED",
+            "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_7_DAYS",
+            "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_30_DAYS",
+            "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_60_DAYS",
+            "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_90_DAYS",
+          ],
+          description: "Acquisition conversion event lookback window",
+        },
+        attributionLookbackWindow: {
+          type: "string",
+          enum: [
+            "ATTRIBUTION_LOOKBACK_WINDOW_UNSPECIFIED",
+            "ATTRIBUTION_LOOKBACK_WINDOW_7_DAYS",
+            "ATTRIBUTION_LOOKBACK_WINDOW_30_DAYS",
+            "ATTRIBUTION_LOOKBACK_WINDOW_60_DAYS",
+            "ATTRIBUTION_LOOKBACK_WINDOW_90_DAYS",
+          ],
+          description: "Attribution lookback window",
+        },
+        attributionModel: {
+          type: "string",
+          enum: [
+            "ATTRIBUTION_MODEL_UNSPECIFIED",
+            "CROSS_CHANNEL_LAST_CLICK",
+            "CROSS_CHANNEL_DATA_DRIVEN",
+            "CROSS_CHANNEL_FIRST_CLICK",
+            "CROSS_CHANNEL_LINEAR",
+            "CROSS_CHANNEL_POSITION_BASED",
+            "CROSS_CHANNEL_TIME_DECAY",
+            "ADS_PREFERRED_LAST_CLICK",
+          ],
+          description: "Attribution model",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeAttributionUpdate(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.attribution.update failed", error);
+        } else {
+          logger.error("ga4.attribution.update failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
