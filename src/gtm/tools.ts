@@ -69,6 +69,14 @@ import {
   folderUpsertResponseSchema,
   folderDeleteRequestSchema,
   folderDeleteResponseSchema,
+  versionListRequestSchema,
+  versionListResponseSchema,
+  versionGetRequestSchema,
+  versionGetResponseSchema,
+  versionCreateRequestSchema,
+  versionCreateResponseSchema,
+  versionRestoreRequestSchema,
+  versionRestoreResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -135,6 +143,12 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   registerFolderGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerFolderUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerFolderDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+
+  // Version tools
+  registerVersionListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerVersionGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerVersionCreateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerVersionRestoreTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -3826,6 +3840,416 @@ function registerFolderDeleteTool(
           logger.error("gtm.folder.delete failed", error);
         } else {
           logger.error("gtm.folder.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list versions
+ */
+async function executeVersionListAPIRequest(
+  validatedRequest: z.infer<typeof versionListRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof versionListResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "version.list");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = (await (tagManagerClient.accounts.containers.versions as unknown as {
+    list?: (params: unknown) => Promise<{ data?: { version?: unknown[] } }>;
+  }).list?.({
+    parent: validatedRequest.parent,
+  })) as { data?: { version?: unknown[] } };
+  const versions = response.data?.version || [];
+  return {
+    versions: versions as z.infer<typeof versionListResponseSchema>["versions"],
+  };
+}
+
+/**
+ * Execute version list
+ */
+export async function executeVersionList(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof versionListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.version.list",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.version.list", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(versionListRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM version list not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeVersionListAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.version.list completed", {
+    opId: envelope.opId,
+    versionCount: result.versions.length,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.version.list tool
+ */
+function registerVersionListTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.version.list",
+    description: "List container versions",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Container path in format accounts/123456/containers/987654",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeVersionList(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.version.list failed", error);
+        } else {
+          logger.error("gtm.version.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to get version
+ */
+async function executeVersionGetAPIRequest(
+  validatedRequest: z.infer<typeof versionGetRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof versionGetResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "version.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = await tagManagerClient.accounts.containers.versions.get({
+    path: validatedRequest.path,
+  });
+  return (response as { data?: unknown }).data as z.infer<typeof versionGetResponseSchema>;
+}
+
+/**
+ * Execute version get
+ */
+export async function executeVersionGet(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof versionGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.version.get",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.version.get", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(versionGetRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM version get not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeVersionGetAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.version.get completed", {
+    opId: envelope.opId,
+    versionId: result.containerVersionId,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.version.get tool
+ */
+function registerVersionGetTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.version.get",
+    description: "Get version details by path",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Version path in format accounts/123456/containers/987654/versions/1",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeVersionGet(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.version.get failed", error);
+        } else {
+          logger.error("gtm.version.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create version
+ */
+async function executeVersionCreateAPIRequest(
+  validatedRequest: z.infer<typeof versionCreateRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof versionCreateResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "version.create");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = (await (tagManagerClient.accounts.containers.versions as unknown as {
+    create?: (params: unknown) => Promise<{ data?: z.infer<typeof versionCreateResponseSchema> }>;
+  }).create?.({
+    parent: validatedRequest.parent,
+    requestBody: {
+      name: validatedRequest.name,
+      notes: validatedRequest.notes,
+    },
+  })) as { data?: z.infer<typeof versionCreateResponseSchema> };
+  return response.data as z.infer<typeof versionCreateResponseSchema>;
+}
+
+/**
+ * Execute version create
+ */
+export async function executeVersionCreate(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof versionCreateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.version.create",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.version.create", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(versionCreateRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM version create not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeVersionCreateAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.version.create completed", {
+    opId: envelope.opId,
+    versionId: result.containerVersionId,
+    name: result.name,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.version.create tool
+ */
+function registerVersionCreateTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.version.create",
+    description: "Create version from workspace",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Container path in format accounts/123456/containers/987654",
+        },
+        workspaceId: {
+          type: "string",
+          description: "Workspace ID",
+        },
+        name: {
+          type: "string",
+          description: "Version name",
+        },
+        notes: {
+          type: "string",
+          description: "Optional version notes",
+        },
+      },
+      required: ["parent", "workspaceId", "name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeVersionCreate(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.version.create failed", error);
+        } else {
+          logger.error("gtm.version.create failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to restore version
+ */
+async function executeVersionRestoreAPIRequest(
+  validatedRequest: z.infer<typeof versionRestoreRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof versionRestoreResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "version.restore");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = (await (tagManagerClient.accounts.containers.versions as unknown as {
+    restore?: (params: unknown) => Promise<{ data?: z.infer<typeof versionRestoreResponseSchema> }>;
+  }).restore?.({
+    path: validatedRequest.path,
+  })) as { data?: z.infer<typeof versionRestoreResponseSchema> };
+  return response.data as z.infer<typeof versionRestoreResponseSchema>;
+}
+
+/**
+ * Execute version restore
+ */
+export async function executeVersionRestore(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof versionRestoreResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.version.restore",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.version.restore", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(versionRestoreRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM version restore not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeVersionRestoreAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.version.restore completed", {
+    opId: envelope.opId,
+    versionId: result.containerVersionId,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.version.restore tool
+ */
+function registerVersionRestoreTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.version.restore",
+    description: "Restore version to workspace",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Version path in format accounts/123456/containers/987654/versions/1",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeVersionRestore(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.version.restore failed", error);
+        } else {
+          logger.error("gtm.version.restore failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

@@ -675,3 +675,90 @@ export const folderDeleteResponseSchema = z.object({
   path: z.string(),
 });
 
+/**
+ * Container Path Schema (for versions, format: accounts/123456/containers/987654)
+ */
+export const containerPathForVersionSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+$/,
+    "Container path must be in format accounts/123456/containers/987654"
+  );
+
+/**
+ * Version Path Schema (format: accounts/123456/containers/987654/versions/1)
+ */
+export const versionPathSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+\/versions\/\d+$/,
+    "Version path must be in format accounts/123456/containers/987654/versions/1"
+  );
+
+/**
+ * Version List Request Schema
+ */
+export const versionListRequestSchema = z.object({
+  parent: containerPathForVersionSchema,
+});
+
+/**
+ * Version List Response Schema
+ */
+export const versionListResponseSchema = z.object({
+  versions: z.array(
+    z.object({
+      accountId: z.string().optional(),
+      containerId: z.string().optional(),
+      containerVersionId: z.string().optional(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Version Get Request Schema
+ */
+export const versionGetRequestSchema = z.object({
+  path: versionPathSchema,
+});
+
+/**
+ * Version Get Response Schema
+ */
+export const versionGetResponseSchema = z.object({
+  accountId: z.string().optional(),
+  containerId: z.string().optional(),
+  containerVersionId: z.string().optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+});
+
+/**
+ * Version Create Request Schema
+ */
+export const versionCreateRequestSchema = z.object({
+  parent: containerPathForVersionSchema,
+  workspaceId: z.string().min(1, "Workspace ID is required"),
+  name: z.string().min(1, "Version name is required"),
+  notes: z.string().optional(),
+});
+
+/**
+ * Version Create Response Schema
+ */
+export const versionCreateResponseSchema = versionGetResponseSchema;
+
+/**
+ * Version Restore Request Schema
+ */
+export const versionRestoreRequestSchema = z.object({
+  path: versionPathSchema,
+});
+
+/**
+ * Version Restore Response Schema
+ */
+export const versionRestoreResponseSchema = versionGetResponseSchema;
+
