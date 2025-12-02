@@ -278,3 +278,93 @@ export const tagDeleteResponseSchema = z.object({
   path: z.string(),
 });
 
+/**
+ * Trigger path schema (format: accounts/123456/containers/987654/workspaces/111111/triggers/333333)
+ */
+export const triggerPathSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+\/workspaces\/\d+\/triggers\/\d+$/,
+    "Trigger path must be in format accounts/123456/containers/987654/workspaces/111111/triggers/333333"
+  );
+
+/**
+ * Trigger List Request Schema
+ */
+export const triggerListRequestSchema = z.object({
+  parent: workspacePathSchema,
+});
+
+/**
+ * Trigger List Response Schema
+ */
+export const triggerListResponseSchema = z.object({
+  triggers: z.array(
+    z.object({
+      accountId: z.string().optional(),
+      containerId: z.string().optional(),
+      workspaceId: z.string().optional(),
+      triggerId: z.string().optional(),
+      name: z.string().optional(),
+      type: z.string().optional(),
+      fingerprint: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Trigger Get Request Schema
+ */
+export const triggerGetRequestSchema = z.object({
+  path: triggerPathSchema,
+});
+
+/**
+ * Trigger Get Response Schema
+ */
+export const triggerGetResponseSchema = z.object({
+  accountId: z.string().optional(),
+  containerId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  triggerId: z.string().optional(),
+  name: z.string().optional(),
+  type: z.string().optional(),
+  fingerprint: z.string().optional(),
+  parameter: z.array(z.unknown()).optional(),
+  customEventFilter: z.array(z.unknown()).optional(),
+  autoEventFilter: z.array(z.unknown()).optional(),
+});
+
+/**
+ * Trigger Upsert Request Schema
+ */
+export const triggerUpsertRequestSchema = z.object({
+  parent: workspacePathSchema,
+  name: z.string().min(1, "Trigger name is required"),
+  type: z.string().min(1, "Trigger type is required"),
+  parameter: z.array(z.unknown()).optional(),
+  customEventFilter: z.array(z.unknown()).optional(),
+  autoEventFilter: z.array(z.unknown()).optional(),
+  triggerId: z.string().optional(), // For updates
+});
+
+/**
+ * Trigger Upsert Response Schema
+ */
+export const triggerUpsertResponseSchema = triggerGetResponseSchema;
+
+/**
+ * Trigger Delete Request Schema
+ */
+export const triggerDeleteRequestSchema = z.object({
+  path: triggerPathSchema,
+});
+
+/**
+ * Trigger Delete Response Schema
+ */
+export const triggerDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  path: z.string(),
+});
+

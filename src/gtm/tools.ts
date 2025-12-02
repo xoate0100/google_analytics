@@ -33,6 +33,14 @@ import {
   tagUpsertResponseSchema,
   tagDeleteRequestSchema,
   tagDeleteResponseSchema,
+  triggerListRequestSchema,
+  triggerListResponseSchema,
+  triggerGetRequestSchema,
+  triggerGetResponseSchema,
+  triggerUpsertRequestSchema,
+  triggerUpsertResponseSchema,
+  triggerDeleteRequestSchema,
+  triggerDeleteResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -73,6 +81,12 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   registerTagGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTagUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTagDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+
+  // Trigger tools
+  registerTriggerListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerTriggerGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerTriggerUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerTriggerDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -1602,6 +1616,513 @@ function registerTagDeleteTool(
           logger.error("gtm.tag.delete failed", error);
         } else {
           logger.error("gtm.tag.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list triggers
+ */
+async function executeTriggerListAPIRequest(
+  validatedRequest: z.infer<typeof triggerListRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof triggerListResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "trigger.list");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const response = await tagManagerClient.accounts.containers.workspaces.triggers.list({
+    parent: validatedRequest.parent,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No triggers found", {});
+  }
+
+  // Transform trigger array to triggers format
+  const triggersData = responseData.data as { trigger?: unknown[] };
+  return validateSchema(triggerListResponseSchema, {
+    triggers: triggersData.trigger || [],
+  });
+}
+
+/**
+ * Execute trigger list operation
+ */
+async function executeTriggerList(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof triggerListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.trigger.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { parent: string }).parent.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.trigger.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(triggerListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const validatedResponse = await executeTriggerListAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.trigger.list completed", {
+    opId: envelope.opId,
+    triggerCount: validatedResponse.triggers.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.trigger.list tool
+ */
+function registerTriggerListTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.trigger.list",
+    description: "List GTM triggers for a workspace",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeTriggerList(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.trigger.list failed", error);
+        } else {
+          logger.error("gtm.trigger.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return trigger if found
+ */
+async function checkTriggerCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof triggerGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for trigger", { cacheKey });
+    return validateSchema(triggerGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get trigger
+ */
+async function executeTriggerGetAPIRequest(
+  triggerPath: string,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof triggerGetResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "trigger.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = await tagManagerClient.accounts.containers.workspaces.triggers.get({
+    path: triggerPath,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Trigger not found", {
+      trigger: triggerPath,
+    });
+  }
+
+  return validateSchema(triggerGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute trigger get operation
+ */
+async function executeTriggerGet(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof triggerGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.trigger.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { path: string }).path.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.trigger.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(triggerGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const cacheKey = `gtm:trigger:${validatedRequest.path}`;
+  const cached = await checkTriggerCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeTriggerGetAPIRequest(validatedRequest.path, gtmClient);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("gtm.trigger.get completed", {
+    opId: envelope.opId,
+    trigger: validatedRequest.path,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.trigger.get tool
+ */
+function registerTriggerGetTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.trigger.get",
+    description: "Get GTM trigger details by trigger path",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Trigger path in format accounts/123456/containers/987654/workspaces/111111/triggers/333333",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeTriggerGet(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.trigger.get failed", error);
+        } else {
+          logger.error("gtm.trigger.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create/update trigger
+ */
+async function executeTriggerUpsertAPIRequest(
+  validatedRequest: z.infer<typeof triggerUpsertRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof triggerUpsertResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "trigger.upsert");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const triggerData: Record<string, unknown> = {
+    name: validatedRequest.name,
+    type: validatedRequest.type,
+  };
+  if (validatedRequest.parameter) {
+    triggerData.parameter = validatedRequest.parameter;
+  }
+  if (validatedRequest.customEventFilter) {
+    triggerData.customEventFilter = validatedRequest.customEventFilter;
+  }
+  if (validatedRequest.autoEventFilter) {
+    triggerData.autoEventFilter = validatedRequest.autoEventFilter;
+  }
+
+  let response;
+  if (validatedRequest.triggerId) {
+    // Update existing trigger
+    const triggerPath = `${validatedRequest.parent}/triggers/${validatedRequest.triggerId}`;
+    response = await tagManagerClient.accounts.containers.workspaces.triggers.update({
+      path: triggerPath,
+      requestBody: triggerData,
+    });
+  } else {
+    // Create new trigger
+    response = await tagManagerClient.accounts.containers.workspaces.triggers.create({
+      parent: validatedRequest.parent,
+      requestBody: triggerData,
+    });
+  }
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Trigger operation failed", {});
+  }
+
+  return validateSchema(triggerUpsertResponseSchema, responseData.data);
+}
+
+/**
+ * Execute trigger upsert operation with condition and filter support
+ */
+async function executeTriggerUpsert(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof triggerUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.trigger.upsert",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { parent: string }).parent.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.trigger.upsert", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(triggerUpsertRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const validatedResponse = await executeTriggerUpsertAPIRequest(validatedRequest, gtmClient);
+
+  // Post-check: verify trigger was created/updated
+  const triggerPath = `${validatedResponse.accountId ? `accounts/${validatedResponse.accountId}` : validatedRequest.parent}/triggers/${validatedResponse.triggerId || validatedRequest.triggerId}`;
+  const cacheKey = `gtm:trigger:${triggerPath}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("gtm.trigger.upsert completed", {
+    opId: envelope.opId,
+    trigger: triggerPath,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.trigger.upsert tool
+ */
+function registerTriggerUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.trigger.upsert",
+    description: "Create or update GTM trigger with condition and filter support",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+        name: {
+          type: "string",
+          description: "Trigger name",
+        },
+        type: {
+          type: "string",
+          description: "Trigger type (e.g., PAGEVIEW, CLICK, CUSTOM_EVENT, TIMER, FORM)",
+        },
+        parameter: {
+          type: "array",
+          description: "Trigger parameters",
+        },
+        customEventFilter: {
+          type: "array",
+          description: "Custom event filters",
+        },
+        autoEventFilter: {
+          type: "array",
+          description: "Auto event filters",
+        },
+        triggerId: {
+          type: "string",
+          description: "Trigger ID for updates (optional)",
+        },
+      },
+      required: ["parent", "name", "type"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeTriggerUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.trigger.upsert failed", error);
+        } else {
+          logger.error("gtm.trigger.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute trigger delete operation
+ */
+async function executeTriggerDelete(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof triggerDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.trigger.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { path: string }).path.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.trigger.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(triggerDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  // Pre-check: verify trigger exists
+  await gtmClient.checkRateLimit("gtm", "trigger.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  try {
+    await tagManagerClient.accounts.containers.workspaces.triggers.get({
+      path: validatedRequest.path,
+    });
+  } catch {
+    throw createPreconditionError("not_found", "Trigger not found", {
+      trigger: validatedRequest.path,
+    });
+  }
+
+  // Delete trigger
+  await gtmClient.checkRateLimit("gtm", "trigger.delete");
+  try {
+    await tagManagerClient.accounts.containers.workspaces.triggers.delete({
+      path: validatedRequest.path,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Trigger delete failed", error);
+    } else {
+      logger.error("Trigger delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Invalidate cache
+  const cacheKey = `gtm:trigger:${validatedRequest.path}`;
+  await cache.delete(cacheKey);
+
+  logger.info("gtm.trigger.delete completed", {
+    opId: envelope.opId,
+    trigger: validatedRequest.path,
+  });
+
+  return {
+    success: true,
+    path: validatedRequest.path,
+  };
+}
+
+/**
+ * Register gtm.trigger.delete tool
+ */
+function registerTriggerDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.trigger.delete",
+    description: "Delete GTM trigger",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Trigger path in format accounts/123456/containers/987654/workspaces/111111/triggers/333333",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeTriggerDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.trigger.delete failed", error);
+        } else {
+          logger.error("gtm.trigger.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
