@@ -35,6 +35,18 @@ import {
   keywordUpsertResponseSchema,
   keywordDeleteRequestSchema,
   keywordDeleteResponseSchema,
+  conversionListRequestSchema,
+  conversionListResponseSchema,
+  conversionGetRequestSchema,
+  conversionGetResponseSchema,
+  conversionUpsertRequestSchema,
+  conversionUpsertResponseSchema,
+  conversionDeleteRequestSchema,
+  conversionDeleteResponseSchema,
+  conversionOfflineImportRequestSchema,
+  conversionOfflineImportResponseSchema,
+  conversionEnhancedRequestSchema,
+  conversionEnhancedResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -493,6 +505,14 @@ export function registerAdsTools(
   registerKeywordListTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
   registerKeywordUpsertTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
   registerKeywordDeleteTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+
+  // Conversion tools
+  registerConversionListTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerConversionGetTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerConversionUpsertTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerConversionDeleteTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerConversionOfflineImportTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerConversionEnhancedTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -2279,6 +2299,1086 @@ function registerKeywordDeleteTool(
           logger.error("ads.keyword.delete failed", error);
         } else {
           logger.error("ads.keyword.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list conversion actions
+ */
+async function executeConversionListAPIRequest(
+  validatedRequest: z.infer<typeof conversionListRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof conversionListResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "conversion.list");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          name?: string;
+          type?: string;
+          category?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  // Build GAQL query
+  let query = "SELECT conversion_action.id, conversion_action.name, conversion_action.type, conversion_action.category, conversion_action.status FROM conversion_action";
+  if (validatedRequest.filter) {
+    query = `${query} WHERE ${validatedRequest.filter}`;
+  }
+
+  const response = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        id?: string;
+        name?: string;
+        type?: string;
+        category?: string;
+        status?: string;
+      };
+    }>;
+  };
+
+  const conversions = (response.results || []).map((r) => ({
+    conversionId: r.conversionAction?.id,
+    name: r.conversionAction?.name,
+    type: r.conversionAction?.type,
+    category: r.conversionAction?.category,
+    status: r.conversionAction?.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
+  }));
+
+  return { conversions };
+}
+
+/**
+ * Execute conversion list
+ */
+export async function executeConversionList(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof conversionListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.conversion.list",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.conversion.list", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(conversionListRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "conversions")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads conversion management not available",
+      {
+        product: "ads",
+        capability: "conversions",
+      }
+    );
+  }
+
+  const result = await executeConversionListAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.conversion.list completed", {
+    opId: envelope.opId,
+    conversionCount: result.conversions.length,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.conversion.list tool
+ */
+function registerConversionListTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.conversion.list",
+    description: "List Google Ads conversion actions",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        filter: {
+          type: "string",
+          description: "Optional GAQL filter (e.g., conversion_action.status = 'ENABLED')",
+        },
+      },
+      required: ["customerId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConversionList(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.conversion.list failed", error);
+        } else {
+          logger.error("ads.conversion.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to get conversion action
+ */
+async function executeConversionGetAPIRequest(
+  validatedRequest: z.infer<typeof conversionGetRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof conversionGetResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "conversion.get");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          name?: string;
+          type?: string;
+          category?: string;
+          status?: string;
+          countingType?: string;
+          attributionModel?: string;
+          valueSettings?: {
+            defaultValue?: number;
+            alwaysUseDefaultValue?: boolean;
+          };
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  const query = `SELECT conversion_action.id, conversion_action.name, conversion_action.type, conversion_action.category, conversion_action.status, conversion_action.counting_type, conversion_action.attribution_model, conversion_action.value_settings FROM conversion_action WHERE conversion_action.id = ${validatedRequest.conversionId}`;
+
+  const response = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        id?: string;
+        name?: string;
+        type?: string;
+        category?: string;
+        status?: string;
+        countingType?: string;
+        attributionModel?: string;
+        valueSettings?: {
+          defaultValue?: number;
+          alwaysUseDefaultValue?: boolean;
+        };
+      };
+    }>;
+  };
+
+  const conversion = response.results?.[0]?.conversionAction;
+
+  if (!conversion) {
+    throw new Error(`Conversion ${validatedRequest.conversionId} not found`);
+  }
+
+  return {
+    conversionId: conversion.id,
+    name: conversion.name,
+    type: conversion.type as "WEBPAGE" | "APP" | "PHONE_CALL" | "IMPORT" | "GOOGLE_ANALYTICS" | undefined,
+    category: conversion.category as z.infer<typeof conversionGetResponseSchema>["category"],
+    status: conversion.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
+    countingType: conversion.countingType as "ONE_PER_CLICK" | "MANY_PER_CLICK" | undefined,
+    attributionModel: conversion.attributionModel as "DATA_DRIVEN" | "LAST_CLICK" | "FIRST_CLICK" | "LINEAR" | "TIME_DECAY" | "POSITION_BASED" | undefined,
+    valueSettings: conversion.valueSettings,
+  };
+}
+
+/**
+ * Execute conversion get
+ */
+export async function executeConversionGet(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof conversionGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.conversion.get",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.conversion.get", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(conversionGetRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "conversions")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads conversion management not available",
+      {
+        product: "ads",
+        capability: "conversions",
+      }
+    );
+  }
+
+  const result = await executeConversionGetAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.conversion.get completed", {
+    opId: envelope.opId,
+    conversionId: result.conversionId,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.conversion.get tool
+ */
+function registerConversionGetTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.conversion.get",
+    description: "Get Google Ads conversion action details",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        conversionId: {
+          type: "string",
+          description: "Conversion ID",
+        },
+      },
+      required: ["customerId", "conversionId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConversionGet(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.conversion.get failed", error);
+        } else {
+          logger.error("ads.conversion.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to upsert conversion action
+ */
+async function executeConversionUpsertAPIRequest(
+  validatedRequest: z.infer<typeof conversionUpsertRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof conversionUpsertResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "conversion.upsert");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  // Check if conversion exists (for idempotency)
+  let existingConversion: { id?: string; resourceName?: string } | undefined;
+  if (validatedRequest.conversionId) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.id = ${validatedRequest.conversionId}`,
+    })) as {
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    existingConversion = searchResponse.results?.[0]?.conversionAction;
+  } else {
+    // Check by name for idempotency
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.name = '${validatedRequest.name.replace(/'/g, "''")}'`,
+    })) as {
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    existingConversion = searchResponse.results?.[0]?.conversionAction;
+  }
+
+  // Build mutation operation
+  const operation: Record<string, unknown> = {};
+  if (existingConversion) {
+    // Update existing conversion
+    operation.update = {
+      resourceName: existingConversion.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/conversionActions/${existingConversion.id}`,
+      name: validatedRequest.name,
+      status: validatedRequest.status || "ENABLED",
+    };
+    if (validatedRequest.type) {
+      (operation.update as Record<string, unknown>).type = validatedRequest.type;
+    }
+    if (validatedRequest.category) {
+      (operation.update as Record<string, unknown>).category = validatedRequest.category;
+    }
+    if (validatedRequest.countingType) {
+      (operation.update as Record<string, unknown>).countingType = validatedRequest.countingType;
+    }
+    if (validatedRequest.attributionModel) {
+      (operation.update as Record<string, unknown>).attributionModel = validatedRequest.attributionModel;
+    }
+    if (validatedRequest.valueSettings) {
+      (operation.update as Record<string, unknown>).valueSettings = validatedRequest.valueSettings;
+    }
+  } else {
+    // Create new conversion
+    operation.create = {
+      name: validatedRequest.name,
+      type: validatedRequest.type || "WEBPAGE",
+      status: validatedRequest.status || "ENABLED",
+    };
+    if (validatedRequest.category) {
+      (operation.create as Record<string, unknown>).category = validatedRequest.category;
+    }
+    if (validatedRequest.countingType) {
+      (operation.create as Record<string, unknown>).countingType = validatedRequest.countingType;
+    }
+    if (validatedRequest.attributionModel) {
+      (operation.create as Record<string, unknown>).attributionModel = validatedRequest.attributionModel;
+    }
+    if (validatedRequest.valueSettings) {
+      (operation.create as Record<string, unknown>).valueSettings = validatedRequest.valueSettings;
+    }
+  }
+
+  const response = (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        resourceName?: string;
+        id?: string;
+        name?: string;
+        status?: string;
+      };
+    }>;
+  };
+
+  const result = response.results?.[0]?.conversionAction;
+  if (!result) {
+    throw new Error("Failed to create/update conversion action");
+  }
+
+  // Extract conversion ID from resource name
+  const conversionId = result.id || result.resourceName?.split("/").pop();
+
+  return {
+    conversionId,
+    name: result.name,
+    status: result.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
+    type: validatedRequest.type,
+    category: validatedRequest.category,
+    countingType: validatedRequest.countingType,
+    attributionModel: validatedRequest.attributionModel,
+    valueSettings: validatedRequest.valueSettings,
+  };
+}
+
+/**
+ * Execute conversion upsert
+ */
+export async function executeConversionUpsert(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof conversionUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.conversion.upsert",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.conversion.upsert", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(conversionUpsertRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "conversions")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads conversion management not available",
+      {
+        product: "ads",
+        capability: "conversions",
+      }
+    );
+  }
+
+  const result = await executeConversionUpsertAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.conversion.upsert completed", {
+    opId: envelope.opId,
+    conversionId: result.conversionId,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.conversion.upsert tool
+ */
+function registerConversionUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.conversion.upsert",
+    description: "Create or update Google Ads conversion action",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        conversionId: {
+          type: "string",
+          description: "Conversion ID for updates (optional for create, uses name for idempotency)",
+        },
+        name: {
+          type: "string",
+          description: "Conversion name",
+        },
+        type: {
+          type: "string",
+          enum: ["WEBPAGE", "APP", "PHONE_CALL", "IMPORT", "GOOGLE_ANALYTICS"],
+          description: "Conversion type",
+        },
+        category: {
+          type: "string",
+          enum: ["PURCHASE", "SIGNUP", "LEAD", "VIEW_ITEM", "ADD_TO_CART", "BEGIN_CHECKOUT", "SUBSCRIBE_PAID", "PHONE_CALL_LEAD", "IMPORTED_LEAD", "SUBMIT_LEAD_FORM", "BOOK_APPOINTMENT", "REQUEST_QUOTE", "GET_DIRECTIONS", "OUTBOUND_CLICK", "CALL_TRACKING"],
+          description: "Conversion category",
+        },
+        status: {
+          type: "string",
+          enum: ["ENABLED", "REMOVED", "HIDDEN"],
+          description: "Conversion status",
+        },
+        countingType: {
+          type: "string",
+          enum: ["ONE_PER_CLICK", "MANY_PER_CLICK"],
+          description: "Counting type",
+        },
+        attributionModel: {
+          type: "string",
+          enum: ["DATA_DRIVEN", "LAST_CLICK", "FIRST_CLICK", "LINEAR", "TIME_DECAY", "POSITION_BASED"],
+          description: "Attribution model",
+        },
+        valueSettings: {
+          type: "object",
+          description: "Value settings",
+        },
+      },
+      required: ["customerId", "name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConversionUpsert(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.conversion.upsert failed", error);
+        } else {
+          logger.error("ads.conversion.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to delete conversion action
+ */
+async function executeConversionDeleteAPIRequest(
+  validatedRequest: z.infer<typeof conversionDeleteRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof conversionDeleteResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "conversion.delete");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          resourceName?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  // Get conversion resource name
+  const searchResponse = (await googleAdsClient.search?.({
+    customerId,
+    query: `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.id = ${validatedRequest.conversionId}`,
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        id?: string;
+        resourceName?: string;
+      };
+    }>;
+  };
+
+  const conversion = searchResponse.results?.[0]?.conversionAction;
+  if (!conversion) {
+    throw new Error(`Conversion ${validatedRequest.conversionId} not found`);
+  }
+
+  const resourceName = conversion.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/conversionActions/${conversion.id}`;
+
+  // Delete conversion
+  const response = (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [
+      {
+        remove: resourceName,
+      },
+    ],
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        resourceName?: string;
+      };
+    }>;
+  };
+
+  const result = response.results?.[0]?.conversionAction;
+  if (!result) {
+    throw new Error("Failed to delete conversion action");
+  }
+
+  return {
+    conversionId: validatedRequest.conversionId,
+    deleted: true,
+  };
+}
+
+/**
+ * Execute conversion delete
+ */
+export async function executeConversionDelete(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof conversionDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.conversion.delete",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.conversion.delete", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(conversionDeleteRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "conversions")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads conversion management not available",
+      {
+        product: "ads",
+        capability: "conversions",
+      }
+    );
+  }
+
+  const result = await executeConversionDeleteAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.conversion.delete completed", {
+    opId: envelope.opId,
+    conversionId: result.conversionId,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.conversion.delete tool
+ */
+function registerConversionDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.conversion.delete",
+    description: "Delete Google Ads conversion action",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        conversionId: {
+          type: "string",
+          description: "Conversion ID",
+        },
+      },
+      required: ["customerId", "conversionId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConversionDelete(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.conversion.delete failed", error);
+        } else {
+          logger.error("ads.conversion.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to import offline conversions
+ */
+async function executeConversionOfflineImportAPIRequest(
+  validatedRequest: z.infer<typeof conversionOfflineImportRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof conversionOfflineImportResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "conversion.offlineImport");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    uploadClickConversions?: (params: unknown) => Promise<{
+      results?: Array<{
+        gclid?: string;
+        conversionDateTime?: string;
+      }>;
+      partialFailureError?: {
+        errors?: Array<{
+          message?: string;
+        }>;
+      };
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  const conversions = validatedRequest.conversions.map((conv) => ({
+    gclid: conv.gclid,
+    conversionDateTime: conv.conversionDateTime,
+    conversionValue: conv.conversionValue,
+    currencyCode: conv.currencyCode || "USD",
+    orderId: conv.orderId,
+  }));
+
+  const response = (await googleAdsClient.uploadClickConversions?.({
+    customerId,
+    conversionAction: `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/conversionActions/${validatedRequest.conversionId}`,
+    conversions,
+    partialFailure: true,
+  })) as {
+    results?: Array<{
+      gclid?: string;
+      conversionDateTime?: string;
+    }>;
+    partialFailureError?: {
+      errors?: Array<{
+        message?: string;
+      }>;
+    };
+  };
+
+  const imported = response.results?.length || 0;
+  const errors = response.partialFailureError?.errors?.map((e) => e.message || "Unknown error") || [];
+
+  return {
+    imported,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
+
+/**
+ * Execute conversion offline import
+ */
+export async function executeConversionOfflineImport(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof conversionOfflineImportResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.conversion.offlineImport",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.conversion.offlineImport", {
+    opId: envelope.opId,
+    conversionCount: (args as { conversions?: unknown[] }).conversions?.length || 0,
+  });
+
+  const validatedRequest = validateSchema(conversionOfflineImportRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "conversions")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads offline conversion import not available",
+      {
+        product: "ads",
+        capability: "conversions",
+      }
+    );
+  }
+
+  const result = await executeConversionOfflineImportAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.conversion.offlineImport completed", {
+    opId: envelope.opId,
+    imported: result.imported,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.conversion.offlineImport tool
+ */
+function registerConversionOfflineImportTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.conversion.offlineImport",
+    description: "Import offline conversions to Google Ads",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        conversionId: {
+          type: "string",
+          description: "Conversion action ID",
+        },
+        conversions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              gclid: {
+                type: "string",
+                description: "Google Click ID",
+              },
+              conversionDateTime: {
+                type: "string",
+                description: "Conversion date and time (YYYY-MM-DD HH:MM:SS format)",
+              },
+              conversionValue: {
+                type: "number",
+                description: "Conversion value",
+              },
+              currencyCode: {
+                type: "string",
+                description: "Currency code (default: USD)",
+              },
+              orderId: {
+                type: "string",
+                description: "Order ID for deduplication",
+              },
+            },
+            required: ["conversionDateTime"],
+          },
+          description: "Array of offline conversions to import",
+        },
+      },
+      required: ["customerId", "conversionId", "conversions"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConversionOfflineImport(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.conversion.offlineImport failed", error);
+        } else {
+          logger.error("ads.conversion.offlineImport failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to configure enhanced conversions
+ */
+async function executeConversionEnhancedAPIRequest(
+  validatedRequest: z.infer<typeof conversionEnhancedRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof conversionEnhancedResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "conversion.enhanced");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          resourceName?: string;
+          id?: string;
+          enhancedConversionsForLeadsEnabled?: boolean;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  // Get conversion resource name
+  const searchResponse = (await googleAdsClient.search?.({
+    customerId,
+    query: `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.id = ${validatedRequest.conversionId}`,
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        id?: string;
+        resourceName?: string;
+      };
+    }>;
+  };
+
+  const conversion = searchResponse.results?.[0]?.conversionAction;
+  if (!conversion) {
+    throw new Error(`Conversion ${validatedRequest.conversionId} not found`);
+  }
+
+  const resourceName = conversion.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/conversionActions/${conversion.id}`;
+
+  // Update enhanced conversions setting
+  const response = (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [
+      {
+        update: {
+          resourceName,
+          enhancedConversionsForLeadsEnabled: validatedRequest.enabled,
+        },
+      },
+    ],
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        resourceName?: string;
+        id?: string;
+        enhancedConversionsForLeadsEnabled?: boolean;
+      };
+    }>;
+  };
+
+  const result = response.results?.[0]?.conversionAction;
+  if (!result) {
+    throw new Error("Failed to configure enhanced conversions");
+  }
+
+  return {
+    conversionId: result.id || validatedRequest.conversionId,
+    enabled: result.enhancedConversionsForLeadsEnabled || validatedRequest.enabled,
+  };
+}
+
+/**
+ * Execute conversion enhanced
+ */
+export async function executeConversionEnhanced(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof conversionEnhancedResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.conversion.enhanced",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.conversion.enhanced", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(conversionEnhancedRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "conversions")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads enhanced conversions not available",
+      {
+        product: "ads",
+        capability: "conversions",
+      }
+    );
+  }
+
+  const result = await executeConversionEnhancedAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.conversion.enhanced completed", {
+    opId: envelope.opId,
+    conversionId: result.conversionId,
+    enabled: result.enabled,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.conversion.enhanced tool
+ */
+function registerConversionEnhancedTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.conversion.enhanced",
+    description: "Configure enhanced conversions for Google Ads conversion action",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        conversionId: {
+          type: "string",
+          description: "Conversion action ID",
+        },
+        enabled: {
+          type: "boolean",
+          description: "Enable or disable enhanced conversions",
+        },
+      },
+      required: ["customerId", "conversionId", "enabled"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConversionEnhanced(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.conversion.enhanced failed", error);
+        } else {
+          logger.error("ads.conversion.enhanced failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

@@ -269,3 +269,132 @@ export const keywordDeleteResponseSchema = z.object({
   deleted: z.boolean().optional(),
 });
 
+/**
+ * Conversion List Request Schema
+ */
+export const conversionListRequestSchema = z.object({
+  customerId: customerIdSchema,
+  filter: z.string().optional(),
+});
+
+/**
+ * Conversion List Response Schema
+ */
+export const conversionListResponseSchema = z.object({
+  conversions: z.array(
+    z.object({
+      conversionId: z.string().optional(),
+      name: z.string().optional(),
+      type: z.string().optional(),
+      category: z.string().optional(),
+      status: z.enum(["ENABLED", "REMOVED", "HIDDEN"]).optional(),
+    })
+  ),
+});
+
+/**
+ * Conversion Get Request Schema
+ */
+export const conversionGetRequestSchema = z.object({
+  customerId: customerIdSchema,
+  conversionId: z.string().min(1, "Conversion ID is required"),
+});
+
+/**
+ * Conversion Get Response Schema
+ */
+export const conversionGetResponseSchema = z.object({
+  conversionId: z.string().optional(),
+  name: z.string().optional(),
+  type: z.enum(["WEBPAGE", "APP", "PHONE_CALL", "IMPORT", "GOOGLE_ANALYTICS"]).optional(),
+  category: z.enum(["PURCHASE", "SIGNUP", "LEAD", "VIEW_ITEM", "ADD_TO_CART", "BEGIN_CHECKOUT", "SUBSCRIBE_PAID", "PHONE_CALL_LEAD", "IMPORTED_LEAD", "SUBMIT_LEAD_FORM", "BOOK_APPOINTMENT", "REQUEST_QUOTE", "GET_DIRECTIONS", "OUTBOUND_CLICK", "CALL_TRACKING"]).optional(),
+  status: z.enum(["ENABLED", "REMOVED", "HIDDEN"]).optional(),
+  countingType: z.enum(["ONE_PER_CLICK", "MANY_PER_CLICK"]).optional(),
+  attributionModel: z.enum(["DATA_DRIVEN", "LAST_CLICK", "FIRST_CLICK", "LINEAR", "TIME_DECAY", "POSITION_BASED"]).optional(),
+  valueSettings: z.object({
+    defaultValue: z.number().optional(),
+    alwaysUseDefaultValue: z.boolean().optional(),
+  }).optional(),
+});
+
+/**
+ * Conversion Upsert Request Schema
+ */
+export const conversionUpsertRequestSchema = z.object({
+  customerId: customerIdSchema,
+  conversionId: z.string().optional(), // Required for update, optional for create
+  name: z.string().min(1, "Conversion name is required"),
+  type: z.enum(["WEBPAGE", "APP", "PHONE_CALL", "IMPORT", "GOOGLE_ANALYTICS"]).optional(),
+  category: z.enum(["PURCHASE", "SIGNUP", "LEAD", "VIEW_ITEM", "ADD_TO_CART", "BEGIN_CHECKOUT", "SUBSCRIBE_PAID", "PHONE_CALL_LEAD", "IMPORTED_LEAD", "SUBMIT_LEAD_FORM", "BOOK_APPOINTMENT", "REQUEST_QUOTE", "GET_DIRECTIONS", "OUTBOUND_CLICK", "CALL_TRACKING"]).optional(),
+  status: z.enum(["ENABLED", "REMOVED", "HIDDEN"]).optional(),
+  countingType: z.enum(["ONE_PER_CLICK", "MANY_PER_CLICK"]).optional(),
+  attributionModel: z.enum(["DATA_DRIVEN", "LAST_CLICK", "FIRST_CLICK", "LINEAR", "TIME_DECAY", "POSITION_BASED"]).optional(),
+  valueSettings: z.object({
+    defaultValue: z.number().optional(),
+    alwaysUseDefaultValue: z.boolean().optional(),
+  }).optional(),
+});
+
+/**
+ * Conversion Upsert Response Schema
+ */
+export const conversionUpsertResponseSchema = conversionGetResponseSchema;
+
+/**
+ * Conversion Delete Request Schema
+ */
+export const conversionDeleteRequestSchema = z.object({
+  customerId: customerIdSchema,
+  conversionId: z.string().min(1, "Conversion ID is required"),
+});
+
+/**
+ * Conversion Delete Response Schema
+ */
+export const conversionDeleteResponseSchema = z.object({
+  conversionId: z.string().optional(),
+  deleted: z.boolean().optional(),
+});
+
+/**
+ * Conversion Offline Import Request Schema
+ */
+export const conversionOfflineImportRequestSchema = z.object({
+  customerId: customerIdSchema,
+  conversionId: z.string().min(1, "Conversion ID is required"),
+  conversions: z.array(
+    z.object({
+      gclid: z.string().optional(),
+      conversionDateTime: z.string().min(1, "Conversion date time is required"),
+      conversionValue: z.number().optional(),
+      currencyCode: z.string().optional(),
+      orderId: z.string().optional(),
+    })
+  ).min(1, "At least one conversion is required"),
+});
+
+/**
+ * Conversion Offline Import Response Schema
+ */
+export const conversionOfflineImportResponseSchema = z.object({
+  imported: z.number().optional(),
+  errors: z.array(z.string()).optional(),
+});
+
+/**
+ * Conversion Enhanced Request Schema
+ */
+export const conversionEnhancedRequestSchema = z.object({
+  customerId: customerIdSchema,
+  conversionId: z.string().min(1, "Conversion ID is required"),
+  enabled: z.boolean(),
+});
+
+/**
+ * Conversion Enhanced Response Schema
+ */
+export const conversionEnhancedResponseSchema = z.object({
+  conversionId: z.string().optional(),
+  enabled: z.boolean().optional(),
+});
+
