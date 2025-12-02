@@ -760,6 +760,93 @@ export const enhancedMeasurementUpdateRequestSchema = z.object({
 export const enhancedMeasurementUpdateResponseSchema = enhancedMeasurementResponseSchema;
 
 /**
+ * Custom Dimension ID schema (format: properties/123456789/customDimensions/dimension_name)
+ */
+const customDimensionIdSchema = z
+  .string()
+  .regex(
+    /^properties\/\d+\/customDimensions\/[a-zA-Z0-9_]+$/,
+    "Custom dimension ID must be in format properties/123456789/customDimensions/dimension_name"
+  );
+
+/**
+ * Custom Dimension List Request Schema
+ */
+export const customDimensionListRequestSchema = z.object({
+  parent: propertyIdSchema,
+  pageSize: z.number().int().positive().max(200).optional(),
+  pageToken: z.string().optional(),
+});
+
+/**
+ * Custom Dimension List Response Schema
+ */
+export const customDimensionListResponseSchema = z.object({
+  customDimensions: z.array(
+    z.object({
+      name: z.string(),
+      parameterName: z.string().optional(),
+      displayName: z.string().optional(),
+      description: z.string().optional(),
+      scope: z.enum(["USER", "EVENT", "ITEM"]).optional(),
+      disallowAdsPersonalization: z.boolean().optional(),
+    })
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+/**
+ * Custom Dimension Get Request Schema
+ */
+export const customDimensionGetRequestSchema = z.object({
+  name: customDimensionIdSchema,
+});
+
+/**
+ * Custom Dimension Get Response Schema
+ */
+export const customDimensionGetResponseSchema = z.object({
+  name: z.string(),
+  parameterName: z.string().optional(),
+  displayName: z.string().optional(),
+  description: z.string().optional(),
+  scope: z.enum(["USER", "EVENT", "ITEM"]).optional(),
+  disallowAdsPersonalization: z.boolean().optional(),
+});
+
+/**
+ * Custom Dimension Upsert Request Schema
+ */
+export const customDimensionUpsertRequestSchema = z.object({
+  parent: propertyIdSchema,
+  parameterName: z.string().min(1, "Parameter name is required"),
+  displayName: z.string().min(1, "Display name is required").optional(),
+  description: z.string().optional(),
+  scope: z.enum(["USER", "EVENT", "ITEM"]),
+  disallowAdsPersonalization: z.boolean().optional(),
+});
+
+/**
+ * Custom Dimension Upsert Response Schema
+ */
+export const customDimensionUpsertResponseSchema = customDimensionGetResponseSchema;
+
+/**
+ * Custom Dimension Delete Request Schema
+ */
+export const customDimensionDeleteRequestSchema = z.object({
+  name: customDimensionIdSchema,
+});
+
+/**
+ * Custom Dimension Delete Response Schema
+ */
+export const customDimensionDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  name: z.string(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({

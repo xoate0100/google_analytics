@@ -40,6 +40,14 @@ import {
   enhancedMeasurementResponseSchema,
   enhancedMeasurementUpdateRequestSchema,
   enhancedMeasurementUpdateResponseSchema,
+  customDimensionListRequestSchema,
+  customDimensionListResponseSchema,
+  customDimensionGetRequestSchema,
+  customDimensionGetResponseSchema,
+  customDimensionUpsertRequestSchema,
+  customDimensionUpsertResponseSchema,
+  customDimensionDeleteRequestSchema,
+  customDimensionDeleteResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -109,6 +117,12 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerDataStreamDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEnhancedMeasurementGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEnhancedMeasurementUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Custom Dimensions
+  registerCustomDimensionListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerCustomDimensionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerCustomDimensionUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerCustomDimensionDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -2300,6 +2314,522 @@ function registerEnhancedMeasurementUpdateTool(
           logger.error("ga4.datastream.enhancedMeasurement.update failed", error);
         } else {
           logger.error("ga4.datastream.enhancedMeasurement.update failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list custom dimensions
+ */
+async function executeCustomDimensionListAPIRequest(
+  validatedRequest: z.infer<typeof customDimensionListRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof customDimensionListResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "customDimension.list");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const params: Record<string, unknown> = {
+    parent: validatedRequest.parent,
+  };
+  if (validatedRequest.pageSize) {
+    params.pageSize = validatedRequest.pageSize;
+  }
+  if (validatedRequest.pageToken) {
+    params.pageToken = validatedRequest.pageToken;
+  }
+
+  const response = await adminClient.properties.customDimensions.list(params);
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No custom dimensions found", {});
+  }
+
+  return validateSchema(customDimensionListResponseSchema, responseData.data);
+}
+
+/**
+ * Execute custom dimension list operation
+ */
+async function executeCustomDimensionList(
+  args: unknown,
+  ga4Client: GA4Client,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof customDimensionListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.customDimension.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { parent: string }).parent },
+  });
+
+  logger.info("Executing ga4.customDimension.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(customDimensionListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeCustomDimensionListAPIRequest(validatedRequest, ga4Client);
+
+  logger.info("ga4.customDimension.list completed", {
+    opId: envelope.opId,
+    dimensionCount: validatedResponse.customDimensions.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.customDimension.list tool
+ */
+function registerCustomDimensionListTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.customDimension.list",
+    description: "List custom dimensions for a GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        pageSize: {
+          type: "number",
+          description: "Maximum number of dimensions to return (1-200)",
+        },
+        pageToken: {
+          type: "string",
+          description: "Token for pagination",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeCustomDimensionList(args, ga4Client, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.customDimension.list failed", error);
+        } else {
+          logger.error("ga4.customDimension.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return custom dimension if found
+ */
+async function checkCustomDimensionCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof customDimensionGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for custom dimension", { cacheKey });
+    return validateSchema(customDimensionGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get custom dimension
+ */
+async function executeCustomDimensionGetAPIRequest(
+  dimensionName: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof customDimensionGetResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "customDimension.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = await adminClient.properties.customDimensions.get({
+    name: dimensionName,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Custom dimension not found", {
+      dimension: dimensionName,
+    });
+  }
+
+  return validateSchema(customDimensionGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute custom dimension get operation
+ */
+async function executeCustomDimensionGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof customDimensionGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.customDimension.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/customDimensions/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.customDimension.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(customDimensionGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:customDimension:${validatedRequest.name}`;
+  const cached = await checkCustomDimensionCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeCustomDimensionGetAPIRequest(
+    validatedRequest.name,
+    ga4Client
+  );
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.customDimension.get completed", {
+    opId: envelope.opId,
+    dimension: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.customDimension.get tool
+ */
+function registerCustomDimensionGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.customDimension.get",
+    description: "Get GA4 custom dimension details by dimension ID",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Custom dimension ID in format properties/123456789/customDimensions/dimension_name",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeCustomDimensionGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.customDimension.get failed", error);
+        } else {
+          logger.error("ga4.customDimension.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create/update custom dimension
+ */
+async function executeCustomDimensionUpsertAPIRequest(
+  validatedRequest: z.infer<typeof customDimensionUpsertRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof customDimensionUpsertResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "customDimension.upsert");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const dimensionData: Record<string, unknown> = {
+    parameterName: validatedRequest.parameterName,
+    scope: validatedRequest.scope,
+  };
+  if (validatedRequest.displayName) {
+    dimensionData.displayName = validatedRequest.displayName;
+  }
+  if (validatedRequest.description) {
+    dimensionData.description = validatedRequest.description;
+  }
+  if (validatedRequest.disallowAdsPersonalization !== undefined) {
+    dimensionData.disallowAdsPersonalization = validatedRequest.disallowAdsPersonalization;
+  }
+
+  // Check if dimension exists by trying to get it
+  const dimensionName = `${validatedRequest.parent}/customDimensions/${validatedRequest.parameterName}`;
+  let response;
+  try {
+    await adminClient.properties.customDimensions.get({ name: dimensionName });
+    // Dimension exists, update it
+    response = await adminClient.properties.customDimensions.patch({
+      name: dimensionName,
+      updateMask: "displayName,description,disallowAdsPersonalization",
+      requestBody: dimensionData,
+    });
+  } catch {
+    // Dimension doesn't exist, create it
+    dimensionData.parent = validatedRequest.parent;
+    response = await adminClient.properties.customDimensions.create({
+      requestBody: dimensionData,
+    });
+  }
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Custom dimension operation failed", {});
+  }
+
+  return validateSchema(customDimensionUpsertResponseSchema, responseData.data);
+}
+
+/**
+ * Execute custom dimension upsert operation with pre/post validation
+ */
+async function executeCustomDimensionUpsert(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof customDimensionUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.customDimension.upsert",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { parent: string }).parent,
+    },
+  });
+
+  logger.info("Executing ga4.customDimension.upsert", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(customDimensionUpsertRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeCustomDimensionUpsertAPIRequest(validatedRequest, ga4Client);
+
+  // Post-check: verify dimension was created/updated
+  const cacheKey = `ga4:customDimension:${validatedResponse.name}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.customDimension.upsert completed", {
+    opId: envelope.opId,
+    dimension: validatedResponse.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.customDimension.upsert tool
+ */
+function registerCustomDimensionUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.customDimension.upsert",
+    description: "Create or update GA4 custom dimension (supports USER, EVENT, ITEM scopes)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        parameterName: {
+          type: "string",
+          description: "Parameter name for the custom dimension",
+        },
+        displayName: {
+          type: "string",
+          description: "Display name for the custom dimension",
+        },
+        description: {
+          type: "string",
+          description: "Description of the custom dimension",
+        },
+        scope: {
+          type: "string",
+          enum: ["USER", "EVENT", "ITEM"],
+          description: "Scope of the custom dimension",
+        },
+        disallowAdsPersonalization: {
+          type: "boolean",
+          description: "Disallow ads personalization for this dimension",
+        },
+      },
+      required: ["parent", "parameterName", "scope"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeCustomDimensionUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.customDimension.upsert failed", error);
+        } else {
+          logger.error("ga4.customDimension.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute custom dimension delete operation (archive)
+ */
+async function executeCustomDimensionDelete(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof customDimensionDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.customDimension.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/customDimensions/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.customDimension.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(customDimensionDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Pre-check: verify dimension exists
+  await ga4Client.checkRateLimit("ga4", "customDimension.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.customDimensions.get({ name: validatedRequest.name });
+  } catch {
+    throw createPreconditionError("not_found", "Custom dimension not found", {
+      dimension: validatedRequest.name,
+    });
+  }
+
+  // Archive dimension (GA4 uses archive, not delete)
+  await ga4Client.checkRateLimit("ga4", "customDimension.archive");
+  try {
+    await adminClient.properties.customDimensions.archive({
+      name: validatedRequest.name,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Custom dimension archive failed", error);
+    } else {
+      logger.error("Custom dimension archive failed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Invalidate cache
+  const cacheKey = `ga4:customDimension:${validatedRequest.name}`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.customDimension.delete completed", {
+    opId: envelope.opId,
+    dimension: validatedRequest.name,
+  });
+
+  return {
+    success: true,
+    name: validatedRequest.name,
+  };
+}
+
+/**
+ * Register ga4.customDimension.delete tool
+ */
+function registerCustomDimensionDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.customDimension.delete",
+    description: "Archive (delete) GA4 custom dimension",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Custom dimension ID in format properties/123456789/customDimensions/dimension_name",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeCustomDimensionDelete(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.customDimension.delete failed", error);
+        } else {
+          logger.error("ga4.customDimension.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
