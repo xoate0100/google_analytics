@@ -544,3 +544,130 @@ export const dataRetentionUpdateRequestSchema = z.object({
   eventDataRetention: z.enum(["EVENT_DATA_RETENTION_2_MONTHS", "EVENT_DATA_RETENTION_14_MONTHS", "EVENT_DATA_RETENTION_26_MONTHS", "EVENT_DATA_RETENTION_38_MONTHS", "EVENT_DATA_RETENTION_50_MONTHS"]).optional(),
 });
 
+/**
+ * Data Filter ID schema (format: dataFilters/123456789)
+ */
+const dataFilterIdSchema = z
+  .string()
+  .regex(/^dataFilters\/\d+$/, "Filter ID must be in format dataFilters/123456789");
+
+/**
+ * Data Filter List Request Schema
+ */
+export const dataFilterListRequestSchema = z.object({
+  property: propertyIdSchema,
+  pageSize: z.number().int().min(1).max(1000).optional(),
+  pageToken: z.string().optional(),
+});
+
+/**
+ * Data Filter Get Request Schema
+ */
+export const dataFilterGetRequestSchema = z.object({
+  property: propertyIdSchema,
+  filterId: dataFilterIdSchema,
+});
+
+/**
+ * Data Filter Type enum
+ */
+const dataFilterTypeSchema = z.enum([
+  "DATA_FILTER_TYPE_UNSPECIFIED",
+  "INTERNAL_TRAFFIC",
+  "BOT_FILTER",
+  "EXCLUDE_EVENTS",
+]);
+
+/**
+ * Data Filter State enum
+ */
+const dataFilterStateSchema = z.enum([
+  "DATA_FILTER_STATE_UNSPECIFIED",
+  "ACTIVE",
+  "INACTIVE",
+]);
+
+/**
+ * Data Filter Apply To enum
+ */
+const dataFilterApplyToSchema = z.enum([
+  "APPLY_TO_UNSPECIFIED",
+  "ALL_EVENTS",
+  "SPECIFIC_EVENTS",
+]);
+
+/**
+ * Data Filter Response Schema
+ */
+export const dataFilterGetResponseSchema = z.object({
+  name: z.string(),
+  filterId: z.string().optional(),
+  displayName: z.string().optional(),
+  type: dataFilterTypeSchema,
+  state: dataFilterStateSchema.optional(),
+  filterExpression: filterExpressionSchema.optional(),
+  applyTo: dataFilterApplyToSchema.optional(),
+  eventNames: z.array(z.string()).optional(),
+  createTime: z.string().optional(),
+  updateTime: z.string().optional(),
+});
+
+/**
+ * Data Filter List Response Schema
+ */
+export const dataFilterListResponseSchema = z.object({
+  dataFilters: z.array(
+    z.object({
+      name: z.string(),
+      filterId: z.string().optional(),
+      displayName: z.string().optional(),
+      type: dataFilterTypeSchema,
+      state: dataFilterStateSchema.optional(),
+    })
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+/**
+ * Data Filter Create Request Schema
+ */
+export const dataFilterCreateRequestSchema = z.object({
+  property: propertyIdSchema,
+  name: z.string().min(1, "Filter name is required"),
+  type: dataFilterTypeSchema,
+  filterExpression: filterExpressionSchema.optional(),
+  applyTo: dataFilterApplyToSchema.optional(),
+  eventNames: z.array(z.string()).optional(),
+});
+
+/**
+ * Data Filter Create Response Schema
+ */
+export const dataFilterCreateResponseSchema = dataFilterGetResponseSchema;
+
+/**
+ * Data Filter Update Request Schema
+ */
+export const dataFilterUpdateRequestSchema = z.object({
+  property: propertyIdSchema,
+  filterId: dataFilterIdSchema,
+  displayName: z.string().optional(),
+  state: dataFilterStateSchema.optional(),
+  filterExpression: filterExpressionSchema.optional(),
+  applyTo: dataFilterApplyToSchema.optional(),
+  eventNames: z.array(z.string()).optional(),
+});
+
+/**
+ * Data Filter Update Response Schema
+ */
+export const dataFilterUpdateResponseSchema = dataFilterGetResponseSchema;
+
+/**
+ * Data Filter Delete Request Schema
+ */
+export const dataFilterDeleteRequestSchema = z.object({
+  property: propertyIdSchema,
+  filterId: dataFilterIdSchema,
+});
+
