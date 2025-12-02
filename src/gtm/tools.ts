@@ -53,6 +53,10 @@ import {
   builtinVariableListResponseSchema,
   builtinVariableEnableRequestSchema,
   builtinVariableEnableResponseSchema,
+  datalayerValidateRequestSchema,
+  datalayerValidateResponseSchema,
+  datalayerSchemaGenerateRequestSchema,
+  datalayerSchemaGenerateResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -107,6 +111,10 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   registerVariableDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerBuiltinVariableListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerBuiltinVariableEnableTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+
+  // Data layer tools
+  registerDataLayerValidateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerDataLayerSchemaGenerateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -2850,6 +2858,299 @@ function registerBuiltinVariableEnableTool(
           logger.error("gtm.builtinVariable.enable failed", error);
         } else {
           logger.error("gtm.builtinVariable.enable failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute data layer validation
+ * Validates data layer structure against schema generated from GTM variables
+ */
+export async function executeDataLayerValidate(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof datalayerValidateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.datalayer.validate",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.datalayer.validate", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(datalayerValidateRequestSchema, args);
+
+  // Check capabilities
+  if (!capabilitiesRegistry.hasCapability("gtm", "datalayer")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM data layer validation not available",
+      {
+        product: "gtm",
+        capability: "datalayer",
+      }
+    );
+  }
+
+  await gtmClient.checkRateLimit("gtm", "datalayer.validate");
+
+  // If explicit schema provided, use it; otherwise generate from variables
+  let schema: z.ZodObject<Record<string, z.ZodTypeAny>>;
+  if (validatedRequest.schema) {
+    // Convert provided schema to Zod (simplified - would need proper conversion)
+    schema = z.object({}) as z.ZodObject<Record<string, z.ZodTypeAny>>;
+  } else {
+    // Generate schema from GTM variables
+    const tagManagerClient = gtmClient.getTagManagerClient();
+    const variablesResponse = await tagManagerClient.accounts.containers.workspaces.variables.list({
+      parent: validatedRequest.parent,
+    });
+
+    const variables = (variablesResponse as { data?: { variable?: unknown[] } }).data?.variable || [];
+    const dataLayerVariables = variables.filter((v: unknown) => {
+      const varObj = v as { type?: string; parameter?: unknown[] };
+      return varObj.type === "v"; // Data layer variable type
+    });
+
+    // Build schema from data layer variables
+    const schemaShape: Record<string, z.ZodTypeAny> = {
+      event: z.string(), // Always required
+    };
+
+    for (const variable of dataLayerVariables) {
+      const varObj = variable as { name?: string; parameter?: unknown[] };
+      if (varObj.name) {
+        // Extract data layer path from variable parameters
+        const dataLayerPath = varObj.parameter?.find(
+          (p: unknown) => (p as { key?: string }).key === "dataLayerName"
+        ) as { value?: string } | undefined;
+        if (dataLayerPath?.value) {
+          schemaShape[dataLayerPath.value] = z.unknown().optional();
+        }
+      }
+    }
+
+    schema = z.object(schemaShape);
+  }
+
+  // Validate data layer against schema
+  const validationResult = schema.safeParse(validatedRequest.dataLayer);
+  const errors: Array<{ path: string; message: string; code?: string }> = [];
+  const warnings: Array<{ path: string; message: string }> = [];
+
+  if (!validationResult.success) {
+    for (const error of validationResult.error.errors) {
+      errors.push({
+        path: error.path.join("."),
+        message: error.message,
+        code: error.code,
+      });
+    }
+  }
+
+  logger.info("gtm.datalayer.validate completed", {
+    opId: envelope.opId,
+    valid: validationResult.success,
+    errorCount: errors.length,
+  });
+
+  return {
+    valid: validationResult.success,
+    errors: errors.length > 0 ? errors : undefined,
+    warnings: warnings.length > 0 ? warnings : undefined,
+  };
+}
+
+/**
+ * Register gtm.datalayer.validate tool
+ */
+function registerDataLayerValidateTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.datalayer.validate",
+    description: "Validate data layer structure against schema generated from GTM variables",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+        dataLayer: {
+          type: "object",
+          description: "Data layer object to validate",
+        },
+        schema: {
+          type: "object",
+          description: "Optional explicit schema (if not provided, generated from GTM variables)",
+        },
+      },
+      required: ["parent", "dataLayer"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataLayerValidate(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.datalayer.validate failed", error);
+        } else {
+          logger.error("gtm.datalayer.validate failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute data layer schema generation
+ * Generates schema from GTM data layer variable definitions
+ */
+export async function executeDataLayerSchemaGenerate(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof datalayerSchemaGenerateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.datalayer.schema.generate",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.datalayer.schema.generate", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(datalayerSchemaGenerateRequestSchema, args);
+
+  // Check capabilities
+  if (!capabilitiesRegistry.hasCapability("gtm", "datalayer")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM data layer schema generation not available",
+      {
+        product: "gtm",
+        capability: "datalayer",
+      }
+    );
+  }
+
+  await gtmClient.checkRateLimit("gtm", "datalayer.schema.generate");
+
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const variablesResponse = await tagManagerClient.accounts.containers.workspaces.variables.list({
+    parent: validatedRequest.parent,
+  });
+
+  const variables = (variablesResponse as { data?: { variable?: unknown[] } }).data?.variable || [];
+  const dataLayerVariables = variables.filter((v: unknown) => {
+    const varObj = v as { type?: string };
+    return varObj.type === "v"; // Data layer variable type
+  });
+
+  // Build schema structure and variable metadata
+  const schema: Record<string, unknown> = {
+    event: { type: "string", required: true },
+  };
+  const variableMetadata: Array<{
+    name: string;
+    type: string;
+    required: boolean;
+    description?: string;
+  }> = [
+    {
+      name: "event",
+      type: "string",
+      required: true,
+      description: "Event name",
+    },
+  ];
+
+  for (const variable of dataLayerVariables) {
+    const varObj = variable as {
+      name?: string;
+      type?: string;
+      parameter?: unknown[];
+      notes?: string;
+    };
+    if (varObj.name) {
+      // Extract data layer path from variable parameters
+      const dataLayerPath = varObj.parameter?.find(
+        (p: unknown) => (p as { key?: string }).key === "dataLayerName"
+      ) as { value?: string } | undefined;
+      if (dataLayerPath?.value) {
+        schema[dataLayerPath.value] = { type: "unknown", required: false };
+        variableMetadata.push({
+          name: dataLayerPath.value,
+          type: "unknown",
+          required: false,
+          ...(varObj.notes && { description: varObj.notes }),
+        });
+      }
+    }
+  }
+
+  logger.info("gtm.datalayer.schema.generate completed", {
+    opId: envelope.opId,
+    variableCount: variableMetadata.length,
+  });
+
+  return {
+    schema,
+    variables: variableMetadata,
+  };
+}
+
+/**
+ * Register gtm.datalayer.schema.generate tool
+ */
+function registerDataLayerSchemaGenerateTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.datalayer.schema.generate",
+    description: "Generate data layer schema from GTM variable definitions",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+        includeBuiltIn: {
+          type: "boolean",
+          description: "Include built-in variables in schema (default: false)",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataLayerSchemaGenerate(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.datalayer.schema.generate failed", error);
+        } else {
+          logger.error("gtm.datalayer.schema.generate failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

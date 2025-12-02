@@ -494,3 +494,59 @@ export const builtinVariableEnableResponseSchema = z.object({
   type: z.string(),
 });
 
+/**
+ * Data Layer Validation Request Schema
+ */
+export const datalayerValidateRequestSchema = z.object({
+  parent: workspacePathSchema,
+  dataLayer: z.record(z.unknown()), // Data layer object to validate
+  schema: z.record(z.unknown()).optional(), // Optional explicit schema
+});
+
+/**
+ * Data Layer Validation Response Schema
+ */
+export const datalayerValidateResponseSchema = z.object({
+  valid: z.boolean(),
+  errors: z
+    .array(
+      z.object({
+        path: z.string(),
+        message: z.string(),
+        code: z.string().optional(),
+      })
+    )
+    .optional(),
+  warnings: z
+    .array(
+      z.object({
+        path: z.string(),
+        message: z.string(),
+      })
+    )
+    .optional(),
+});
+
+/**
+ * Data Layer Schema Generation Request Schema
+ */
+export const datalayerSchemaGenerateRequestSchema = z.object({
+  parent: workspacePathSchema,
+  includeBuiltIn: z.boolean().optional().default(false),
+});
+
+/**
+ * Data Layer Schema Generation Response Schema
+ */
+export const datalayerSchemaGenerateResponseSchema = z.object({
+  schema: z.record(z.unknown()), // Generated Zod schema structure
+  variables: z.array(
+    z.object({
+      name: z.string(),
+      type: z.string(),
+      required: z.boolean(),
+      description: z.string().optional(),
+    })
+  ),
+});
+
