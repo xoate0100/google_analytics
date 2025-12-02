@@ -68,3 +68,81 @@ export const gaqlStreamResponseSchema = z.object({
   totalResults: z.number().optional(),
 });
 
+/**
+ * Campaign List Request Schema
+ */
+export const campaignListRequestSchema = z.object({
+  customerId: customerIdSchema,
+  filter: z.string().optional(),
+});
+
+/**
+ * Campaign List Response Schema
+ */
+export const campaignListResponseSchema = z.object({
+  campaigns: z.array(
+    z.object({
+      campaignId: z.string().optional(),
+      name: z.string().optional(),
+      status: z.enum(["ENABLED", "PAUSED", "REMOVED"]).optional(),
+      advertisingChannelType: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Campaign Get Request Schema
+ */
+export const campaignGetRequestSchema = z.object({
+  customerId: customerIdSchema,
+  campaignId: z.string().min(1, "Campaign ID is required"),
+});
+
+/**
+ * Campaign Get Response Schema
+ */
+export const campaignGetResponseSchema = z.object({
+  campaignId: z.string().optional(),
+  name: z.string().optional(),
+  status: z.enum(["ENABLED", "PAUSED", "REMOVED"]).optional(),
+  advertisingChannelType: z.string().optional(),
+  budget: z.string().optional(),
+  biddingStrategy: z.string().optional(),
+});
+
+/**
+ * Campaign Upsert Request Schema
+ */
+export const campaignUpsertRequestSchema = z.object({
+  customerId: customerIdSchema,
+  campaignId: z.string().optional(), // Required for update, optional for create
+  name: z.string().min(1, "Campaign name is required"),
+  status: z.enum(["ENABLED", "PAUSED", "REMOVED"]).optional(),
+  advertisingChannelType: z.enum(["SEARCH", "DISPLAY", "VIDEO", "SHOPPING", "HOTEL", "MULTI_CHANNEL", "PERFORMANCE_MAX"]).optional(),
+  budget: z.string().optional(), // Budget resource name
+  biddingStrategy: z.string().optional(), // Bidding strategy resource name
+  adSchedule: z.array(z.unknown()).optional(), // Ad schedule configuration
+  targeting: z.record(z.unknown()).optional(), // Targeting configuration
+});
+
+/**
+ * Campaign Upsert Response Schema
+ */
+export const campaignUpsertResponseSchema = campaignGetResponseSchema;
+
+/**
+ * Campaign Pause Request Schema
+ */
+export const campaignPauseRequestSchema = z.object({
+  customerId: customerIdSchema,
+  campaignId: z.string().min(1, "Campaign ID is required"),
+});
+
+/**
+ * Campaign Pause Response Schema
+ */
+export const campaignPauseResponseSchema = z.object({
+  campaignId: z.string().optional(),
+  status: z.enum(["PAUSED"]).optional(),
+});
+
