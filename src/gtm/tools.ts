@@ -77,6 +77,12 @@ import {
   versionCreateResponseSchema,
   versionRestoreRequestSchema,
   versionRestoreResponseSchema,
+  workspacePublishRequestSchema,
+  workspacePublishResponseSchema,
+  previewCreateRequestSchema,
+  previewCreateResponseSchema,
+  previewGetRequestSchema,
+  previewGetResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -149,6 +155,11 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   registerVersionGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerVersionCreateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerVersionRestoreTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+
+  // Publish and preview tools
+  registerWorkspacePublishTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerPreviewCreateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerPreviewGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -4250,6 +4261,357 @@ function registerVersionRestoreTool(
           logger.error("gtm.version.restore failed", error);
         } else {
           logger.error("gtm.version.restore failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to publish workspace
+ */
+async function executeWorkspacePublishAPIRequest(
+  validatedRequest: z.infer<typeof workspacePublishRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof workspacePublishResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "workspace.publish");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  // Get workspace fingerprint if not provided
+  let fingerprint = validatedRequest.fingerprint;
+  if (!fingerprint) {
+    const workspaceResponse = (await (tagManagerClient.accounts.containers.workspaces as unknown as {
+      get?: (params: unknown) => Promise<{ data?: { fingerprint?: string } }>;
+    }).get?.({
+      path: validatedRequest.path,
+    })) as { data?: { fingerprint?: string } };
+    fingerprint = workspaceResponse.data?.fingerprint;
+  }
+
+  const response = (await (tagManagerClient.accounts.containers.workspaces as unknown as {
+    publish?: (params: unknown) => Promise<{ data?: z.infer<typeof workspacePublishResponseSchema> }>;
+  }).publish?.({
+    path: validatedRequest.path,
+    requestBody: {
+      fingerprint: fingerprint || "",
+    },
+  })) as { data?: z.infer<typeof workspacePublishResponseSchema> };
+  return response.data as z.infer<typeof workspacePublishResponseSchema>;
+}
+
+/**
+ * Execute workspace publish
+ */
+export async function executeWorkspacePublish(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof workspacePublishResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.workspace.publish",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.workspace.publish", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(workspacePublishRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM workspace publish not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeWorkspacePublishAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.workspace.publish completed", {
+    opId: envelope.opId,
+    containerVersionId: result.containerVersionId,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.workspace.publish tool
+ */
+function registerWorkspacePublishTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.workspace.publish",
+    description: "Publish workspace to create a new container version",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+        fingerprint: {
+          type: "string",
+          description: "Optional fingerprint for optimistic locking (if not provided, fetched from workspace)",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeWorkspacePublish(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.workspace.publish failed", error);
+        } else {
+          logger.error("gtm.workspace.publish failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create preview environment
+ */
+async function executePreviewCreateAPIRequest(
+  validatedRequest: z.infer<typeof previewCreateRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof previewCreateResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "preview.create");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  // Create a version from the workspace first
+  const versionResponse = (await (tagManagerClient.accounts.containers.versions as unknown as {
+    create?: (params: unknown) => Promise<{ data?: { containerVersionId?: string } }>;
+  }).create?.({
+    parent: validatedRequest.parent,
+    requestBody: {
+      name: `Preview for workspace ${validatedRequest.workspaceId}`,
+    },
+  })) as { data?: { containerVersionId?: string } };
+
+  const containerVersionId = versionResponse.data?.containerVersionId;
+
+  // Create preview environment
+  const response = (await (tagManagerClient.accounts.containers.environments as unknown as {
+    create?: (params: unknown) => Promise<{
+      data?: {
+        environmentId?: string;
+        authorizationCode?: string;
+      };
+    }>;
+  }).create?.({
+    parent: validatedRequest.parent,
+    requestBody: {
+      name: "Preview Environment",
+      type: "PREVIEW",
+      containerVersionId: containerVersionId,
+    },
+  })) as {
+    data?: {
+      environmentId?: string;
+      authorizationCode?: string;
+    };
+  };
+
+  return {
+    environmentId: response.data?.environmentId,
+    authorizationCode: response.data?.authorizationCode,
+    containerVersionId: containerVersionId,
+  };
+}
+
+/**
+ * Execute preview create
+ */
+export async function executePreviewCreate(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof previewCreateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.preview.create",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.preview.create", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(previewCreateRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM preview create not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executePreviewCreateAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.preview.create completed", {
+    opId: envelope.opId,
+    environmentId: result.environmentId,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.preview.create tool
+ */
+function registerPreviewCreateTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.preview.create",
+    description: "Create preview environment for testing workspace changes",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Container path in format accounts/123456/containers/987654",
+        },
+        workspaceId: {
+          type: "string",
+          description: "Workspace ID",
+        },
+      },
+      required: ["parent", "workspaceId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executePreviewCreate(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.preview.create failed", error);
+        } else {
+          logger.error("gtm.preview.create failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to get preview environment
+ */
+async function executePreviewGetAPIRequest(
+  validatedRequest: z.infer<typeof previewGetRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof previewGetResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "preview.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = (await (tagManagerClient.accounts.containers.environments as unknown as {
+    get?: (params: unknown) => Promise<{ data?: z.infer<typeof previewGetResponseSchema> }>;
+  }).get?.({
+    path: validatedRequest.path,
+  })) as { data?: z.infer<typeof previewGetResponseSchema> };
+  return response.data as z.infer<typeof previewGetResponseSchema>;
+}
+
+/**
+ * Execute preview get
+ */
+export async function executePreviewGet(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof previewGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.preview.get",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.preview.get", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(previewGetRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM preview get not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executePreviewGetAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.preview.get completed", {
+    opId: envelope.opId,
+    environmentId: result.environmentId,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.preview.get tool
+ */
+function registerPreviewGetTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.preview.get",
+    description: "Get preview environment details",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Environment path in format accounts/123456/containers/987654/environments/env1",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executePreviewGet(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.preview.get failed", error);
+        } else {
+          logger.error("gtm.preview.get failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

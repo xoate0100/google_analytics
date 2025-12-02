@@ -762,3 +762,64 @@ export const versionRestoreRequestSchema = z.object({
  */
 export const versionRestoreResponseSchema = versionGetResponseSchema;
 
+/**
+ * Workspace Publish Request Schema
+ */
+export const workspacePublishRequestSchema = z.object({
+  path: workspacePathSchema,
+  fingerprint: z.string().optional(), // Optional fingerprint for optimistic locking
+});
+
+/**
+ * Workspace Publish Response Schema
+ */
+export const workspacePublishResponseSchema = z.object({
+  accountId: z.string().optional(),
+  containerId: z.string().optional(),
+  containerVersionId: z.string().optional(),
+});
+
+/**
+ * Preview Create Request Schema
+ */
+export const previewCreateRequestSchema = z.object({
+  parent: containerPathForVersionSchema,
+  workspaceId: z.string().min(1, "Workspace ID is required"),
+});
+
+/**
+ * Preview Create Response Schema
+ */
+export const previewCreateResponseSchema = z.object({
+  environmentId: z.string().optional(),
+  authorizationCode: z.string().optional(),
+  containerVersionId: z.string().optional(),
+});
+
+/**
+ * Environment Path Schema (format: accounts/123456/containers/987654/environments/env1)
+ */
+export const environmentPathSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+\/environments\/[^/]+$/,
+    "Environment path must be in format accounts/123456/containers/987654/environments/env1"
+  );
+
+/**
+ * Preview Get Request Schema
+ */
+export const previewGetRequestSchema = z.object({
+  path: environmentPathSchema,
+});
+
+/**
+ * Preview Get Response Schema
+ */
+export const previewGetResponseSchema = z.object({
+  environmentId: z.string().optional(),
+  name: z.string().optional(),
+  authorizationCode: z.string().optional(),
+  containerVersionId: z.string().optional(),
+});
+
