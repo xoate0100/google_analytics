@@ -630,12 +630,12 @@ sprint2:
 
 merge_status:
   merged_to_develop: true
-  merge_commit: "TBD"
+  merge_commit: "1342c2f"
   merge_date: "2024-01-15T00:00:00Z"
   branch: "feature/sprint2-gtm-ga4-admin"
-  files_changed: "TBD"
-  insertions: "TBD"
-  deletions: "TBD"
+  files_changed: 32
+  insertions: 19069
+  deletions: 18
 
 next_sprint: "Sprint 3 - TBD"
 next_steps:
