@@ -706,6 +706,60 @@ export const dataStreamDeleteResponseSchema = z.object({
 });
 
 /**
+ * Enhanced Measurement Get Request Schema
+ */
+export const enhancedMeasurementGetRequestSchema = z.object({
+  name: z
+    .string()
+    .regex(
+      /^properties\/\d+\/dataStreams\/\d+$/,
+      "Data stream name must be in format properties/123456789/dataStreams/987654321"
+    ),
+});
+
+/**
+ * Enhanced Measurement Response Schema
+ */
+export const enhancedMeasurementResponseSchema = z.object({
+  name: z.string(),
+  streamEnabled: z.boolean().optional(),
+  scrollsEnabled: z.boolean().optional(),
+  scrollsThresholdPercent: z.number().int().min(0).max(100).optional(),
+  outboundClicksEnabled: z.boolean().optional(),
+  siteSearchEnabled: z.boolean().optional(),
+  videoEngagementEnabled: z.boolean().optional(),
+  fileDownloadsEnabled: z.boolean().optional(),
+  pageChangesEnabled: z.boolean().optional(),
+  pageViewsEnabled: z.boolean().optional(),
+});
+
+/**
+ * Enhanced Measurement Update Request Schema
+ */
+export const enhancedMeasurementUpdateRequestSchema = z.object({
+  name: z
+    .string()
+    .regex(
+      /^properties\/\d+\/dataStreams\/\d+$/,
+      "Data stream name must be in format properties/123456789/dataStreams/987654321"
+    ),
+  streamEnabled: z.boolean().optional(),
+  scrollsEnabled: z.boolean().optional(),
+  scrollsThresholdPercent: z.number().int().min(0).max(100).optional(),
+  outboundClicksEnabled: z.boolean().optional(),
+  siteSearchEnabled: z.boolean().optional(),
+  videoEngagementEnabled: z.boolean().optional(),
+  fileDownloadsEnabled: z.boolean().optional(),
+  pageChangesEnabled: z.boolean().optional(),
+  pageViewsEnabled: z.boolean().optional(),
+});
+
+/**
+ * Enhanced Measurement Update Response Schema
+ */
+export const enhancedMeasurementUpdateResponseSchema = enhancedMeasurementResponseSchema;
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({

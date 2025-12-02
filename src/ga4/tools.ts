@@ -36,6 +36,10 @@ import {
   dataStreamUpsertResponseSchema,
   dataStreamDeleteRequestSchema,
   dataStreamDeleteResponseSchema,
+  enhancedMeasurementGetRequestSchema,
+  enhancedMeasurementResponseSchema,
+  enhancedMeasurementUpdateRequestSchema,
+  enhancedMeasurementUpdateResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -103,6 +107,8 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerDataStreamGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataStreamUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataStreamDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerEnhancedMeasurementGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerEnhancedMeasurementUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -1980,6 +1986,320 @@ function registerDataStreamDeleteTool(
           logger.error("ga4.datastream.delete failed", error);
         } else {
           logger.error("ga4.datastream.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to get enhanced measurement settings
+ */
+async function executeEnhancedMeasurementGetAPIRequest(
+  streamName: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof enhancedMeasurementResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "getEnhancedMeasurementSettings");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = (await (
+    adminClient.properties.dataStreams as {
+      getEnhancedMeasurementSettings?: (params: { name: string }) => Promise<{ data?: unknown }>;
+    }
+  ).getEnhancedMeasurementSettings?.({
+    name: `${streamName}/enhancedMeasurementSettings`,
+  })) as { data?: unknown };
+
+  if (!response || !response.data) {
+    throw createPreconditionError("not_found", "Enhanced measurement settings not found", {
+      stream: streamName,
+    });
+  }
+
+  return validateSchema(enhancedMeasurementResponseSchema, response.data);
+}
+
+/**
+ * Execute enhanced measurement get operation
+ */
+async function executeEnhancedMeasurementGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof enhancedMeasurementResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.datastream.enhancedMeasurement.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/dataStreams/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.datastream.enhancedMeasurement.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(enhancedMeasurementGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:datastream:${validatedRequest.name}:enhancedMeasurement`;
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for enhanced measurement", { cacheKey });
+    return validateSchema(enhancedMeasurementResponseSchema, cached);
+  }
+
+  const validatedResponse = await executeEnhancedMeasurementGetAPIRequest(
+    validatedRequest.name,
+    ga4Client
+  );
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.datastream.enhancedMeasurement.get completed", {
+    opId: envelope.opId,
+    stream: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.datastream.enhancedMeasurement.get tool
+ */
+function registerEnhancedMeasurementGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.datastream.enhancedMeasurement.get",
+    description: "Get enhanced measurement settings for a GA4 data stream",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Data stream name in format properties/123456789/dataStreams/987654321",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeEnhancedMeasurementGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.datastream.enhancedMeasurement.get failed", error);
+        } else {
+          logger.error("ga4.datastream.enhancedMeasurement.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to update enhanced measurement settings
+ */
+async function executeEnhancedMeasurementUpdateAPIRequest(
+  streamName: string,
+  settings: z.infer<typeof enhancedMeasurementUpdateRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof enhancedMeasurementUpdateResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "updateEnhancedMeasurementSettings");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const settingsData: Record<string, unknown> = {};
+  if (settings.streamEnabled !== undefined) {
+    settingsData.streamEnabled = settings.streamEnabled;
+  }
+  if (settings.scrollsEnabled !== undefined) {
+    settingsData.scrollsEnabled = settings.scrollsEnabled;
+  }
+  if (settings.scrollsThresholdPercent !== undefined) {
+    settingsData.scrollsThresholdPercent = settings.scrollsThresholdPercent;
+  }
+  if (settings.outboundClicksEnabled !== undefined) {
+    settingsData.outboundClicksEnabled = settings.outboundClicksEnabled;
+  }
+  if (settings.siteSearchEnabled !== undefined) {
+    settingsData.siteSearchEnabled = settings.siteSearchEnabled;
+  }
+  if (settings.videoEngagementEnabled !== undefined) {
+    settingsData.videoEngagementEnabled = settings.videoEngagementEnabled;
+  }
+  if (settings.fileDownloadsEnabled !== undefined) {
+    settingsData.fileDownloadsEnabled = settings.fileDownloadsEnabled;
+  }
+  if (settings.pageChangesEnabled !== undefined) {
+    settingsData.pageChangesEnabled = settings.pageChangesEnabled;
+  }
+  if (settings.pageViewsEnabled !== undefined) {
+    settingsData.pageViewsEnabled = settings.pageViewsEnabled;
+  }
+
+  const response = (await (
+    adminClient.properties.dataStreams as {
+      updateEnhancedMeasurementSettings?: (params: {
+        name: string;
+        updateMask?: string;
+        requestBody?: Record<string, unknown>;
+      }) => Promise<{ data?: unknown }>;
+    }
+  ).updateEnhancedMeasurementSettings?.({
+    name: `${streamName}/enhancedMeasurementSettings`,
+    updateMask: Object.keys(settingsData).join(","),
+    requestBody: settingsData,
+  })) as { data?: unknown };
+
+  if (!response || !response.data) {
+    throw createPreconditionError("not_found", "Enhanced measurement update failed", {
+      stream: streamName,
+    });
+  }
+
+  return validateSchema(enhancedMeasurementUpdateResponseSchema, response.data);
+}
+
+/**
+ * Execute enhanced measurement update operation
+ */
+async function executeEnhancedMeasurementUpdate(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof enhancedMeasurementUpdateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.datastream.enhancedMeasurement.update",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/dataStreams/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.datastream.enhancedMeasurement.update", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(enhancedMeasurementUpdateRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeEnhancedMeasurementUpdateAPIRequest(
+    validatedRequest.name,
+    validatedRequest,
+    ga4Client
+  );
+
+  // Invalidate cache
+  const cacheKey = `ga4:datastream:${validatedRequest.name}:enhancedMeasurement`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.datastream.enhancedMeasurement.update completed", {
+    opId: envelope.opId,
+    stream: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.datastream.enhancedMeasurement.update tool
+ */
+function registerEnhancedMeasurementUpdateTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.datastream.enhancedMeasurement.update",
+    description: "Update enhanced measurement settings for a GA4 data stream",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Data stream name in format properties/123456789/dataStreams/987654321",
+        },
+        streamEnabled: {
+          type: "boolean",
+          description: "Enable/disable enhanced measurement",
+        },
+        scrollsEnabled: {
+          type: "boolean",
+          description: "Enable scroll tracking",
+        },
+        scrollsThresholdPercent: {
+          type: "number",
+          description: "Scroll threshold percentage (0-100)",
+        },
+        outboundClicksEnabled: {
+          type: "boolean",
+          description: "Enable outbound click tracking",
+        },
+        siteSearchEnabled: {
+          type: "boolean",
+          description: "Enable site search tracking",
+        },
+        videoEngagementEnabled: {
+          type: "boolean",
+          description: "Enable video engagement tracking",
+        },
+        fileDownloadsEnabled: {
+          type: "boolean",
+          description: "Enable file download tracking",
+        },
+        pageChangesEnabled: {
+          type: "boolean",
+          description: "Enable page change tracking",
+        },
+        pageViewsEnabled: {
+          type: "boolean",
+          description: "Enable page view tracking",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeEnhancedMeasurementUpdate(
+          args,
+          ga4Client,
+          cache,
+          capabilitiesRegistry,
+          logger
+        );
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.datastream.enhancedMeasurement.update failed", error);
+        } else {
+          logger.error("ga4.datastream.enhancedMeasurement.update failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
