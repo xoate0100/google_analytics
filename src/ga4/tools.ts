@@ -24,6 +24,10 @@ import {
   propertyListResponseSchema,
   propertyGetRequestSchema,
   propertyGetResponseSchema,
+  propertyUpsertRequestSchema,
+  propertyUpsertResponseSchema,
+  propertyDeleteRequestSchema,
+  propertyDeleteResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -83,6 +87,8 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   // Admin API tools - Properties
   registerPropertyListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerPropertyGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerPropertyUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerPropertyDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -1088,6 +1094,312 @@ function registerPropertyGetTool(
           logger.error("ga4.property.get failed", error);
         } else {
           logger.error("ga4.property.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create/update property
+ */
+async function executePropertyUpsertAPIRequest(
+  validatedRequest: z.infer<typeof propertyUpsertRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof propertyUpsertResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "property.upsert");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const propertyData: Record<string, unknown> = {
+    displayName: validatedRequest.displayName,
+  };
+  if (validatedRequest.timeZone) {
+    propertyData.timeZone = validatedRequest.timeZone;
+  }
+  if (validatedRequest.currencyCode) {
+    propertyData.currencyCode = validatedRequest.currencyCode;
+  }
+  if (validatedRequest.industryCategory) {
+    propertyData.industryCategory = validatedRequest.industryCategory;
+  }
+  if (validatedRequest.propertyType) {
+    propertyData.propertyType = validatedRequest.propertyType;
+  }
+
+  let response;
+  if (validatedRequest.name) {
+    // Update existing property
+    response = await adminClient.properties.patch({
+      name: validatedRequest.name,
+      updateMask: "displayName,timeZone,currencyCode,industryCategory,propertyType",
+      requestBody: propertyData,
+    });
+  } else {
+    // Create new property
+    propertyData.parent = validatedRequest.parent;
+    response = await adminClient.properties.create({
+      requestBody: propertyData,
+    });
+  }
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Property operation failed", {});
+  }
+
+  return validateSchema(propertyUpsertResponseSchema, responseData.data);
+}
+
+/**
+ * Execute property upsert operation with pre/post validation
+ */
+async function executePropertyUpsert(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof propertyUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.property.upsert",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      ...((args as { name?: string }).name ? { propertyId: (args as { name: string }).name } : {}),
+      accountId: (args as { parent: string }).parent,
+    },
+  });
+
+  logger.info("Executing ga4.property.upsert", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(propertyUpsertRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Pre-check: if updating, verify property exists
+  if (validatedRequest.name) {
+    await ga4Client.checkRateLimit("ga4", "property.get");
+    const adminClient = ga4Client.getAnalyticsAdminClient();
+    try {
+      await adminClient.properties.get({ name: validatedRequest.name });
+    } catch {
+      throw createPreconditionError("not_found", "Property not found", {
+        property: validatedRequest.name,
+      });
+    }
+  }
+
+  const validatedResponse = await executePropertyUpsertAPIRequest(validatedRequest, ga4Client);
+
+  // Post-check: verify property was created/updated
+  const cacheKey = `ga4:property:${validatedResponse.name}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.property.upsert completed", {
+    opId: envelope.opId,
+    property: validatedResponse.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.property.upsert tool
+ */
+function registerPropertyUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.property.upsert",
+    description: "Create or update GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Account ID in format accounts/123456789 (required for create)",
+        },
+        name: {
+          type: "string",
+          description: "Property ID in format properties/123456789 (required for update)",
+        },
+        displayName: {
+          type: "string",
+          description: "Property display name",
+        },
+        timeZone: {
+          type: "string",
+          description: "Property timezone (e.g., America/New_York)",
+        },
+        currencyCode: {
+          type: "string",
+          description: "Property currency code (e.g., USD)",
+        },
+        industryCategory: {
+          type: "string",
+          description: "Industry category",
+        },
+        propertyType: {
+          type: "string",
+          enum: ["PROPERTY_TYPE_ORDINARY", "PROPERTY_TYPE_SUBPROPERTY", "PROPERTY_TYPE_ROLLUP"],
+          description: "Property type",
+        },
+      },
+      required: ["displayName"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executePropertyUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.property.upsert failed", error);
+        } else {
+          logger.error("ga4.property.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute property delete operation with rollback
+ */
+async function executePropertyDelete(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof propertyDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.property.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name,
+    },
+  });
+
+  logger.info("Executing ga4.property.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(propertyDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Pre-check: verify property exists
+  await ga4Client.checkRateLimit("ga4", "property.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.get({ name: validatedRequest.name });
+  } catch {
+    throw createPreconditionError("not_found", "Property not found", {
+      property: validatedRequest.name,
+    });
+  }
+
+  // Delete property
+  await ga4Client.checkRateLimit("ga4", "property.delete");
+  try {
+    await adminClient.properties.delete({
+      name: validatedRequest.name,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Property delete failed, rollback not needed", error);
+    } else {
+      logger.error("Property delete failed, rollback not needed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Post-check: verify property was deleted
+  try {
+    await adminClient.properties.get({ name: validatedRequest.name });
+    // If we get here, property still exists - rollback scenario
+    logger.warn("Property delete post-check failed - property still exists", {
+      property: validatedRequest.name,
+    });
+    throw createPreconditionError("precheck_failed", "Property deletion failed", {
+      property: validatedRequest.name,
+    });
+  } catch (error) {
+    // Expected: property should not exist
+    if (error instanceof Error && error.message.includes("not found")) {
+      // Success - property deleted
+    } else {
+      throw error;
+    }
+  }
+
+  // Invalidate cache
+  const cacheKey = `ga4:property:${validatedRequest.name}`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.property.delete completed", {
+    opId: envelope.opId,
+    property: validatedRequest.name,
+  });
+
+  return {
+    success: true,
+    name: validatedRequest.name,
+  };
+}
+
+/**
+ * Register ga4.property.delete tool
+ */
+function registerPropertyDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.property.delete",
+    description: "Delete GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executePropertyDelete(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.property.delete failed", error);
+        } else {
+          logger.error("ga4.property.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

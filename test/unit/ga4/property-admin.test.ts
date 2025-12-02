@@ -76,6 +76,30 @@ describe("GA4 Property Admin Tools", () => {
 
       expect(registeredTools.has("ga4.property.get")).toBe(true);
     });
+
+    it("should register ga4.property.upsert tool", () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      expect(registeredTools.has("ga4.property.upsert")).toBe(true);
+    });
+
+    it("should register ga4.property.delete tool", () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      expect(registeredTools.has("ga4.property.delete")).toBe(true);
+    });
   });
 
   describe("ga4.property.list handler", () => {
@@ -207,6 +231,143 @@ describe("GA4 Property Admin Tools", () => {
         name: "properties/123456789",
       });
       expect(result).toHaveProperty("name", "properties/123456789");
+    });
+  });
+
+  describe("ga4.property.upsert handler", () => {
+    it("should validate request schema", async () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      const tool = registeredTools.get("ga4.property.upsert") as {
+        handler: (args: unknown) => Promise<unknown>;
+      };
+
+      const invalidArgs = {
+        parent: "invalid-format",
+      };
+
+      await expect(tool.handler(invalidArgs)).rejects.toThrow();
+    });
+
+    it("should call Analytics Admin API to create property", async () => {
+      const mockAdminClient = {
+        properties: {
+          create: vi.fn().mockResolvedValue({
+            data: {
+              name: "properties/123456789",
+              displayName: "New Property",
+              propertyType: "PROPERTY_TYPE_ORDINARY",
+              createTime: "2024-01-01T00:00:00Z",
+            },
+          }),
+          get: vi.fn().mockResolvedValue({
+            data: {
+              name: "properties/123456789",
+              displayName: "New Property",
+              propertyType: "PROPERTY_TYPE_ORDINARY",
+            },
+          }),
+        },
+      };
+
+      (mockGA4Client.getAnalyticsAdminClient as ReturnType<typeof vi.fn>).mockReturnValue(
+        mockAdminClient
+      );
+
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      const tool = registeredTools.get("ga4.property.upsert") as {
+        handler: (args: unknown) => Promise<unknown>;
+      };
+
+      const result = await tool.handler({
+        parent: "accounts/123456789",
+        displayName: "New Property",
+        timeZone: "America/New_York",
+        currencyCode: "USD",
+      });
+
+      expect(mockGA4Client.checkRateLimit).toHaveBeenCalled();
+      expect(result).toHaveProperty("name");
+    });
+  });
+
+  describe("ga4.property.delete handler", () => {
+    it("should validate request schema", async () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      const tool = registeredTools.get("ga4.property.delete") as {
+        handler: (args: unknown) => Promise<unknown>;
+      };
+
+      const invalidArgs = {
+        name: "invalid-format",
+      };
+
+      await expect(tool.handler(invalidArgs)).rejects.toThrow();
+    });
+
+    it("should call Analytics Admin API to delete property", async () => {
+      const mockAdminClient = {
+        properties: {
+          get: vi.fn()
+            .mockResolvedValueOnce({
+              data: {
+                name: "properties/123456789",
+                displayName: "Test Property",
+              },
+            })
+            .mockRejectedValueOnce(new Error("not found")),
+          delete: vi.fn().mockResolvedValue({}),
+        },
+      };
+
+      (mockGA4Client.getAnalyticsAdminClient as ReturnType<typeof vi.fn>).mockReturnValue(
+        mockAdminClient
+      );
+
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      const tool = registeredTools.get("ga4.property.delete") as {
+        handler: (args: unknown) => Promise<unknown>;
+      };
+
+      const result = await tool.handler({
+        name: "properties/123456789",
+      });
+
+      expect(mockGA4Client.checkRateLimit).toHaveBeenCalled();
+      expect(mockAdminClient.properties.get).toHaveBeenCalledWith({
+        name: "properties/123456789",
+      });
+      expect(mockAdminClient.properties.delete).toHaveBeenCalledWith({
+        name: "properties/123456789",
+      });
+      expect(result).toHaveProperty("success", true);
     });
   });
 });

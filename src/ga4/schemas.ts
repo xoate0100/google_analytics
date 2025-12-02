@@ -535,6 +535,41 @@ export const propertyGetResponseSchema = z.object({
 });
 
 /**
+ * Property Upsert Request Schema
+ */
+export const propertyUpsertRequestSchema = z.object({
+  parent: accountIdSchema,
+  name: propertyIdSchema.optional(),
+  displayName: z.string().min(1, "Display name is required"),
+  timeZone: z.string().optional(),
+  currencyCode: z.string().optional(),
+  industryCategory: z.string().optional(),
+  propertyType: z
+    .enum(["PROPERTY_TYPE_ORDINARY", "PROPERTY_TYPE_SUBPROPERTY", "PROPERTY_TYPE_ROLLUP"])
+    .optional(),
+});
+
+/**
+ * Property Upsert Response Schema
+ */
+export const propertyUpsertResponseSchema = propertyGetResponseSchema;
+
+/**
+ * Property Delete Request Schema
+ */
+export const propertyDeleteRequestSchema = z.object({
+  name: propertyIdSchema,
+});
+
+/**
+ * Property Delete Response Schema
+ */
+export const propertyDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  name: z.string(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({
