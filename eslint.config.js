@@ -41,6 +41,14 @@ export default tseslint.config(
       '@typescript-eslint/unbound-method': 'off',
       'max-lines-per-function': ['warn', { max: 300 }],
     },
+  },
+  {
+    files: ['scripts/**/*'],
+    rules: {
+      'no-console': 'off',
+      'max-lines-per-function': ['warn', { max: 100 }],
+      complexity: ['warn', { max: 15 }],
+    },
   }
 );
 
