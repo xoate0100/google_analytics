@@ -28,6 +28,10 @@ import {
   propertyUpsertResponseSchema,
   propertyDeleteRequestSchema,
   propertyDeleteResponseSchema,
+  dataStreamListRequestSchema,
+  dataStreamListResponseSchema,
+  dataStreamGetRequestSchema,
+  dataStreamGetResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -89,6 +93,10 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerPropertyGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerPropertyUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerPropertyDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Data Streams
+  registerDataStreamListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataStreamGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -1400,6 +1408,249 @@ function registerPropertyDeleteTool(
           logger.error("ga4.property.delete failed", error);
         } else {
           logger.error("ga4.property.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list data streams
+ */
+async function executeDataStreamListAPIRequest(
+  validatedRequest: z.infer<typeof dataStreamListRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof dataStreamListResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "datastream.list");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const params: Record<string, unknown> = {
+    parent: validatedRequest.parent,
+  };
+  if (validatedRequest.pageSize) {
+    params.pageSize = validatedRequest.pageSize;
+  }
+  if (validatedRequest.pageToken) {
+    params.pageToken = validatedRequest.pageToken;
+  }
+
+  const response = await adminClient.properties.dataStreams.list(params);
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No data streams found", {});
+  }
+
+  return validateSchema(dataStreamListResponseSchema, responseData.data);
+}
+
+/**
+ * Execute data stream list operation
+ */
+async function executeDataStreamList(
+  args: unknown,
+  ga4Client: GA4Client,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof dataStreamListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.datastream.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { parent: string }).parent },
+  });
+
+  logger.info("Executing ga4.datastream.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataStreamListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeDataStreamListAPIRequest(validatedRequest, ga4Client);
+
+  logger.info("ga4.datastream.list completed", {
+    opId: envelope.opId,
+    streamCount: validatedResponse.dataStreams.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.datastream.list tool
+ */
+function registerDataStreamListTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.datastream.list",
+    description: "List data streams for a GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        pageSize: {
+          type: "number",
+          description: "Maximum number of streams to return (1-200)",
+        },
+        pageToken: {
+          type: "string",
+          description: "Token for pagination",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataStreamList(args, ga4Client, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.datastream.list failed", error);
+        } else {
+          logger.error("ga4.datastream.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return data stream if found
+ */
+async function checkDataStreamCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof dataStreamGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for data stream", { cacheKey });
+    return validateSchema(dataStreamGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get data stream
+ */
+async function executeDataStreamGetAPIRequest(
+  streamName: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof dataStreamGetResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "datastream.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = await adminClient.properties.dataStreams.get({
+    name: streamName,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Data stream not found", {
+      stream: streamName,
+    });
+  }
+
+  return validateSchema(dataStreamGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute data stream get operation
+ */
+async function executeDataStreamGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof dataStreamGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.datastream.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/dataStreams/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.datastream.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataStreamGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:datastream:${validatedRequest.name}`;
+  const cached = await checkDataStreamCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeDataStreamGetAPIRequest(validatedRequest.name, ga4Client);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.datastream.get completed", {
+    opId: envelope.opId,
+    stream: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.datastream.get tool
+ */
+function registerDataStreamGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.datastream.get",
+    description: "Get GA4 data stream details by stream ID",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Data stream ID in format properties/123456789/dataStreams/987654321",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataStreamGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.datastream.get failed", error);
+        } else {
+          logger.error("ga4.datastream.get failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

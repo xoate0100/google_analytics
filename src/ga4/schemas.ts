@@ -570,6 +570,97 @@ export const propertyDeleteResponseSchema = z.object({
 });
 
 /**
+ * Data Stream ID schema (format: properties/123456789/dataStreams/987654321)
+ */
+const dataStreamIdSchema = z
+  .string()
+  .regex(
+    /^properties\/\d+\/dataStreams\/\d+$/,
+    "Data stream ID must be in format properties/123456789/dataStreams/987654321"
+  );
+
+/**
+ * Data Stream List Request Schema
+ */
+export const dataStreamListRequestSchema = z.object({
+  parent: propertyIdSchema,
+  pageSize: z.number().int().positive().max(200).optional(),
+  pageToken: z.string().optional(),
+});
+
+/**
+ * Data Stream List Response Schema
+ */
+export const dataStreamListResponseSchema = z.object({
+  dataStreams: z.array(
+    z.object({
+      name: z.string(),
+      type: z.enum(["WEB_DATA_STREAM", "IOS_APP_DATA_STREAM", "ANDROID_APP_DATA_STREAM"]),
+      displayName: z.string().optional(),
+      createTime: z.string().optional(),
+      updateTime: z.string().optional(),
+      webStreamData: z
+        .object({
+          measurementId: z.string().optional(),
+          firebaseAppId: z.string().optional(),
+          defaultUri: z.string().optional(),
+        })
+        .optional(),
+      iosAppStreamData: z
+        .object({
+          firebaseAppId: z.string().optional(),
+          bundleId: z.string().optional(),
+        })
+        .optional(),
+      androidAppStreamData: z
+        .object({
+          firebaseAppId: z.string().optional(),
+          packageName: z.string().optional(),
+        })
+        .optional(),
+    })
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+/**
+ * Data Stream Get Request Schema
+ */
+export const dataStreamGetRequestSchema = z.object({
+  name: dataStreamIdSchema,
+});
+
+/**
+ * Data Stream Get Response Schema
+ */
+export const dataStreamGetResponseSchema = z.object({
+  name: z.string(),
+  type: z.enum(["WEB_DATA_STREAM", "IOS_APP_DATA_STREAM", "ANDROID_APP_DATA_STREAM"]),
+  displayName: z.string().optional(),
+  createTime: z.string().optional(),
+  updateTime: z.string().optional(),
+  webStreamData: z
+    .object({
+      measurementId: z.string().optional(),
+      firebaseAppId: z.string().optional(),
+      defaultUri: z.string().optional(),
+    })
+    .optional(),
+  iosAppStreamData: z
+    .object({
+      firebaseAppId: z.string().optional(),
+      bundleId: z.string().optional(),
+    })
+    .optional(),
+  androidAppStreamData: z
+    .object({
+      firebaseAppId: z.string().optional(),
+      packageName: z.string().optional(),
+    })
+    .optional(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({
