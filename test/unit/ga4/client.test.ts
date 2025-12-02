@@ -83,6 +83,21 @@ describe("GA4 REST Client", () => {
       const adminClient = client.getAnalyticsAdminClient();
       expect(adminClient).toBeDefined();
     });
+
+    it("should initialize admin client only once", () => {
+      const client = new GA4Client(clientOptions);
+      const adminClient1 = client.getAnalyticsAdminClient();
+      const adminClient2 = client.getAnalyticsAdminClient();
+      expect(adminClient1).toBe(adminClient2);
+    });
+
+    it("should log debug message when initializing admin client", () => {
+      const client = new GA4Client(clientOptions);
+      client.getAnalyticsAdminClient();
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        expect.stringContaining("Analytics Admin API client initialized")
+      );
+    });
   });
 
   describe("rate limiting", () => {
