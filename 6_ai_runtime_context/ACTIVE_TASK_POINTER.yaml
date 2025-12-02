@@ -1,4 +1,4 @@
-current_task: "1.15.2"
+current_task: "1.17.1"
 status: completed
 last_run: "2024-01-01T00:00:00Z"
 completed_tasks:
@@ -37,3 +37,6 @@ completed_tasks:
   - "1.14.2"
   - "1.15.1"
   - "1.15.2"
+  - "1.16.1"
+  - "1.16.2"
+  - "1.17.1"
