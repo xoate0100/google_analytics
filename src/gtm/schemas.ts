@@ -596,3 +596,82 @@ export const datalayerEventsListResponseSchema = z.object({
   ),
 });
 
+/**
+ * Folder Path Schema (format: accounts/123456/containers/987654/workspaces/111111/folders/1)
+ */
+export const folderPathSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+\/workspaces\/\d+\/folders\/\d+$/,
+    "Folder path must be in format accounts/123456/containers/987654/workspaces/111111/folders/1"
+  );
+
+/**
+ * Folder List Request Schema
+ */
+export const folderListRequestSchema = z.object({
+  parent: workspacePathSchema,
+});
+
+/**
+ * Folder List Response Schema
+ */
+export const folderListResponseSchema = z.object({
+  folders: z.array(
+    z.object({
+      accountId: z.string().optional(),
+      containerId: z.string().optional(),
+      workspaceId: z.string().optional(),
+      folderId: z.string().optional(),
+      name: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Folder Get Request Schema
+ */
+export const folderGetRequestSchema = z.object({
+  path: folderPathSchema,
+});
+
+/**
+ * Folder Get Response Schema
+ */
+export const folderGetResponseSchema = z.object({
+  accountId: z.string().optional(),
+  containerId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  folderId: z.string().optional(),
+  name: z.string().optional(),
+});
+
+/**
+ * Folder Upsert Request Schema
+ */
+export const folderUpsertRequestSchema = z.object({
+  parent: workspacePathSchema,
+  folderId: z.string().optional(), // If provided, update existing folder
+  name: z.string().min(1, "Folder name is required"),
+});
+
+/**
+ * Folder Upsert Response Schema
+ */
+export const folderUpsertResponseSchema = folderGetResponseSchema;
+
+/**
+ * Folder Delete Request Schema
+ */
+export const folderDeleteRequestSchema = z.object({
+  path: folderPathSchema,
+});
+
+/**
+ * Folder Delete Response Schema
+ */
+export const folderDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  path: z.string(),
+});
+

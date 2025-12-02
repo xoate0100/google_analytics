@@ -61,6 +61,14 @@ import {
   datalayerMonitorResponseSchema,
   datalayerEventsListRequestSchema,
   datalayerEventsListResponseSchema,
+  folderListRequestSchema,
+  folderListResponseSchema,
+  folderGetRequestSchema,
+  folderGetResponseSchema,
+  folderUpsertRequestSchema,
+  folderUpsertResponseSchema,
+  folderDeleteRequestSchema,
+  folderDeleteResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -121,6 +129,12 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   registerDataLayerSchemaGenerateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerDataLayerMonitorTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerDataLayerEventsListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+
+  // Folder tools
+  registerFolderListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerFolderGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerFolderUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerFolderDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -3397,6 +3411,421 @@ function registerDataLayerEventsListTool(
           logger.error("gtm.datalayer.events.list failed", error);
         } else {
           logger.error("gtm.datalayer.events.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list folders
+ */
+async function executeFolderListAPIRequest(
+  validatedRequest: z.infer<typeof folderListRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof folderListResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "folder.list");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = await tagManagerClient.accounts.containers.workspaces.folders.list({
+    parent: validatedRequest.parent,
+  });
+  const folders = (response as { data?: { folder?: unknown[] } }).data?.folder || [];
+  return {
+    folders: folders as z.infer<typeof folderListResponseSchema>["folders"],
+  };
+}
+
+/**
+ * Execute folder list
+ */
+export async function executeFolderList(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof folderListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.folder.list",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.folder.list", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(folderListRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM folder list not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeFolderListAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.folder.list completed", {
+    opId: envelope.opId,
+    folderCount: result.folders.length,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.folder.list tool
+ */
+function registerFolderListTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.folder.list",
+    description: "List folders in GTM workspace",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeFolderList(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.folder.list failed", error);
+        } else {
+          logger.error("gtm.folder.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to get folder
+ */
+async function executeFolderGetAPIRequest(
+  validatedRequest: z.infer<typeof folderGetRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof folderGetResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "folder.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = await tagManagerClient.accounts.containers.workspaces.folders.get({
+    path: validatedRequest.path,
+  });
+  return (response as { data?: unknown }).data as z.infer<typeof folderGetResponseSchema>;
+}
+
+/**
+ * Execute folder get
+ */
+export async function executeFolderGet(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof folderGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.folder.get",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.folder.get", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(folderGetRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM folder get not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeFolderGetAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.folder.get completed", {
+    opId: envelope.opId,
+    folderId: result.folderId,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.folder.get tool
+ */
+function registerFolderGetTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.folder.get",
+    description: "Get folder by path",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Folder path in format accounts/123456/containers/987654/workspaces/111111/folders/1",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeFolderGet(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.folder.get failed", error);
+        } else {
+          logger.error("gtm.folder.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to upsert folder
+ */
+async function executeFolderUpsertAPIRequest(
+  validatedRequest: z.infer<typeof folderUpsertRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof folderUpsertResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "folder.upsert");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  if (validatedRequest.folderId) {
+    // Update existing folder
+    const folderPath = `${validatedRequest.parent}/folders/${validatedRequest.folderId}`;
+    const response = await tagManagerClient.accounts.containers.workspaces.folders.update({
+      path: folderPath,
+      requestBody: {
+        name: validatedRequest.name,
+      },
+    });
+    return (response as { data?: unknown }).data as z.infer<typeof folderUpsertResponseSchema>;
+  } else {
+    // Create new folder
+    const response = await tagManagerClient.accounts.containers.workspaces.folders.create({
+      parent: validatedRequest.parent,
+      requestBody: {
+        name: validatedRequest.name,
+      },
+    });
+    return (response as { data?: unknown }).data as z.infer<typeof folderUpsertResponseSchema>;
+  }
+}
+
+/**
+ * Execute folder upsert
+ */
+export async function executeFolderUpsert(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof folderUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.folder.upsert",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.folder.upsert", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(folderUpsertRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM folder upsert not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeFolderUpsertAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.folder.upsert completed", {
+    opId: envelope.opId,
+    folderId: result.folderId,
+    name: result.name,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.folder.upsert tool
+ */
+function registerFolderUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.folder.upsert",
+    description: "Create or update folder in GTM workspace",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+        folderId: {
+          type: "string",
+          description: "Folder ID (if provided, updates existing folder)",
+        },
+        name: {
+          type: "string",
+          description: "Folder name",
+        },
+      },
+      required: ["parent", "name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeFolderUpsert(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.folder.upsert failed", error);
+        } else {
+          logger.error("gtm.folder.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to delete folder
+ */
+async function executeFolderDeleteAPIRequest(
+  validatedRequest: z.infer<typeof folderDeleteRequestSchema>,
+  gtmClient: GTMClient
+): Promise<void> {
+  await gtmClient.checkRateLimit("gtm", "folder.delete");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  await tagManagerClient.accounts.containers.workspaces.folders.delete({
+    path: validatedRequest.path,
+  });
+}
+
+/**
+ * Execute folder delete
+ */
+export async function executeFolderDelete(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof folderDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.folder.delete",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.folder.delete", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(folderDeleteRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM folder delete not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  await executeFolderDeleteAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.folder.delete completed", {
+    opId: envelope.opId,
+    path: validatedRequest.path,
+  });
+
+  return {
+    success: true,
+    path: validatedRequest.path,
+  };
+}
+
+/**
+ * Register gtm.folder.delete tool
+ */
+function registerFolderDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.folder.delete",
+    description: "Delete folder from GTM workspace",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Folder path in format accounts/123456/containers/987654/workspaces/111111/folders/1",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeFolderDelete(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.folder.delete failed", error);
+        } else {
+          logger.error("gtm.folder.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
