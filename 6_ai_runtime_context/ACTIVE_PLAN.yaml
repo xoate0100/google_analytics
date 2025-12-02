@@ -650,7 +650,7 @@ sprint3:
       status: "in_progress"
       tasks: ["3.3.1", "3.3.2"]
     - name: "GTM Consent Mode & Tag Sequencing"
-      status: "pending"
+      status: "completed"
       tasks: ["3.4.1", "3.4.2"]
     - name: "Google Ads Reporting & Campaigns"
       status: "pending"
@@ -684,10 +684,12 @@ sprint3:
       outputs: ["src/gtm/tools.ts", "src/gtm/schemas.ts", "test/unit/gtm/publish.test.ts"]
     - id: "3.4.1"
       name: "Create GTM consent mode tools (TDD)"
-      status: "pending"
+      status: "completed"
+      outputs: ["src/gtm/tools.ts", "src/gtm/schemas.ts", "test/unit/gtm/consent-mode.test.ts"]
     - id: "3.4.2"
       name: "Create GTM tag sequencing and priority tools (TDD)"
-      status: "pending"
+      status: "completed"
+      outputs: ["src/gtm/tools.ts", "src/gtm/schemas.ts", "test/unit/gtm/tag-sequencing.test.ts"]
     - id: "3.5.1"
       name: "Create Google Ads GAQL reporting tools (TDD)"
       status: "pending"
@@ -729,7 +731,7 @@ sprint3:
     - "SOLID Compliance: All code follows SOLID principles"
     - "TDD: All tools implemented with test-first approach"
   metrics:
-    tools_implemented: 8
+    tools_implemented: 12
     test_coverage: ">90%"
     documentation_complete: false
     code_quality: "All linting and type-checking passing (with acceptable warnings)"
