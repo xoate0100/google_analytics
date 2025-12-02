@@ -20,6 +20,10 @@ import {
   runRealtimeReportResponseSchema,
   measurementRequestSchema,
   measurementValidationResponseSchema,
+  propertyListRequestSchema,
+  propertyListResponseSchema,
+  propertyGetRequestSchema,
+  propertyGetResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -75,6 +79,10 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
     registerMeasurementSendTool(bootstrap, options.measurementClient, logger);
     registerMeasurementValidateTool(bootstrap, options.measurementClient, logger);
   }
+
+  // Admin API tools - Properties
+  registerPropertyListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerPropertyGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -831,6 +839,260 @@ async function executePropertySettingsGet(
   });
 
   return validatedResponse;
+}
+
+/**
+ * Execute API request to list properties
+ */
+async function executePropertyListAPIRequest(
+  validatedRequest: z.infer<typeof propertyListRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof propertyListResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "property.list");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  
+  const params: Record<string, unknown> = {};
+  if (validatedRequest.parent) {
+    params.parent = validatedRequest.parent;
+  }
+  if (validatedRequest.pageSize) {
+    params.pageSize = validatedRequest.pageSize;
+  }
+  if (validatedRequest.pageToken) {
+    params.pageToken = validatedRequest.pageToken;
+  }
+  if (validatedRequest.filter) {
+    params.filter = validatedRequest.filter;
+  }
+  if (validatedRequest.showDeleted !== undefined) {
+    params.showDeleted = validatedRequest.showDeleted;
+  }
+
+  const response = await adminClient.properties.list(params);
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No properties found", {});
+  }
+
+  return validateSchema(propertyListResponseSchema, responseData.data);
+}
+
+/**
+ * Execute property list operation
+ */
+async function executePropertyList(
+  args: unknown,
+  ga4Client: GA4Client,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof propertyListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.property.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4" },
+  });
+
+  logger.info("Executing ga4.property.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(propertyListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executePropertyListAPIRequest(validatedRequest, ga4Client);
+
+  logger.info("ga4.property.list completed", {
+    opId: envelope.opId,
+    propertyCount: validatedResponse.properties.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.property.list tool
+ */
+function registerPropertyListTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.property.list",
+    description: "List GA4 properties for an account",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Account ID in format accounts/123456789 (optional)",
+        },
+        pageSize: {
+          type: "number",
+          description: "Maximum number of properties to return (1-200)",
+        },
+        pageToken: {
+          type: "string",
+          description: "Token for pagination",
+        },
+        filter: {
+          type: "string",
+          description: "Filter expression for properties",
+        },
+        showDeleted: {
+          type: "boolean",
+          description: "Include deleted properties",
+        },
+      },
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executePropertyList(args, ga4Client, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.property.list failed", error);
+        } else {
+          logger.error("ga4.property.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return property if found
+ */
+async function checkPropertyCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof propertyGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for property", { cacheKey });
+    return validateSchema(propertyGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get property
+ */
+async function executePropertyGetAPIRequest(
+  propertyName: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof propertyGetResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "property.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = await adminClient.properties.get({
+    name: propertyName,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Property not found", {
+      property: propertyName,
+    });
+  }
+
+  return validateSchema(propertyGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute property get operation
+ */
+async function executePropertyGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof propertyGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.property.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { name: string }).name },
+  });
+
+  logger.info("Executing ga4.property.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(propertyGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:property:${validatedRequest.name}`;
+  const cached = await checkPropertyCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executePropertyGetAPIRequest(validatedRequest.name, ga4Client);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.property.get completed", {
+    opId: envelope.opId,
+    property: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.property.get tool
+ */
+function registerPropertyGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.property.get",
+    description: "Get GA4 property details by property ID",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executePropertyGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.property.get failed", error);
+        } else {
+          logger.error("ga4.property.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
 }
 
 /**

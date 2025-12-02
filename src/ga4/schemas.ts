@@ -463,6 +463,78 @@ export const measurementValidationResponseSchema = z.object({
 });
 
 /**
+ * Account ID schema (format: accounts/123456789)
+ */
+const accountIdSchema = z
+  .string()
+  .regex(/^accounts\/\d+$/, "Account ID must be in format accounts/123456789");
+
+/**
+ * Property List Request Schema
+ */
+export const propertyListRequestSchema = z.object({
+  parent: accountIdSchema.optional(),
+  pageSize: z.number().int().positive().max(200).optional(),
+  pageToken: z.string().optional(),
+  filter: z.string().optional(),
+  showDeleted: z.boolean().optional(),
+});
+
+/**
+ * Property List Response Schema
+ */
+export const propertyListResponseSchema = z.object({
+  properties: z.array(
+    z.object({
+      name: z.string(),
+      displayName: z.string().optional(),
+      propertyType: z
+        .enum(["PROPERTY_TYPE_ORDINARY", "PROPERTY_TYPE_SUBPROPERTY", "PROPERTY_TYPE_ROLLUP"])
+        .optional(),
+      parent: z.string().optional(),
+      createTime: z.string().optional(),
+      updateTime: z.string().optional(),
+      deleteTime: z.string().optional(),
+      expireTime: z.string().optional(),
+      account: z.string().optional(),
+      industryCategory: z.string().optional(),
+      timeZone: z.string().optional(),
+      currencyCode: z.string().optional(),
+      serviceLevel: z.enum(["ANALYTICS_360", "GOOGLE_ANALYTICS"]).optional(),
+    })
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+/**
+ * Property Get Request Schema
+ */
+export const propertyGetRequestSchema = z.object({
+  name: propertyIdSchema,
+});
+
+/**
+ * Property Get Response Schema
+ */
+export const propertyGetResponseSchema = z.object({
+  name: z.string(),
+  displayName: z.string().optional(),
+  propertyType: z
+    .enum(["PROPERTY_TYPE_ORDINARY", "PROPERTY_TYPE_SUBPROPERTY", "PROPERTY_TYPE_ROLLUP"])
+    .optional(),
+  parent: z.string().optional(),
+  createTime: z.string().optional(),
+  updateTime: z.string().optional(),
+  deleteTime: z.string().optional(),
+  expireTime: z.string().optional(),
+  account: z.string().optional(),
+  industryCategory: z.string().optional(),
+  timeZone: z.string().optional(),
+  currencyCode: z.string().optional(),
+  serviceLevel: z.enum(["ANALYTICS_360", "GOOGLE_ANALYTICS"]).optional(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({
