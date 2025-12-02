@@ -1,0 +1,63 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate PR
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate MVP Specification
+        run: |
+          python3 -m pip install pyyaml jsonschema
+          python3 3_bootstrap_scripts/schema_enforcement.py
+
+      - name: Architecture Check
+        run: python3 3_bootstrap_scripts/architecture_check.py
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type Check
+        run: pnpm type-check
+
+      - name: Run Tests
+        run: pnpm test
+
+      - name: Coverage Check
+        run: pnpm test:coverage
+        env:
+          CI: true
+
+      - name: Security Scan
+        run: |
+          pnpm audit --audit-level=moderate || true
+          python3 3_bootstrap_scripts/security_scan.sh
+
+      - name: Format Check
+        run: pnpm format:check
+
+      - name: Dead Code Check
+        run: pnpm dead-code:check || true
+

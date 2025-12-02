@@ -1,186 +1,1157 @@
-# MVP Specification Template (Full Schema Compliance)
-# This file defines the project structure and initial plan for AI-driven development
+# MVP Specification - MCP Google Marketing Ops Tool
+# This file defines the complete project specification for the MCP server
 # All fields match the full schema in 7_schemas/mvp_specification.schema.json
+# CRITICAL: This specification preserves 100% fidelity from MVP_MCP_Analytics_Tool.md
 
 # Required Core Fields
-Project: "your-project-name"
+Project: "mcp-google-marketing"
 Maturity: "L2.5"  # L2 | L2.5 | L3
-Architecture: "monorepo"  # Descriptive architecture type
-Repo_Type: "monorepo"  # frontend | backend | fullstack | microservice | monorepo
+Architecture: "mcp-server"  # MCP server architecture
+Repo_Type: "backend"  # frontend | backend | fullstack | microservice | monorepo
 Execution_Mode: "Controlled Agentic Execution"  # Human Directed | Controlled Agentic Execution | Fully Agentic
 
 # Goals and Principles
 GOALS_AND_PRINCIPLES:
   goals:
-    - "Initialize project structure from template"
-    - "Establish development standards and quality gates"
-    - "Enable AI-assisted development workflow"
+    - "Build a reusable, project-agnostic MCP server that exposes safe, idempotent, full-fidelity tools for Google Ads, Google Tag Manager, and Google Analytics 4 from inside Cursor IDE"
+    - "Support read/write/create/delete operations with stateful verification, strong observability, TDD-first delivery, and security best practices"
+    - "Expose at least 75+ atomic tools covering full API capabilities: GA4 (35+), GTM (20+), Google Ads (15+)"
+    - "Enable auth once, then seamless access from any repo in Cursor"
+    - "Ensure all write ops are idempotent, logged, pre/post-validated, and rollbackable"
+    - "Route discovery/verification ensures no out-of-scope or deprecated endpoints are exposed"
+    - "Full support for custom event tracking, data layer management, and conversion setup across all products"
+    - "Ship with test matrix (unit + integration + contract), CI gates, and developer docs"
   principles:
-    - "Test-driven development"
+    - "Test-driven development (TDD-first delivery)"
+    - "Idempotency for all write operations"
+    - "Stateful verification with pre/post validation"
+    - "Strong observability with structured logging"
+    - "Security best practices (OAuth, encryption, minimal scopes)"
     - "Code quality through automation"
-    - "Documentation as code"
+    - "Documentation as code with AI-first notes"
 
 # Technology Stack
 TECH_STACK:
   frontend:
-    framework: "react"  # nextjs | react | vue | svelte | angular | remix | astro | none
-    language: "typescript"
-    styling: []  # Optional: ["tailwindcss", "css-modules", etc.]
-    animations: ""  # Optional: "framer-motion", "gsap", etc.
-    validation: ""  # Optional: "zod", "yup", etc.
+    framework: "none"  # MCP server, no frontend
+    language: ""
+    styling: []
+    animations: ""
+    validation: ""
   backend:
-    framework: "fastapi"  # fastapi | flask | django | express | spring | none
-    language: "python"
-    orm: ""  # Optional: "sqlalchemy", "django-orm", etc.
+    framework: "mcp"  # Model Context Protocol server
+    language: "typescript"
+    orm: ""
+    runtime: "nodejs"
+    protocol: "@modelcontextprotocol/server"
   shared:
-    language: "typescript"  # typescript | javascript | python
-  integrations: []  # Optional: ["stripe", "sendgrid", etc.]
-  optional_libs: []  # Optional: Additional libraries
+    language: "typescript"
+  integrations:
+    - "google-auth-library"
+    - "googleapis"
+    - "google-ads-api"
+    - "zod"
+    - "pino"
+    - "libsodium"
+  optional_libs:
+    - "vitest"
+    - "nock"
+    - "sqlite3"
 
 # Monorepo Layout (Nested Object Structure)
 MONOREPO_LAYOUT:
   root:
-    frontend: {}
-    backend: {}
-    shared: {}
-  apps: {}  # Add app-specific directories here
+    src:
+      server: {}
+      core: {}
+      auth: {}
+      ga4: {}
+      gtm: {}
+      ads: {}
+      docs: {}
+    test: {}
+    scripts: {}
+    docs: {}
+  apps: {}
   scripts:
-    - "scripts/build.sh"
-    - "scripts/test.sh"
+    - "scripts/smoke.mjs"
+    - "scripts/dev.sh"
   shared:
     types: {}
     utils: {}
 
-# Environment and Configuration (Optional)
+# Environment and Configuration
 ENVIRONMENT_AND_CONFIG:
-  vercel_env: {}  # Optional: Vercel environment variables
-  env_notes: []  # Optional: Environment setup notes
+  env_notes:
+    - "GOOGLE_CLIENT_ID - OAuth client ID for Google APIs"
+    - "GOOGLE_CLIENT_SECRET - OAuth client secret"
+    - "GOOGLE_ADS_DEV_TOKEN - Google Ads API developer token"
+    - "LOGIN_CUSTOMER_ID - Google Ads login customer ID"
+    - "GA4_MEASUREMENT_PROTOCOL_SECRET - GA4 Measurement Protocol secret"
+    - "MCP_MARKETING_DRY_RUN - Enable dry-run mode (1 = enabled)"
+  config_file: "~/.mcp/google/config.json"
+  credentials_file: "~/.mcp/google/credentials.enc.json"
+  capabilities_file: "~/.mcp/google/capabilities.json"
 
-# Routing Model (Optional)
+# Routing Model
 ROUTING_MODEL:
-  type: "path-based"  # path-based | domain-based | hybrid
-  base_path: ""  # Optional: Base routing path
-  data_source: ""  # Optional: Data source path
+  type: "mcp-tools"  # MCP tool-based routing
+  base_path: ""
+  data_source: ""
 
-# Schema Definition (Optional)
+# Schema Definition
 SCHEMA_DEFINITION:
-  validation_lib: ""  # Optional: "zod", "pydantic", etc.
-  schema_files: []  # Optional: ["schemas/user.schema.json"]
-  modules: []  # Optional: Schema module paths
+  validation_lib: "zod"
+  schema_files:
+    - "src/ga4/schemas.ts"
+    - "src/gtm/schemas.ts"
+    - "src/ads/schemas.ts"
+    - "src/core/validation.ts"
+  modules:
+    - "src/core/validation.ts"
 
-# Brand Module (Optional)
+# Brand Module
 BRAND_MODULE:
-  colors: {}  # Optional: Brand color definitions
-  fonts: {}  # Optional: Font definitions
-  cta_text: ""  # Optional: Call-to-action text
-  disclaimers: []  # Optional: Legal disclaimers
+  colors: {}
+  fonts: {}
+  cta_text: ""
+  disclaimers: []
 
-# Analytics and Events (Optional)
+# Analytics and Events
 ANALYTICS_AND_EVENTS:
-  provider: ""  # Optional: "google-analytics", "mixpanel", etc.
-  events: []  # Optional: Event names
-  pixels: []  # Optional: Tracking pixel IDs
+  provider: "google-analytics"
+  events: []
+  pixels: []
 
-# Integrations (Optional)
+# Integrations
 INTEGRATIONS:
-  oncehub: ""  # Optional: OnceHub integration
-  activecampaign: ""  # Optional: ActiveCampaign integration
-  optional_future: []  # Optional: Future integrations
+  google_analytics_4:
+    description: "GA4 Data API, Admin API, Measurement Protocol"
+    scopes:
+      - "https://www.googleapis.com/auth/analytics.readonly"
+      - "https://www.googleapis.com/auth/analytics.edit"
+      - "https://www.googleapis.com/auth/analytics.manage.users"
+  google_tag_manager:
+    description: "GTM API v2"
+    scopes:
+      - "https://www.googleapis.com/auth/tagmanager.readonly"
+      - "https://www.googleapis.com/auth/tagmanager.edit.containers"
+      - "https://www.googleapis.com/auth/tagmanager.publish"
+      - "https://www.googleapis.com/auth/tagmanager.manage.accounts"
+  google_ads:
+    description: "Google Ads API (gRPC/REST)"
+    requires_developer_token: true
+  optional_future: []
 
-# SEO and JSON-LD (Optional)
+# SEO and JSON-LD
 SEO_AND_JSONLD:
-  meta_fields: []  # Optional: Meta field names
-  jsonld: []  # Optional: JSON-LD schema types
-  sitemap: {}  # Optional: Sitemap configuration
+  meta_fields: []
+  jsonld: []
+  sitemap: {}
 
-# AI UI Generation (Optional)
+# AI UI Generation
 AI_UI_GENERATION:
-  tool: ""  # Optional: AI UI tool name
-  prompt_library: ""  # Optional: Prompt library path
-  pattern: ""  # Optional: UI pattern description
+  tool: ""
+  prompt_library: ""
+  pattern: ""
 
-# Automation Scripts (Optional)
-AUTOMATION_SCRIPTS: {}  # Optional: Script name -> command mapping
+# Automation Scripts
+AUTOMATION_SCRIPTS:
+  smoke: "scripts/smoke.mjs"
+  dev: "pnpm dev"
+  test: "pnpm test"
+  build: "pnpm build"
 
-# Interactive Patterns (Optional)
-INTERACTIVE_PATTERNS: {}  # Optional: Pattern definitions
+# Interactive Patterns
+INTERACTIVE_PATTERNS: {}
 
-# QA Checklist (Optional)
-QA_CHECKLIST: []  # Optional: QA checklist items
+# QA Checklist
+QA_CHECKLIST:
+  - "All 75+ tools implemented and tested"
+  - "Idempotency verified for all write operations"
+  - "Pre/post validation working correctly"
+  - "Rollback mechanisms tested"
+  - "Rate limiting and retry logic verified"
+  - "Security: OAuth flow, token encryption, scope validation"
+  - "Capability discovery and route verification working"
+  - "Data layer validation and schema enforcement"
+  - "Cross-product workflows tested (GTM → GA4 → Ads)"
+  - "Test matrix complete (unit + integration + contract)"
+  - "Documentation complete with examples"
 
-# Deployment (Optional)
+# Deployment
 DEPLOYMENT:
-  provider: ""  # Optional: "vercel", "aws", "gcp", etc.
-  domain: ""  # Optional: Production domain
-  dns: ""  # Optional: DNS provider
-  preview: true  # Optional: Enable preview deployments
+  provider: "docker"  # Docker containerization for local and future cloud deployment
+  local: "docker-compose"  # Local development via docker-compose
+  containerization: true  # Docker support enabled
+  domain: ""
+  dns: ""
+  preview: false
+  docker:
+    base_image: "node:20-alpine"
+    multi_stage: true
+    health_check: true
+    volumes:
+      - "~/.mcp/google:/app/.mcp/google"  # Config and credentials
+    ports:
+      - "3000:3000"  # MCP server port (if needed)
+    environment:
+      - "NODE_ENV=production"
+      - "All env vars from .env"
 
-# Migration Path (Optional)
+# Migration Path
 MIGRATION_PATH:
-  future_subdomains: ""  # Optional: Future subdomain structure
-  automation: ""  # Optional: Migration automation description
+  future_subdomains: ""
+  automation: ""
 
-# First Run Playbook (Optional)
+# First Run Playbook
 FIRST_RUN_PLAYBOOK:
   steps:
-    - "Run: python3 3_bootstrap_scripts/cli.py init"
-    - "Customize MVP_SPECIFICATION.yaml with project details"
-    - "Review and adjust feature_flags.yml"
-    - "Start development with Cursor agent"
+    - "Option 1 (Docker): docker-compose up → use auth.login tool → confirm auth.status"
+    - "Option 2 (Local): pnpm install → pnpm dev → run auth.login → confirm auth.status"
+    - "Set environment variables: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_ADS_DEV_TOKEN, LOGIN_CUSTOMER_ID"
+    - "Run: capabilities.refresh → inspect ~/.mcp/google/capabilities.json"
+    - "Run smoke tests: GA4 report, GTM list, Ads GAQL"
+    - "Enable dry-run mode; try gtm.tag.upsert with postcheck"
+    - "Write first integration tests → iterate"
 
-# Post-MVP Features (Optional)
-POST_MVP_FEATURES: []  # Optional: Features planned post-MVP
+# Post-MVP Features
+POST_MVP_FEATURES:
+  - "Terraformable secrets & config; cloud runner"
+  - "Scheduled jobs (e.g., nightly reports) via MCP cron companion"
+  - "Cross-product audits (GTM <-> repo code <-> GA4 <-> Ads) with fix-it PRs"
+  - "Opinionated playbooks: budget pacing, n-gram negative keyword miner, LTV-aware bidding suggestions"
+  - "UI companion in VSCode/Cursor sidebar (webview) for charts & diffs"
+  - "Multi-user RBAC; team secrets sync; cloud deployment"
+  - "Billing management, Smart Campaigns special cases, auto-generated ad assets"
 
-# Day 1 Deliverables (Optional)
+# Day 1 Deliverables
 DELIVERABLES_DAY1:
   outputs:
-    - "Project structure initialized"
+    - "Project structure initialized (mcp-google-marketing/)"
+    - "Core modules scaffolded (core/, auth/, ga4/, gtm/, ads/)"
+    - "Package.json with dependencies"
+    - "TypeScript configuration"
     - "Pre-commit hooks installed"
     - "CI/CD workflows configured"
     - "Development environment ready"
-  success_metric: "All initialization steps complete without errors"
+    - "Basic MCP server bootstrap"
+  success_metric: "All initialization steps complete without errors, MCP server can start and register tools"
 
 # Active Plan Template
-# This will be used to generate 6_ai_runtime_context/ACTIVE_PLAN.yaml
 ACTIVE_PLAN_TEMPLATE:
-  plan_id: "mvp-initial-setup"
-  component: "shared"  # frontend | backend | shared
-  goal: "Initialize project structure and basic setup"
+  plan_id: "mcp-google-marketing-mvp"
+  component: "backend"
+  goal: "Build MCP server with 75+ tools for GA4, GTM, and Google Ads"
   tasks:
     - id: 1
-      name: "Set up frontend project structure"
-      outputs: ["frontend/package.json", "frontend/tsconfig.json"]
+      name: "Set up project structure and core modules"
+      outputs: ["src/server.ts", "src/core/", "package.json", "tsconfig.json"]
     - id: 2
-      name: "Set up backend project structure"
-      outputs: ["backend/requirements.txt", "backend/pyproject.toml"]
+      name: "Implement authentication (OAuth, token management, encryption)"
+      outputs: ["src/auth/oauth.ts", "src/auth/secrets.ts"]
     - id: 3
-      name: "Configure shared types and utilities"
-      outputs: ["shared/src/types/", "shared/src/utils/"]
+      name: "Build core infrastructure (logger, limiter, cache, envelope, validation, error model)"
+      outputs: ["src/core/logger.ts", "src/core/limiter.ts", "src/core/cache.ts", "src/core/opEnvelope.ts", "src/core/validation.ts", "src/core/errors.ts"]
     - id: 4
-      name: "Initialize development environment"
-      outputs: [".env.example", "docker-compose.yml"]
+      name: "Implement capability discovery and route verification"
+      outputs: ["src/core/capabilities.ts"]
+    - id: 5
+      name: "Implement GA4 Data API tools (report.run, report.batch, report.pivot, realtime.snapshot)"
+      outputs: ["src/ga4/client.ts", "src/ga4/tools.ts", "src/ga4/schemas.ts"]
+    - id: 6
+      name: "Implement GA4 Admin API tools (properties, data streams, custom dimensions/metrics, events, conversions, audiences, attribution)"
+      outputs: ["src/ga4/tools.ts (extended)"]
+    - id: 7
+      name: "Implement GA4 Measurement Protocol tools"
+      outputs: ["src/ga4/tools.ts (extended)"]
+    - id: 8
+      name: "Implement GTM tools (containers, workspaces, tags, triggers, variables, versions, folders)"
+      outputs: ["src/gtm/client.ts", "src/gtm/tools.ts", "src/gtm/schemas.ts"]
+    - id: 9
+      name: "Implement GTM data layer validation and schema management"
+      outputs: ["src/gtm/tools.ts (extended)"]
+    - id: 10
+      name: "Implement Google Ads tools (reporting, campaigns, ad groups, ads, keywords, conversions, audiences, budgets)"
+      outputs: ["src/ads/client.ts", "src/ads/tools.ts", "src/ads/schemas.ts"]
+    - id: 11
+      name: "Implement cross-product workflows (GTM → GA4 → Ads)"
+      outputs: ["src/core/workflows.ts"]
+    - id: 12
+      name: "Write comprehensive test suite (unit + integration + contract)"
+      outputs: ["test/unit/", "test/integration/", "test/contract/"]
+    - id: 13
+      name: "Create developer documentation"
+      outputs: ["README.md", "docs/tools.md", "docs/auth.md", "docs/errors.md", "docs/observability.md", "docs/contrib.md", "docs/datalayer.md", "docs/custom-events.md", "docs/conversions.md"]
   status: "active"
   auto_commit: true
-  commit_frequency: checkpoint_based  # per_task | per_phase | checkpoint_based | manual
+  commit_frequency: checkpoint_based
   commit_checkpoints:
-    after_phases: true  # Commit after completing each phase (logical task group)
-    after_task_count: 5  # Commit after N tasks complete (default: 3-5)
-    after_file_threshold: 10  # Commit when N files changed since last commit
-    force_commit_on_checkpoint: true  # Override auto_commit: false when checkpoint threshold is met
+    after_phases: true
+    after_task_count: 5
+    after_file_threshold: 10
+    force_commit_on_checkpoint: true
 
-# Feature Flags Reference (Optional)
+# Feature Flags Reference
 FEATURE_FLAGS_REFERENCE:
   cursor_agent_mode: "sandboxed"
   agentic_write_ops: true
   modify_meta_framework: false
+  dry_run_mode: true
+  enable_rollback: true
+  enable_capability_discovery: true
 
 # Summary for Initializer
 SUMMARY_FOR_INITIALIZER:
   intent:
-    - "Initialize project from template"
+    - "Initialize MCP server project structure from specification"
     - "Validate all configuration files"
-    - "Scaffold directory structure"
-    - "Set up development environment"
+    - "Scaffold directory structure (src/core/, src/auth/, src/ga4/, src/gtm/, src/ads/)"
+    - "Set up development environment (TypeScript, dependencies)"
     - "Generate active plan from template"
     - "Install pre-commit hooks"
     - "Enable AI-assisted development workflow"
+    - "Configure CI/CD workflows"
+
+# DETAILED SPECIFICATION
+# This section preserves 100% of the original MVP_MCP_Analytics_Tool.md content
+# All details, examples, workflows, and technical specifications are included below
+
+DETAILED_SPECIFICATION:
+  goal_and_success_criteria:
+    goal: "A reusable, project-agnostic MCP server that exposes safe, idempotent, full-fidelity tools for Google Ads, Google Tag Manager, and Google Analytics 4 from inside Cursor IDE. It must support read/write/create/delete, with stateful verification, strong observability, TDD-first delivery, and security best practices."
+    success_criteria:
+      - "One MCP server exposing at least 75+ atomic tools covering full API capabilities:"
+        ga4: "35+ tools (Data API, Admin API, Measurement Protocol, Data Filters, Integrations, Explorations)"
+        gtm: "20+ tools (containers, workspaces, tags, triggers, variables, data layer, versions)"
+        google_ads: "15+ tools (reporting, campaigns, conversions, audiences, budgets)"
+      - "Auth once, then seamless access from any repo in Cursor"
+      - "All write ops are idempotent, logged, pre/post-validated, and rollbackable"
+      - "Route discovery/verification ensures no out-of-scope or deprecated endpoints are exposed"
+      - "Full support for custom event tracking, data layer management, and conversion setup across all products"
+      - "Ship with test matrix (unit + integration + contract), CI gates, and developer docs"
+
+  scope:
+    description: "This MVP provides COMPLETE API coverage for all three products, enabling full customization of services, conversions, custom event tracking, and data layer management."
+    api_verification_status:
+      verified: "94% - Core endpoints confirmed in official Google APIs"
+      needs_testing: "6% - Advanced features require API testing"
+      not_supported: "<1% - Features requiring workarounds or UI-only configuration"
+    verification_reference: "See docs/API_VERIFICATION_REAL_WORLD.md for detailed verification status of all endpoints."
+    included:
+      ga4:
+        description: "Analytics Data API + Admin API"
+        data_api: "run reports, realtime snapshots, batch reports, pivot reports"
+        admin_api: "manage properties, data streams, custom dimensions/metrics, conversion events, audiences, attribution settings, data retention, enhanced measurement"
+        measurement_protocol: "server-side event tracking with validation"
+        event_definitions: "create/update/delete custom events, modify event parameters"
+      gtm:
+        description: "Tag Manager API v2"
+        containers: "list/create/update/delete, settings, environments"
+        workspaces: "list/create/update/delete, merge, resolve conflicts"
+        tags: "full CRUD, firing rules, tag sequencing, tag priority"
+        triggers: "custom triggers, event triggers, page view triggers, click triggers, form triggers, timer triggers, visibility triggers, scroll depth triggers"
+        variables: "custom variables, data layer variables, built-in variables, constant variables, lookup tables, regex tables, JavaScript variables, URL variables, container settings"
+        data_layer: "schema validation, data layer monitoring, variable references"
+        versions: "create/list/restore, publish, preview/debug mode"
+        folders: "organize tags/triggers/variables"
+        consent_mode: "configure consent settings"
+      google_ads:
+        description: "Google Ads API"
+        gaql_reporting: "full query language support, batch reports, streaming reports"
+        campaigns: "create/update/delete, budgets, bidding strategies, ad schedules, targeting"
+        ad_groups: "create/update/delete, targeting, ad group types"
+        ads: "responsive search ads, display ads, video ads, app ads"
+        keywords: "create/update/delete, match types, bid adjustments, negative keywords"
+        conversion_actions: "create/update/delete, conversion tracking setup, offline conversions, enhanced conversions, value rules"
+        audiences: "customer match, remarketing lists, custom audiences, audience insights"
+        extensions: "sitelinks, callouts, structured snippets, call extensions, location extensions"
+      cross_cutting:
+        - "Read/Write/Delete parity for all objects in each product"
+        - "Capability registry + route verification at server startup and on demand"
+        - "Caching, rate limiting, retries with jitter, structured logging, dry-run mode, and transaction envelopes"
+        - "Data layer validation and schema enforcement for GTM"
+        - "Cross-product workflows: GTM → GA4 event forwarding, GA4 → Ads conversion linking, Ads → GA4 audience sync"
+    out_of_scope:
+      - "Billing management, Smart Campaigns special cases, auto-generated ad assets"
+      - "Multi-user RBAC; team secrets sync; cloud deployment"
+      - "Real-time collaboration features (GTM workspace locking handled via API)"
+      - "UI/visual editors (all operations via API/MCP tools)"
+
+  api_endpoints:
+    ga4_analytics_data_api_v1:
+      - "properties/{property}/runReport ✅"
+      - "properties/{property}/runRealtimeReport ✅"
+      - "properties/{property}/runPivotReport ✅"
+      - "properties/{property}/batchRunReports ✅"
+      - "properties/{property}/batchRunPivotReports ✅"
+      - "properties/{property}/checkCompatibility ✅"
+    ga4_admin_api_v1beta:
+      properties: "list, get, create, update, delete ✅ Verified"
+      property_settings: "get, update (currency, timezone, display name) ⚠️ Partial (via properties.update)"
+      google_signals: "get, update ⚠️ Needs Testing (may be in property settings)"
+      data_retention_settings: "get, update ✅ Verified"
+      consent_mode: "get, update ⚠️ Needs Testing (may be UI-only or in property settings)"
+      data_streams: "list, get, create, update, delete, getDataRedactionSettings, updateDataRedactionSettings ✅ Verified"
+      enhanced_measurement_settings: "get, update (granular event control) ⚠️ Needs Testing (may be in dataStream resource)"
+      data_filters: "list, get, create, update, delete (internal traffic, bot filtering) ❌ Not Found (likely UI-only, see workarounds)"
+      custom_dimensions: "list, get, create, patch, archive (USER, EVENT, ITEM scopes) ✅ Verified (uses archive not delete)"
+      custom_metrics: "list, get, create, patch, archive (currency, time units) ✅ Verified (uses archive not delete)"
+      event_create_rules: "list, get, create, update, delete ✅ Verified"
+      event_parameters: "list, get, create, update, delete ❌ Not Supported (parameters are dynamic, use custom dimensions)"
+      conversion_events: "list, get, create, delete ✅ Verified"
+      audiences: "list, get, create, patch, archive ✅ Verified (uses archive not delete)"
+      audience_triggers: "get, update (automatic refresh) ⚠️ Needs Testing (may be in audience resource)"
+      smart_audiences: "create (ML-powered) ⚠️ Needs Testing (may use standard audience.create)"
+      attribution_settings: "get, update ✅ Verified"
+      google_ads_links: "list, get, create, update, delete ⚠️ Needs Testing (may be UI-only, check Google Ads API)"
+      google_ads_conversion_import: "list, get, create, update, delete ⚠️ Needs Testing (may be UI-only)"
+      bigquery_links: "list, get, create, delete ✅ Verified"
+      legend: "✅ Verified | ⚠️ Needs Testing | ❌ Not Supported"
+    ga4_measurement_protocol:
+      - "mp/collect (send events) ✅"
+      - "mp/debug/mp/collect (validate events) ✅"
+    gtm_api_v2:
+      accounts: "list, get ✅"
+      containers: "list, get, create, update, delete ✅"
+      workspaces: "list, get, create, update, delete, sync, resolve_conflict, quick_preview, status ✅"
+      tags: "list, get, create, update, delete, revert ✅"
+      triggers: "list, get, create, update, delete, revert ✅"
+      variables: "list, get, create, update, delete, revert ✅"
+      builtin_variables: "list, create, delete, revert ✅"
+      folders: "list, get, create, update, delete, revert, entities ✅"
+      versions: "list, get, create, delete, publish, restore ✅"
+      environments: "list, get, create, update, delete, reauthorize ✅"
+      zones: "list, get, create, update, delete, revert ✅"
+    google_ads_api:
+      customer_service: "getCustomer, listAccessibleCustomers, mutateCustomer ✅"
+      campaign_service: "get, mutate, mutateLabels ✅"
+      ad_group_service: "get, mutate ✅"
+      ad_group_ad_service: "get, mutate ✅"
+      ad_group_criterion_service: "get, mutate (keywords, placements, etc.) ✅"
+      campaign_budget_service: "get, mutate ✅"
+      conversion_action_service: "get, mutate, mutateValue, uploadClickConversions, uploadCallConversions, uploadConversionAdjustments ✅"
+      customer_match_service: "uploadUserData ✅"
+      audience_service: "get, mutate ✅"
+      campaign_audience_view_service: "get ✅"
+      google_ads_service: "search, searchStream (GAQL queries) ✅"
+      batch_job_service: "mutateBatchJobs, listBatchJobResults ✅"
+      extension_feed_item_service: "get, mutate ✅"
+      campaign_extension_setting_service: "get, mutate ✅"
+
+  architecture:
+    runtime: "Node.js (TypeScript) MCP server (@modelcontextprotocol/server)"
+    modules:
+      ga4: "Data API, Admin API, Measurement Protocol"
+      gtm: "Containers, Workspaces, Tags, Triggers, Variables, Data Layer, Versions"
+      ads: "Reporting, Campaigns, Conversions, Audiences, Budgets"
+      auth: "OAuth, token management, encryption"
+      core: "Logging, cache, http, grpc, validation, capabilities, data layer schema"
+      docs: "Documentation and examples"
+    transport:
+      ga4_gtm: "REST over HTTPS with google-auth-library"
+      google_ads: "gRPC using official client; fall back to REST for token introspection where useful"
+      measurement_protocol: "REST API with validation endpoint"
+    patterns:
+      command: "Each tool = small atomic command. Tools call service adapters (pure functions) wrapped in Operation Envelope with pre/post validation and logging"
+      idempotency: "Operation keys + deterministic request bodies + server-side state checks"
+      data_layer_management: "Schema validation, variable extraction, event monitoring, cross-product synchronization"
+    config: "Per-user config file + environment variables"
+    directory_layout: |
+      mcp-google-marketing/
+        ├─ src/
+        │  ├─ server.ts                # MCP bootstrap & tool registration
+        │  ├─ core/
+        │  │  ├─ opEnvelope.ts         # operation wrapper (pre/post/rollback)
+        │  │  ├─ logger.ts             # pino-style JSON logger
+        │  │  ├─ cache.ts              # LRU/TTL + ETag aware
+        │  │  ├─ limiter.ts            # token bucket + adaptive backoff
+        │  │  ├─ errors.ts             # typed errors & retry policy
+        │  │  ├─ validation.ts         # zod schemas for args & responses
+        │  │  └─ capabilities.ts       # route discovery/verification registry
+        │  ├─ auth/
+        │  │  ├─ oauth.ts              # OAuth device or local loop; token store
+        │  │  └─ secrets.ts             # encryption-at-rest (OS keychain fallback)
+        │  ├─ ga4/
+        │  │  ├─ client.ts             # REST client wrapper
+        │  │  ├─ tools.ts              # MCP tools (query, conversion mgmt, health)
+        │  │  └─ schemas.ts            # zod schemas for GA4 args/results
+        │  ├─ gtm/
+        │  │  ├─ client.ts
+        │  │  ├─ tools.ts              # list/create/update/publish/version
+        │  │  └─ schemas.ts
+        │  ├─ ads/
+        │  │  ├─ client.ts             # gRPC client + GAQL helpers
+        │  │  ├─ tools.ts              # report, create/update, conversions
+        │  │  └─ schemas.ts
+        │  └─ docs/
+        │     └─ examples/             # example MCP prompts & flows
+        ├─ test/                       # vitest + pact-like contracts
+        ├─ scripts/                    # local dev helpers
+        ├─ .github/workflows/ci.yml
+        ├─ package.json
+        └─ README.md
+
+  security:
+    auth: "OAuth 2.0 with offline access; store refresh tokens encrypted (libsodium) in ~/.mcp/google/credentials.enc.json. Client IDs/Secrets via env vars; never commit secrets"
+    scopes: "Minimal required per tool; escalate only on demand"
+    token_hygiene: "automatic refresh; revoke support; rotate via auth.rotate tool"
+    data_at_rest: "Encrypt token store; redact PII in logs; structured logs include hashes not raw values"
+    network: "HTTPS only; certificate pinning optional; retry on 5xx only"
+    dry_run_mode: "MCP_MARKETING_DRY_RUN=1 forces read-only or no-op writes with full pre/post validation simulation"
+
+  operation_envelope:
+    description: "All tools execute inside a shared envelope that guarantees consistency"
+    json_structure: |
+      {
+        "op_id": "uuid-v7",
+        "op_name": "gtm.create_tag",
+        "idempotency_key": "hash(payload + target)",
+        "timestamp": "ISO8601",
+        "actor": "local-user",
+        "target": {"product": "gtm", "accountId": "...", "containerId": "..."},
+        "request": {"args": {"...": "..."}},
+        "precheck": {"capability": true, "exists": false, "conflicts": []},
+        "attempt": {"n": 1, "retry_policy": "exp-jitter", "rate_limit_state": {"tokens": 47}},
+        "result": {"status": "success", "resource_id": "...", "etag": "..."},
+        "postcheck": {"read_back": true, "state_match": true},
+        "rollback": {"needed": false, "action": null},
+        "latency_ms": 312,
+        "warnings": [],
+        "notes": ""
+      }
+    idempotency_rules:
+      - "Compute idempotency_key from normalized request + target resource identifiers"
+      - "Before write: prefetch current state; if identical → short-circuit success"
+      - "After write: read-back verify authoritative state. If mismatch → conditional rollback"
+
+  capability_discovery:
+    description: "At startup, call discovery routines per product to build a Capability Registry (cached on disk)"
+    discovery_actions:
+      - "API versions available; feature flags; accessible accounts/properties/containers"
+      - "For Ads, run a low-cost GAQL probe (e.g., SELECT customer.id FROM customer LIMIT 1)"
+      - "For GTM, list accounts/containers; confirm publish perm via dry-run"
+      - "For GA4, test a trivial report and admin read"
+    runtime_behavior: "Tools check the registry at runtime; if capability is absent, they hard-fail with a typed error and remediation hints"
+    registry_example: |
+      {
+        "generated_at": "ISO8601",
+        "ga4": {
+          "data_api": "v1",
+          "admin_api": true,
+          "measurement_protocol": true,
+          "properties": [
+            {
+              "id": "123456789",
+              "name": "My Property",
+              "data_streams": [
+                {"id": "1234567890", "type": "WEB", "name": "Web Stream"},
+                {"id": "0987654321", "type": "IOS", "name": "iOS App"}
+              ],
+              "custom_dimensions": 10,
+              "custom_metrics": 5,
+              "conversions": ["purchase", "sign_up", "lead"],
+              "audiences": 3
+            }
+          ]
+        },
+        "gtm": {
+          "accounts": [
+            {
+              "id": "111",
+              "name": "My Account",
+              "containers": [
+                {
+                  "id": "222",
+                  "name": "Web Container",
+                  "workspaces": [
+                    {"id": "333", "name": "Default", "tagCount": 15, "triggerCount": 8, "variableCount": 20}
+                  ],
+                  "live_version": "5",
+                  "data_layer_schema": "validated"
+                }
+              ]
+            }
+          ]
+        },
+        "ads": {
+          "customer_ids": ["999-888-7777"],
+          "developer_token_ok": true,
+          "conversion_actions": [
+            {"id": "123456789", "name": "Purchase", "type": "GOOGLE_ANALYTICS", "linked_ga4": true}
+          ],
+          "campaigns": 12,
+          "audiences": 5
+        }
+      }
+
+  caching:
+    read_caching: "in-memory LRU with TTL per endpoint; respect ETag/If-None-Match where supported"
+    write_through_invalidation: "after successful write, purge related cache keys"
+    local_persistent_cache: "optional sqlite for report query results keyed by GAQL/GA4 query hash and date windows"
+
+  rate_limiting:
+    client_side_limiter: "token bucket per product with configurable QPS & burst"
+    adaptive_backoff: "exponential + jitter on 429/5xx; parse Retry-After when present"
+    circuit_breaker: "trip on consecutive failures; half-open probes before resuming"
+
+  error_model:
+    typed_errors:
+      - "AuthError (invalid_grant, insufficient_scope)"
+      - "QuotaError (rate_limited, resource_exhausted)"
+      - "PreconditionError (conflict, not_found, precheck_failed)"
+      - "ValidationError (schema_mismatch)"
+      - "TransportError (network, tls)"
+      - "ServerError (5xx)"
+    retry_policy:
+      - "Safe idempotent writes only; never retry non-idempotent ops"
+      - "Max attempts default 5 with exp-jitter starting 250ms"
+      - "On partial success: log rollback.needed=true and execute compensating action"
+    error_log_example: |
+      {
+        "op_id": "uuid-v7",
+        "error": {
+          "type": "QuotaError",
+          "reason": "rate_limited",
+          "http_status": 429,
+          "grpc_status": null,
+          "message": "Too many requests",
+          "remediation": "Reduce QPS or wait per Retry-After",
+          "context": {"product": "ga4", "endpoint": "runReport"}
+        }
+      }
+
+  validation:
+    args_validation: "zod schemas per tool"
+    prechecks: "existence, conflicts, capability present, idempotency equality"
+    postchecks: "authoritative read-back; schema-coerce; semantic invariants (e.g., GTM tag enabled & in published version)"
+
+  observability:
+    logger: "pino-compatible JSON; single line events"
+    correlation: "op_id, idempotency_key, trace_id set on all logs"
+    levels: "debug, info, warn, error with clear AI-parsable fields"
+    metrics: "internal counters (success, retries, rate_limited, rollback_count, p50/p95 latency by tool)"
+
+  tool_surface:
+    ga4_data_api:
+      - "ga4.report.run(propertyId, dimensions[], metrics[], dateRange, filter?, orderBys?, limit?, keepEmptyRows?) — Standard report queries"
+      - "ga4.report.batch(propertyId, requests[]) — Batch multiple report requests"
+      - "ga4.report.pivot(propertyId, dimensions[], metrics[], pivots[], dateRange) — Pivot table reports"
+      - "ga4.realtime.snapshot(propertyId, dimensions?, metrics?, limit?) — Real-time data snapshot"
+    ga4_admin_api_properties:
+      - "ga4.property.list(accountId?) — List properties with filters"
+      - "ga4.property.get(propertyId) — Get property details"
+      - "ga4.property.upsert(accountId, propertyConfig) — Create/update property"
+      - "ga4.property.settings.get(propertyId) — Get property settings (currency, timezone, display name)"
+      - "ga4.property.settings.update(propertyId, {currency, timezone, displayName, industryCategory}) — Update property settings"
+      - "ga4.property.googleSignals.get(propertyId) — Get Google Signals configuration"
+      - "ga4.property.googleSignals.update(propertyId, {state}) — Enable/disable Google Signals (cross-device tracking)"
+      - "ga4.property.dataRetention.get(propertyId) — Get data retention settings"
+      - "ga4.property.dataRetention.update(propertyId, {retentionDays}) — Update data retention (14, 26, 38, 50 months)"
+      - "ga4.property.consentMode.get(propertyId) — Get consent mode configuration"
+      - "ga4.property.consentMode.update(propertyId, consentConfig) — Update consent mode settings"
+      - "ga4.datastream.list(propertyId) — List data streams (web, iOS, Android)"
+      - "ga4.datastream.upsert(propertyId, streamConfig) — Create/update data stream"
+      - "ga4.datastream.delete(propertyId, streamId) — Delete data stream"
+      - "ga4.datastream.enhancedMeasurement.get(propertyId, streamId) — Get enhanced measurement configuration"
+      - "ga4.datastream.enhancedMeasurement.update(propertyId, streamId, {scrollsEnabled, scrollsThresholdPercent, outboundClicksEnabled, siteSearchEnabled, videoEngagementEnabled, fileDownloadsEnabled}) — Configure enhanced measurement events"
+    ga4_admin_api_custom_definitions:
+      - "ga4.customDimension.list(propertyId) — List custom dimensions"
+      - "ga4.customDimension.get(propertyId, dimensionName) — Get custom dimension details"
+      - "ga4.customDimension.upsert(propertyId, {dimensionName, scope: 'USER'|'EVENT'|'ITEM', displayName, description}) — Create/update custom dimension (supports item scope)"
+      - "ga4.customDimension.delete(propertyId, dimensionName) — Delete custom dimension"
+      - "ga4.customMetric.list(propertyId) — List custom metrics"
+      - "ga4.customMetric.get(propertyId, metricName) — Get custom metric details"
+      - "ga4.customMetric.upsert(propertyId, {metricName, scope, displayName, measurementUnit: 'STANDARD'|'CURRENCY'|'FEET'|'METERS'|'KILOMETERS'|'MILES'|'MILLISECONDS'|'SECONDS'|'MINUTES'|'HOURS', type: 'INTEGER'|'FLOAT'|'SECONDS'|'MILLISECONDS'|'CURRENCY'|'FEET'|'METERS'}) — Create/update custom metric (supports currency/time units)"
+      - "ga4.customMetric.delete(propertyId, metricName) — Delete custom metric"
+    ga4_admin_api_events_conversions:
+      - "ga4.event.list(propertyId) — List all event definitions"
+      - "ga4.event.get(propertyId, eventName) — Get event definition"
+      - "ga4.event.upsert(propertyId, {eventName, customParameters[]}) — Create/update custom event"
+      - "ga4.event.parameter.list(propertyId, eventName) — List event parameters"
+      - "ga4.event.parameter.upsert(propertyId, eventName, {parameterName, parameterType, required, description}) — Create/update event parameter"
+      - "ga4.event.parameter.delete(propertyId, eventName, parameterName) — Delete event parameter"
+      - "ga4.conversion.list(propertyId) — List conversion events"
+      - "ga4.conversion.upsert(propertyId, {eventName, countingMethod, valueSettings, attributionSettings}) — Create/update conversion"
+      - "ga4.conversion.delete(propertyId, eventName) — Delete conversion event"
+    ga4_admin_api_audiences_attribution:
+      - "ga4.audience.list(propertyId) — List audiences"
+      - "ga4.audience.upsert(propertyId, audienceConfig) — Create/update audience"
+      - "ga4.audience.delete(propertyId, audienceId) — Delete audience"
+      - "ga4.audience.trigger.get(propertyId, audienceId) — Get audience trigger configuration"
+      - "ga4.audience.trigger.update(propertyId, audienceId, {triggerType, refreshInterval}) — Update audience trigger settings"
+      - "ga4.audience.smart.create(propertyId, {name, targetAudience, lookalikeSize}) — Create ML-powered smart audience"
+      - "ga4.attribution.get(propertyId) — Get attribution settings"
+      - "ga4.attribution.update(propertyId, attributionModel) — Update attribution model"
+    ga4_measurement_protocol:
+      - "ga4.measurement.send(propertyId, streamId, events[], clientId?, userId?) — Send events via Measurement Protocol"
+      - "ga4.measurement.validate(propertyId, streamId, events[]) — Validate events before sending"
+    ga4_admin_api_data_filters:
+      - "ga4.dataFilter.list(propertyId) — List data filters (internal traffic, bot filtering, etc.)"
+      - "ga4.dataFilter.get(propertyId, filterId) — Get data filter details"
+      - "ga4.dataFilter.create(propertyId, {name, type, filterExpression, applyTo}) — Create data filter (internal traffic, bot exclusion, etc.)"
+      - "ga4.dataFilter.update(propertyId, filterId, updates) — Update data filter"
+      - "ga4.dataFilter.delete(propertyId, filterId) — Delete data filter"
+    ga4_admin_api_integrations:
+      - "ga4.integration.ads.list(propertyId) — List Google Ads links"
+      - "ga4.integration.ads.get(propertyId, linkId) — Get Google Ads link details"
+      - "ga4.integration.ads.create(propertyId, {adsAccountId, adsCustomerId, importSiteMetrics, importCostData, importConversions}) — Link Google Ads account"
+      - "ga4.integration.ads.update(propertyId, linkId, updates) — Update Google Ads link settings"
+      - "ga4.integration.ads.delete(propertyId, linkId) — Unlink Google Ads account"
+      - "ga4.integration.ads.conversionImport.list(propertyId, linkId) — List conversion import mappings"
+      - "ga4.integration.ads.conversionImport.create(propertyId, linkId, {ga4EventName, adsConversionActionId, conversionWindow, valueMapping}) — Create conversion import mapping"
+      - "ga4.integration.ads.conversionImport.update(propertyId, linkId, importId, updates) — Update conversion import mapping"
+      - "ga4.integration.bigquery.list(propertyId) — List BigQuery links"
+      - "ga4.integration.bigquery.get(propertyId, linkId) — Get BigQuery link details"
+      - "ga4.integration.bigquery.create(propertyId, {bigqueryProjectId, bigqueryDatasetId, dailyExportEnabled, streamingExportEnabled, location}) — Link BigQuery project"
+      - "ga4.integration.bigquery.update(propertyId, linkId, updates) — Update BigQuery link settings"
+      - "ga4.integration.bigquery.delete(propertyId, linkId) — Unlink BigQuery project"
+    ga4_explorations:
+      - "ga4.exploration.funnel(propertyId, {steps, dateRange, segments?}) — Funnel exploration query builder"
+      - "ga4.exploration.path(propertyId, {startEvent?, endEvent?, dateRange, maxPathLength?}) — Path exploration query builder"
+      - "ga4.exploration.segmentOverlap(propertyId, {segments, dateRange, metrics}) — Segment overlap analysis query builder"
+    gtm_containers_workspaces:
+      - "gtm.container.list(accountId) — List containers"
+      - "gtm.container.get(accountId, containerId) — Get container details"
+      - "gtm.container.upsert(accountId, containerConfig) — Create/update container"
+      - "gtm.workspace.list(accountId, containerId) — List workspaces"
+      - "gtm.workspace.get(accountId, containerId, workspaceId) — Get workspace details"
+      - "gtm.workspace.create(accountId, containerId, workspaceName) — Create workspace"
+      - "gtm.workspace.merge(accountId, containerId, workspaceId, sourceWorkspaceId) — Merge workspace changes"
+    gtm_tags:
+      - "gtm.tag.list(accountId, containerId, workspaceId) — List tags"
+      - "gtm.tag.get(accountId, containerId, workspaceId, tagId) — Get tag details"
+      - "gtm.tag.upsert(accountId, containerId, workspaceId, {tagId?, name, type, tagFiringOption, firingTriggerId[], blockingTriggerId[], liveOnly?, parameter[]}) — Create/update tag"
+      - "gtm.tag.delete(accountId, containerId, workspaceId, tagId) — Delete tag"
+    gtm_triggers:
+      - "gtm.trigger.list(accountId, containerId, workspaceId) — List triggers"
+      - "gtm.trigger.get(accountId, containerId, workspaceId, triggerId) — Get trigger details"
+      - "gtm.trigger.upsert(accountId, containerId, workspaceId, {triggerId?, name, type, customEventFilter?, condition[], filter[]}) — Create/update trigger"
+      - "gtm.trigger.delete(accountId, containerId, workspaceId, triggerId) — Delete trigger"
+    gtm_variables:
+      - "gtm.variable.list(accountId, containerId, workspaceId) — List variables"
+      - "gtm.variable.get(accountId, containerId, workspaceId, variableId) — Get variable details"
+      - "gtm.variable.upsert(accountId, containerId, workspaceId, {variableId?, name, type, parameter[], formatValue?}) — Create/update variable"
+      - "gtm.variable.delete(accountId, containerId, workspaceId, variableId) — Delete variable"
+      - "gtm.builtinVariable.list(accountId, containerId, workspaceId) — List built-in variables"
+      - "gtm.builtinVariable.enable(accountId, containerId, workspaceId, type[]) — Enable built-in variables"
+    gtm_data_layer:
+      - "gtm.datalayer.validate(accountId, containerId, workspaceId, dataLayerSchema) — Validate data layer structure"
+      - "gtm.datalayer.schema(accountId, containerId, workspaceId) — Generate data layer schema from variables"
+      - "gtm.datalayer.monitor(accountId, containerId, workspaceId, eventName) — Monitor data layer events"
+    gtm_versions_publishing:
+      - "gtm.version.list(accountId, containerId) — List container versions"
+      - "gtm.version.get(accountId, containerId, versionId) — Get version details"
+      - "gtm.version.create(accountId, containerId, workspaceId, {name, notes?}) — Create version from workspace"
+      - "gtm.version.restore(accountId, containerId, versionId) — Restore version"
+      - "gtm.workspace.publish(accountId, containerId, workspaceId, {fingerprint}) — Publish workspace"
+      - "gtm.preview.create(accountId, containerId, workspaceId) — Create preview environment"
+    gtm_folders:
+      - "gtm.folder.list(accountId, containerId, workspaceId) — List folders"
+      - "gtm.folder.upsert(accountId, containerId, workspaceId, {folderId?, name}) — Create/update folder"
+      - "gtm.folder.move(accountId, containerId, workspaceId, folderId, entityId, entityType) — Move tag/trigger/variable to folder"
+    google_ads_reporting:
+      - "ads.report.gaql(customerId, query, limit?, validateOnly?) — Execute GAQL query"
+      - "ads.report.batch(customerId, queries[]) — Batch GAQL queries"
+      - "ads.report.stream(customerId, query) — Stream large result sets"
+    google_ads_campaigns:
+      - "ads.campaign.list(customerId, filter?) — List campaigns"
+      - "ads.campaign.get(customerId, campaignId) — Get campaign details"
+      - "ads.campaign.upsert(customerId, {campaignId?, name, status, advertisingChannelType, budget, biddingStrategy, adSchedule, targeting}) — Create/update campaign"
+      - "ads.campaign.pause(customerId, campaignId) — Pause campaign"
+      - "ads.adgroup.list(customerId, campaignId?) — List ad groups"
+      - "ads.adgroup.upsert(customerId, {adGroupId?, campaignId, name, status, type, targeting}) — Create/update ad group"
+    google_ads_ads_keywords:
+      - "ads.ad.list(customerId, adGroupId?) — List ads"
+      - "ads.ad.upsert(customerId, adGroupId, adConfig) — Create/update ad (supports all ad types)"
+      - "ads.keyword.list(customerId, adGroupId?) — List keywords"
+      - "ads.keyword.upsert(customerId, adGroupId, {keywordId?, text, matchType, cpcBid?, negative?}) — Create/update keyword"
+      - "ads.keyword.delete(customerId, keywordId) — Delete keyword"
+      - "ads.negativeKeyword.list(customerId, campaignId?, adGroupId?) — List negative keywords"
+      - "ads.negativeKeyword.upsert(customerId, {keywordId?, text, matchType, scope}) — Create/update negative keyword"
+    google_ads_conversions:
+      - "ads.conversion.list(customerId, filter?) — List conversion actions"
+      - "ads.conversion.get(customerId, conversionId) — Get conversion action details"
+      - "ads.conversion.upsert(customerId, {conversionId?, name, type, category, status, valueSettings, attributionModel, countingType}) — Create/update conversion action"
+      - "ads.conversion.delete(customerId, conversionId) — Delete conversion action"
+      - "ads.conversion.offlineImport(customerId, conversionId, conversions[]) — Import offline conversions"
+      - "ads.conversion.enhanced(customerId, conversionId, enhancedConfig) — Configure enhanced conversions"
+    google_ads_audiences:
+      - "ads.audience.list(customerId, type?) — List audiences (remarketing, customer match, custom)"
+      - "ads.audience.upsert(customerId, audienceConfig) — Create/update audience"
+      - "ads.audience.attach(customerId, campaignId, audienceId, bidModifier?) — Attach audience to campaign"
+    google_ads_budgets:
+      - "ads.budget.list(customerId) — List budgets"
+      - "ads.budget.upsert(customerId, {budgetId?, name, amount, deliveryMethod}) — Create/update budget"
+      - "ads.biddingStrategy.list(customerId) — List bidding strategies"
+      - "ads.biddingStrategy.upsert(customerId, biddingConfig) — Create/update bidding strategy"
+    core_utility:
+      - "auth.login() / auth.rotate() / auth.status()"
+      - "capabilities.refresh() / capabilities.get()"
+      - "core.healthcheck() / core.version() / core.dryRun(on|off)"
+
+  configuration:
+    config_file: "~/.mcp/google/config.json"
+    config_structure: |
+      {
+        "profiles": {
+          "default": {
+            "ga4": {
+              "scopes": [
+                "https://www.googleapis.com/auth/analytics.readonly",
+                "https://www.googleapis.com/auth/analytics.edit",
+                "https://www.googleapis.com/auth/analytics.manage.users"
+              ],
+              "measurement_protocol_secret": "env:GA4_MEASUREMENT_PROTOCOL_SECRET"
+            },
+            "gtm": {
+              "scopes": [
+                "https://www.googleapis.com/auth/tagmanager.readonly",
+                "https://www.googleapis.com/auth/tagmanager.edit.containers",
+                "https://www.googleapis.com/auth/tagmanager.publish",
+                "https://www.googleapis.com/auth/tagmanager.manage.accounts"
+              ]
+            },
+            "ads": {
+              "developer_token": "env:GOOGLE_ADS_DEV_TOKEN",
+              "login_customer_id": "9998887777",
+              "client_id": "env:GOOGLE_ADS_CLIENT_ID",
+              "client_secret": "env:GOOGLE_ADS_CLIENT_SECRET",
+              "refresh_token": "env:GOOGLE_ADS_REFRESH_TOKEN"
+            },
+            "limits": {
+              "qps": {"ga4": 5, "gtm": 3, "ads": 2},
+              "burst": {"ga4": 10, "gtm": 5, "ads": 4}
+            },
+            "data_layer": {
+              "validation_enabled": true,
+              "schema_path": "~/.mcp/google/datalayer-schema.json",
+              "monitoring_enabled": false
+            }
+          }
+        }
+      }
+
+  code_quality:
+    type_safety: "strict TS; no any in public modules"
+    static_analysis: "ESLint + Sonar-like ruleset; no-floating-promises, no-console (logger only)"
+    formatting: "Prettier enforced"
+    dead_code: "ts-prune CI check"
+    bundle_size: "warning thresholds"
+
+  testing_strategy:
+    unit_tests: "Pure functions (schemas, adapters, idempotency, cache, limiter)"
+    integration_tests: "Mocked Google clients + replay fixtures (nock/grpc mock). Validate retries, limits, rollbacks"
+    contract_tests: "Pact-style against minimal live sandbox (skipped in CI; manual pre-release job)"
+    smoke_tests: "scripts/smoke.mjs hits auth.status, capabilities.get, one read per product"
+    test_matrix:
+      - "Happy path for each tool"
+      - "4xx (auth, validation) + 5xx (retry) per product"
+      - "Rate limit throttle + recovery"
+      - "Idempotent write replays"
+      - "Rollback on postcheck mismatch"
+
+  developer_experience:
+    readme: "install, auth, quick start, safety toggles, dry-run"
+    docs:
+      - "tools.md (args, examples, invariants)"
+      - "auth.md (scopes, rotation, storage)"
+      - "errors.md (catalog + remediation)"
+      - "observability.md (log fields + metrics)"
+      - "contrib.md (style, tests, release)"
+      - "datalayer.md (data layer schema, validation, best practices)"
+      - "custom-events.md (event tracking workflows, GTM → GA4 → Ads)"
+      - "conversions.md (conversion setup, linking, offline imports)"
+    inline_jsdoc: "every public symbol documented; examples included"
+    ai_first_notes: "each tool includes a 'For AI agents' block: intent, required args, safety checks, and canonical examples"
+
+  rollback:
+    gtm: "if publish fails postcheck, auto-revert to previous container version"
+    ga4: "if conversion upsert fails, attempt delete of created artifact; re-query to ensure absence"
+    ads: "if campaign upsert partially succeeds, pause newly created entities; then delete if consistent"
+
+  data_layer_management:
+    purpose: "Ensure GTM data layer structure matches frontend implementation and validate event payloads"
+    tools:
+      - "gtm.datalayer.validate — Validates data layer structure against schema"
+      - "gtm.datalayer.schema — Generates schema from GTM variable definitions"
+      - "gtm.datalayer.monitor — Monitors data layer events in real-time"
+    schema_format: |
+      const DataLayerSchema = z.object({
+        event: z.string(),
+        eventCategory: z.string().optional(),
+        eventAction: z.string().optional(),
+        eventLabel: z.string().optional(),
+        eventValue: z.number().optional(),
+        userId: z.string().optional(),
+        transactionId: z.string().optional(),
+        // ... extensible for custom properties
+      });
+    validation_workflow:
+      - "Extract all data layer variable references from GTM container"
+      - "Generate schema from variable types and constraints"
+      - "Compare with frontend data layer implementation"
+      - "Identify missing variables, type mismatches, or required fields"
+      - "Auto-create missing variables or flag discrepancies"
+
+  custom_event_tracking:
+    complete_flow: "Frontend → GTM → GA4 → Ads"
+    steps:
+      frontend_data_layer_push: |
+        dataLayer.push({
+          event: 'purchase',
+          transactionId: 'T12345',
+          value: 99.99,
+          currency: 'USD',
+          items: [...]
+        });
+      gtm_variable_extraction:
+        - "Data layer variables automatically extract values"
+        - "Custom JavaScript variables can transform data"
+        - "Lookup tables can map/enrich values"
+      gtm_trigger_firing:
+        - "Custom event trigger matches event: 'purchase'"
+        - "Additional conditions can filter (e.g., value > 50)"
+      gtm_tag_execution:
+        - "GA4 Event tag fires with mapped parameters"
+        - "Tag sequencing ensures consent/other tags fire first"
+        - "Firing rules can add additional logic"
+      ga4_event_receipt:
+        - "Event received via gtag.js or Measurement Protocol"
+        - "Custom parameters stored in event"
+        - "Custom dimensions/metrics populated if configured"
+      ga4_conversion_processing:
+        - "If event marked as conversion, processed accordingly"
+        - "Attribution model applied"
+        - "Value settings determine conversion value"
+      ads_conversion_linking:
+        - "GA4 conversion linked to Ads conversion action"
+        - "Offline conversions can be imported with transaction IDs"
+        - "Enhanced conversions improve matching accuracy"
+
+  measurement_protocol:
+    use_cases:
+      - "Server-side event tracking (backend APIs, webhooks)"
+      - "Offline event import"
+      - "Event validation before production deployment"
+    implementation:
+      - "ga4.measurement.send — Send events with client_id, user_id, or both"
+      - "ga4.measurement.validate — Validate event structure without sending"
+      - "Supports batch events, custom parameters, user properties"
+      - "Automatic retry on transient failures"
+      - "Idempotency via event_id parameter"
+
+  variable_trigger_management:
+    variable_types:
+      - "Data Layer Variables: Extract from dataLayer"
+      - "Custom JavaScript Variables: Execute custom code"
+      - "URL Variables: Extract from URL parameters"
+      - "Constant Variables: Static values"
+      - "Lookup Tables: Map input to output values"
+      - "Regex Tables: Pattern-based transformations"
+      - "Built-in Variables: Page URL, Click Element, etc."
+    trigger_types:
+      - "Custom Event: Listen for dataLayer.push({event: '...'})"
+      - "Page View: DOM ready, window loaded"
+      - "Click: All clicks, specific elements, link clicks"
+      - "Form: Form submission, form start, form abandonment"
+      - "Timer: Interval-based triggers"
+      - "Visibility: Element visibility changes"
+      - "Scroll Depth: Scroll percentage thresholds"
+      - "YouTube Video: Video play, pause, progress, complete"
+      - "History Change: SPA navigation events"
+    best_practices:
+      - "Use consistent naming conventions (snake_case for events, camelCase for variables)"
+      - "Document data layer schema in GTM container notes"
+      - "Validate data layer structure in development/staging"
+      - "Use lookup tables for value normalization"
+      - "Enable built-in variables only when needed (performance)"
+
+  conversion_setup:
+    ga4_conversion_configuration:
+      - "Event name (must match tracked event)"
+      - "Counting method (once per event, once per session, etc.)"
+      - "Value settings (use event value, custom calculation, or none)"
+      - "Attribution settings (data-driven, last-click, first-click, etc.)"
+    google_ads_conversion_action:
+      - "Type: Website, App, Phone calls, Import, Google Analytics"
+      - "Category: Purchase, Sign-up, Lead, etc."
+      - "Value: Use same value, different value, or don't use value"
+      - "Count: One, Many, or Every"
+      - "Attribution: Last click, Data-driven, etc."
+    linking_ga4_to_ads:
+      - "Create Ads conversion action with type: 'GOOGLE_ANALYTICS'"
+      - "Link to GA4 property via conversion action settings"
+      - "Import offline conversions with ads.conversion.offlineImport"
+      - "Enhanced conversions improve matching with hashed customer data"
+
+  api_coverage_matrix: |
+    | Capability | GA4 Data API | GA4 Admin API | GTM API | Ads API |
+    |------------|--------------|---------------|---------|---------|
+    | **Read Operations** | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
+    | **Write Operations** | ❌ N/A | ✅ Full | ✅ Full | ✅ Full |
+    | **Custom Events** | ✅ Query | ✅ Define | ✅ Track | ❌ N/A |
+    | **Conversions** | ✅ Query | ✅ Manage | ✅ Forward | ✅ Manage |
+    | **Custom Dimensions** | ✅ Query | ✅ Manage | ❌ N/A | ❌ N/A |
+    | **Data Streams** | ❌ N/A | ✅ Manage | ❌ N/A | ❌ N/A |
+    | **Variables** | ❌ N/A | ❌ N/A | ✅ Full | ❌ N/A |
+    | **Triggers** | ❌ N/A | ❌ N/A | ✅ Full | ❌ N/A |
+    | **Tags** | ❌ N/A | ❌ N/A | ✅ Full | ❌ N/A |
+    | **Data Layer** | ❌ N/A | ❌ N/A | ✅ Validate | ❌ N/A |
+    | **Measurement Protocol** | ✅ Send | ❌ N/A | ❌ N/A | ❌ N/A |
+    | **Audiences** | ✅ Query | ✅ Manage | ❌ N/A | ✅ Manage |
+    | **Attribution** | ✅ Query | ✅ Configure | ❌ N/A | ✅ Configure |
+    | **Offline Conversions** | ❌ N/A | ❌ N/A | ❌ N/A | ✅ Import |
+
+  example_workflows:
+    gtm_tag_upsert_publish:
+      description: "Precheck container/workspace, ensure tag uniqueness by name + type. Upsert tag → verify by read-back → create version → publish → verify live_container contains tag."
+    ga4_conversion_upsert:
+      description: "Precheck existing conversions; compare payload. Upsert → read-back validate fields; on mismatch, delete + retry once with normalized payload."
+    ads_keyword_programmatic_update:
+      description: "GAQL fetch current keyword states; diff vs desired. Upsert set; pause/remove obsolete; verify via GAQL snapshot."
+    complete_custom_event_tracking_setup:
+      description: "Complete workflow from GTM → GA4 → Ads"
+      steps:
+        step_1_gtm_data_layer_variable_setup:
+          - "Create data layer variable gtm.variable.upsert for event, eventCategory, eventAction, eventLabel, eventValue"
+          - "Validate data layer schema matches expected structure"
+        step_2_gtm_trigger_creation:
+          - "Create custom event trigger gtm.trigger.upsert listening for customEvent with filter matching event name"
+          - "Create additional triggers for specific event patterns (e.g., purchase, add_to_cart)"
+        step_3_gtm_tag_configuration:
+          - "Create GA4 Event tag gtm.tag.upsert with trigger from Step 2"
+          - "Map data layer variables to GA4 event parameters"
+          - "Configure tag sequencing if needed (e.g., wait for consent tag)"
+        step_4_ga4_custom_event_definition:
+          - "Create custom event in GA4 ga4.event.upsert with custom parameters"
+          - "Define custom dimensions/metrics if needed ga4.customDimension.upsert"
+        step_5_ga4_conversion_setup:
+          - "Mark event as conversion ga4.conversion.upsert with counting method and value settings"
+          - "Configure attribution model if needed"
+        step_6_google_ads_conversion_action:
+          - "Create conversion action ads.conversion.upsert linked to GA4 conversion"
+          - "Configure enhanced conversions if applicable"
+        step_7_publish_verify:
+          - "Publish GTM workspace gtm.workspace.publish"
+          - "Send test event via Measurement Protocol ga4.measurement.send to validate"
+          - "Verify in GA4 realtime ga4.realtime.snapshot and Ads conversion tracking"
+    data_layer_schema_validation:
+      description: "Data Layer Schema Validation & Matching"
+      steps:
+        step_1_extract_schema:
+          - "Query GTM variables gtm.variable.list to identify all data layer references"
+          - "Generate schema gtm.datalayer.schema from variable definitions"
+        step_2_validate_against_source:
+          - "Compare GTM schema with frontend data layer implementation"
+          - "Identify missing variables or mismatched types"
+        step_3_sync_schema:
+          - "Create missing variables in GTM gtm.variable.upsert"
+          - "Update variable types to match source code expectations"
+          - "Document schema in GTM container notes"
+        step_4_monitor_events:
+          - "Set up monitoring gtm.datalayer.monitor for critical events"
+          - "Alert on schema violations or missing required fields"
+    cross_product_conversion_tracking:
+      description: "Cross-Product Conversion Tracking (GA4 ↔ Ads)"
+      steps:
+        step_1_ga4_conversion_setup:
+          - "Create conversion event ga4.conversion.upsert for purchase/lead"
+          - "Configure value settings and attribution"
+        step_2_link_ga4_to_ads:
+          - "Use Ads API to create conversion action ads.conversion.upsert with type: 'GOOGLE_ANALYTICS'"
+          - "Link to GA4 property via conversion action settings"
+        step_3_import_offline_conversions:
+          - "For offline events, use ads.conversion.offlineImport with transaction IDs"
+          - "Match on gclid or conversionDateTime for attribution"
+        step_4_enhanced_conversions:
+          - "Configure enhanced conversions ads.conversion.enhanced for better matching"
+          - "Include hashed customer data (email, phone, address)"
+    gtm_consent_mode:
+      description: "GTM Consent Mode Configuration"
+      steps:
+        step_1_create_consent_variables:
+          - "Create consent state variables gtm.variable.upsert for ad_storage, analytics_storage, functionality_storage, personalization_storage"
+        step_2_create_consent_triggers:
+          - "Create triggers gtm.trigger.upsert for consent updates"
+        step_3_configure_tag_consent:
+          - "Update tags gtm.tag.upsert with consent requirements"
+          - "Set tag firing options based on consent state"
+        step_4_test_consent_flow:
+          - "Use preview mode gtm.preview.create to test consent scenarios"
+          - "Verify tags fire/block correctly based on consent state"
+
+  milestones:
+    sprint_1_core_ga4_data_api:
+      week: 1
+      deliverables:
+        - "Core: logger, limiter, cache, envelope, validation, error model ✅"
+        - "Auth device flow + encrypted token store ✅"
+        - "Capabilities registry (GA4/gtm/ads stubs) ✅"
+        - "GA4 Data API: report.run, report.batch, report.pivot, realtime.snapshot"
+        - "GA4 Measurement Protocol: measurement.send, measurement.validate"
+        - "GA4 Property Settings: property.settings.get/update, property.googleSignals.get/update, property.dataRetention.get/update"
+        - "GA4 Data Filters: dataFilter.list/get/create/update/delete (critical for data quality)"
+        - "Tests: unit for core + GA4 Data API; smoke script"
+    sprint_2_ga4_admin_gtm_core:
+      week: 2
+      deliverables:
+        - "GA4 Admin API: properties, data streams, custom dimensions/metrics (with item scope, currency/time units)"
+        - "GA4 Admin API: events, event parameters, conversions, audiences, audience triggers, attribution"
+        - "GA4 Enhanced Measurement: granular event control (scrolls, clicks, video, etc.)"
+        - "GA4 Integrations: Google Ads linking, BigQuery linking, conversion import mapping"
+        - "GTM: containers, workspaces, tags, triggers (basic CRUD)"
+        - "GTM: variables (custom, built-in, data layer)"
+        - "Route verification for GA4 Admin API and GTM"
+        - "Rollback mechanics for GA4 and GTM"
+        - "Docs v1 (README, tools.md, auth.md, errors.md)"
+    sprint_3_gtm_advanced_google_ads:
+      week: 3
+      deliverables:
+        - "GTM: data layer validation, schema generation, monitoring"
+        - "GTM: folders, versions, preview/debug mode, consent mode"
+        - "GTM: tag sequencing, firing rules, priority management"
+        - "Ads: report.gaql, campaign.upsert, adgroup.upsert, keyword.upsert"
+        - "Ads: conversion actions, offline conversions, enhanced conversions"
+        - "Ads: audiences, budgets, bidding strategies"
+        - "Cross-product workflows: GA4 ↔ Ads conversion linking"
+        - "Docs: expanded workflows, data layer guide"
+    sprint_4_hardening_integration:
+      week: 4
+      deliverables:
+        - "Cache tuning, circuit breaker, metrics, dry-run mode polish"
+        - "Full test matrix incl. retries/limits/rollback for all products"
+        - "Contract tests against sandboxes; developer token validation helper for Ads"
+        - "End-to-end workflow tests: custom event tracking, data layer validation, conversion linking"
+        - "Performance optimization for batch operations"
+        - "Ship v0.1.0 with changelog & release notes"
+
+  definition_of_done:
+    per_tool:
+      - "Args/response schemas in schemas.ts"
+      - "Pre/Post validations implemented"
+      - "Idempotency and rollback covered"
+      - "Unit + integration tests passing"
+      - "Observability: log sample attached in docs"
+      - "Docs include at least 1 working example and AI-usage notes"
+
+  future_enhancements:
+    - "Docker containerization for easy local and cloud deployment ✅ (Added in Phase0)"
+    - "Kubernetes manifests and Helm charts for cloud orchestration"
+    - "Terraformable secrets & config; cloud runner"
+    - "Scheduled jobs (e.g., nightly reports) via MCP cron companion"
+    - "Cross-product audits (GTM <-> repo code <-> GA4 <-> Ads) with fix-it PRs"
+    - "Opinionated playbooks: budget pacing, n-gram negative keyword miner, LTV-aware bidding suggestions"
+    - "UI companion in VSCode/Cursor sidebar (webview) for charts & diffs"
+
+  quick_start:
+    developer_checklist:
+      - "Option 1 (Docker): docker-compose up → use auth.login tool"
+      - "Option 2 (Local): pnpm install → pnpm dev → run auth.login"
+      - "Set env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_ADS_DEV_TOKEN, LOGIN_CUSTOMER_ID"
+      - "capabilities.refresh → inspect ~/.mcp/google/capabilities.json"
+      - "Run smoke: GA4 report, GTM list, Ads GAQL"
+      - "Enable dry-run; try gtm.tag.upsert with postcheck"
+      - "Write first integration tests → iterate"
+
+  final_note: "This plan is structured for deterministic, testable delivery with strong safeguards, making the MCP tool safe to use across any Cursor project while granting full control over GA4, GTM, and Google Ads."
