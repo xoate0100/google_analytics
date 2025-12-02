@@ -344,3 +344,255 @@ export function createGA4ConversionRollback(
   };
 }
 
+/**
+ * Create GTM tag rollback action
+ * Reverts tag to previous version if operation fails
+ */
+export function createGTMTagRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  gtmClient: import("../gtm/client.js").GTMClient,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const workspacePath = envelope.target.containerId && envelope.target.accountId
+    ? `accounts/${envelope.target.accountId}/containers/${envelope.target.containerId}/workspaces/${(envelope.target as { workspaceId?: string }).workspaceId || "default"}`
+    : null;
+
+  const tagId = envelope.result?.resourceId || null;
+
+  if (!workspacePath || !tagId) {
+    return {
+      needed: false,
+      action: null,
+    };
+  }
+
+  return {
+    needed: true,
+    action: async () => {
+      try {
+        await gtmClient.checkRateLimit("gtm", "rollback");
+        const tagManagerClient = gtmClient.getTagManagerClient();
+
+        const prevState = previousState as { name?: string; type?: string; parameter?: unknown[] };
+
+        // Determine rollback type based on operation
+        if (envelope.opName.includes("delete")) {
+          // Rollback delete: recreate tag
+          if (prevState.name && prevState.type) {
+            const tagData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              tagData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.tags.create({
+              parent: workspacePath,
+              requestBody: tagData,
+            });
+            logger.info("GTM tag rollback: recreated tag", {
+              opId: envelope.opId,
+              tag: `${workspacePath}/tags/${tagId}`,
+            });
+          }
+        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+          // Rollback update: restore previous state
+          if (prevState.name && prevState.type) {
+            const tagData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              tagData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.tags.update({
+              path: `${workspacePath}/tags/${tagId}`,
+              requestBody: tagData,
+            });
+            logger.info("GTM tag rollback: restored previous state", {
+              opId: envelope.opId,
+              tag: `${workspacePath}/tags/${tagId}`,
+            });
+          }
+        }
+      } catch (error) {
+        logger.error("GTM tag rollback failed", error instanceof Error ? error : new Error(String(error)), {
+          opId: envelope.opId,
+          tag: `${workspacePath}/tags/${tagId}`,
+        });
+        throw error;
+      }
+    },
+    compensation: previousState,
+  };
+}
+
+/**
+ * Create GTM trigger rollback action
+ * Reverts trigger to previous version if operation fails
+ */
+export function createGTMTriggerRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  gtmClient: import("../gtm/client.js").GTMClient,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const workspacePath = envelope.target.containerId && envelope.target.accountId
+    ? `accounts/${envelope.target.accountId}/containers/${envelope.target.containerId}/workspaces/${(envelope.target as { workspaceId?: string }).workspaceId || "default"}`
+    : null;
+
+  const triggerId = envelope.result?.resourceId || null;
+
+  if (!workspacePath || !triggerId) {
+    return {
+      needed: false,
+      action: null,
+    };
+  }
+
+  return {
+    needed: true,
+    action: async () => {
+      try {
+        await gtmClient.checkRateLimit("gtm", "rollback");
+        const tagManagerClient = gtmClient.getTagManagerClient();
+
+        const prevState = previousState as { name?: string; type?: string; parameter?: unknown[] };
+
+        // Determine rollback type based on operation
+        if (envelope.opName.includes("delete")) {
+          // Rollback delete: recreate trigger
+          if (prevState.name && prevState.type) {
+            const triggerData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              triggerData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.triggers.create({
+              parent: workspacePath,
+              requestBody: triggerData,
+            });
+            logger.info("GTM trigger rollback: recreated trigger", {
+              opId: envelope.opId,
+              trigger: `${workspacePath}/triggers/${triggerId}`,
+            });
+          }
+        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+          // Rollback update: restore previous state
+          if (prevState.name && prevState.type) {
+            const triggerData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              triggerData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.triggers.update({
+              path: `${workspacePath}/triggers/${triggerId}`,
+              requestBody: triggerData,
+            });
+            logger.info("GTM trigger rollback: restored previous state", {
+              opId: envelope.opId,
+              trigger: `${workspacePath}/triggers/${triggerId}`,
+            });
+          }
+        }
+      } catch (error) {
+        logger.error("GTM trigger rollback failed", error instanceof Error ? error : new Error(String(error)), {
+          opId: envelope.opId,
+          trigger: `${workspacePath}/triggers/${triggerId}`,
+        });
+        throw error;
+      }
+    },
+    compensation: previousState,
+  };
+}
+
+/**
+ * Create GTM variable rollback action
+ * Reverts variable to previous version if operation fails
+ */
+export function createGTMVariableRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  gtmClient: import("../gtm/client.js").GTMClient,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const workspacePath = envelope.target.containerId && envelope.target.accountId
+    ? `accounts/${envelope.target.accountId}/containers/${envelope.target.containerId}/workspaces/${(envelope.target as { workspaceId?: string }).workspaceId || "default"}`
+    : null;
+
+  const variableId = envelope.result?.resourceId || null;
+
+  if (!workspacePath || !variableId) {
+    return {
+      needed: false,
+      action: null,
+    };
+  }
+
+  return {
+    needed: true,
+    action: async () => {
+      try {
+        await gtmClient.checkRateLimit("gtm", "rollback");
+        const tagManagerClient = gtmClient.getTagManagerClient();
+
+        const prevState = previousState as { name?: string; type?: string; parameter?: unknown[] };
+
+        // Determine rollback type based on operation
+        if (envelope.opName.includes("delete")) {
+          // Rollback delete: recreate variable
+          if (prevState.name && prevState.type) {
+            const variableData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              variableData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.variables.create({
+              parent: workspacePath,
+              requestBody: variableData,
+            });
+            logger.info("GTM variable rollback: recreated variable", {
+              opId: envelope.opId,
+              variable: `${workspacePath}/variables/${variableId}`,
+            });
+          }
+        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+          // Rollback update: restore previous state
+          if (prevState.name && prevState.type) {
+            const variableData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              variableData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.variables.update({
+              path: `${workspacePath}/variables/${variableId}`,
+              requestBody: variableData,
+            });
+            logger.info("GTM variable rollback: restored previous state", {
+              opId: envelope.opId,
+              variable: `${workspacePath}/variables/${variableId}`,
+            });
+          }
+        }
+      } catch (error) {
+        logger.error("GTM variable rollback failed", error instanceof Error ? error : new Error(String(error)), {
+          opId: envelope.opId,
+          variable: `${workspacePath}/variables/${variableId}`,
+        });
+        throw error;
+      }
+    },
+    compensation: previousState,
+  };
+}
+
