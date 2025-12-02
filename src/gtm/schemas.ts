@@ -186,3 +186,95 @@ export const workspaceMergeResponseSchema = z.object({
   mergedWorkspace: workspaceGetResponseSchema.optional(),
 });
 
+/**
+ * Tag path schema (format: accounts/123456/containers/987654/workspaces/111111/tags/222222)
+ */
+export const tagPathSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+\/workspaces\/\d+\/tags\/\d+$/,
+    "Tag path must be in format accounts/123456/containers/987654/workspaces/111111/tags/222222"
+  );
+
+/**
+ * Tag List Request Schema
+ */
+export const tagListRequestSchema = z.object({
+  parent: workspacePathSchema,
+});
+
+/**
+ * Tag List Response Schema
+ */
+export const tagListResponseSchema = z.object({
+  tags: z.array(
+    z.object({
+      accountId: z.string().optional(),
+      containerId: z.string().optional(),
+      workspaceId: z.string().optional(),
+      tagId: z.string().optional(),
+      name: z.string().optional(),
+      type: z.string().optional(),
+      fingerprint: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Tag Get Request Schema
+ */
+export const tagGetRequestSchema = z.object({
+  path: tagPathSchema,
+});
+
+/**
+ * Tag Get Response Schema
+ */
+export const tagGetResponseSchema = z.object({
+  accountId: z.string().optional(),
+  containerId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  tagId: z.string().optional(),
+  name: z.string().optional(),
+  type: z.string().optional(),
+  fingerprint: z.string().optional(),
+  parameter: z.array(z.unknown()).optional(),
+  firingTriggerId: z.array(z.string()).optional(),
+  blockingTriggerId: z.array(z.string()).optional(),
+  tagFiringOption: z.string().optional(),
+});
+
+/**
+ * Tag Upsert Request Schema
+ */
+export const tagUpsertRequestSchema = z.object({
+  parent: workspacePathSchema,
+  name: z.string().min(1, "Tag name is required"),
+  type: z.string().min(1, "Tag type is required"),
+  parameter: z.array(z.unknown()).optional(),
+  firingTriggerId: z.array(z.string()).optional(),
+  blockingTriggerId: z.array(z.string()).optional(),
+  tagFiringOption: z.string().optional(),
+  tagId: z.string().optional(), // For updates
+});
+
+/**
+ * Tag Upsert Response Schema
+ */
+export const tagUpsertResponseSchema = tagGetResponseSchema;
+
+/**
+ * Tag Delete Request Schema
+ */
+export const tagDeleteRequestSchema = z.object({
+  path: tagPathSchema,
+});
+
+/**
+ * Tag Delete Response Schema
+ */
+export const tagDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  path: z.string(),
+});
+

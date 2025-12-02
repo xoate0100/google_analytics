@@ -25,6 +25,14 @@ import {
   workspaceCreateResponseSchema,
   workspaceMergeRequestSchema,
   workspaceMergeResponseSchema,
+  tagListRequestSchema,
+  tagListResponseSchema,
+  tagGetRequestSchema,
+  tagGetResponseSchema,
+  tagUpsertRequestSchema,
+  tagUpsertResponseSchema,
+  tagDeleteRequestSchema,
+  tagDeleteResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -59,6 +67,12 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   registerWorkspaceGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerWorkspaceCreateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerWorkspaceMergeTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+
+  // Tag tools
+  registerTagListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerTagGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerTagUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerTagDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -1070,6 +1084,524 @@ function registerWorkspaceMergeTool(
           logger.error("gtm.workspace.merge failed", error);
         } else {
           logger.error("gtm.workspace.merge failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list tags
+ */
+async function executeTagListAPIRequest(
+  validatedRequest: z.infer<typeof tagListRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof tagListResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "tag.list");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const response = await tagManagerClient.accounts.containers.workspaces.tags.list({
+    parent: validatedRequest.parent,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No tags found", {});
+  }
+
+  // Transform tag array to tags format
+  const tagsData = responseData.data as { tag?: unknown[] };
+  return validateSchema(tagListResponseSchema, {
+    tags: tagsData.tag || [],
+  });
+}
+
+/**
+ * Execute tag list operation
+ */
+async function executeTagList(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof tagListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.tag.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { parent: string }).parent.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.tag.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(tagListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const validatedResponse = await executeTagListAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.tag.list completed", {
+    opId: envelope.opId,
+    tagCount: validatedResponse.tags.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.tag.list tool
+ */
+function registerTagListTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.tag.list",
+    description: "List GTM tags for a workspace",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeTagList(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.tag.list failed", error);
+        } else {
+          logger.error("gtm.tag.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return tag if found
+ */
+async function checkTagCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof tagGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for tag", { cacheKey });
+    return validateSchema(tagGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get tag
+ */
+async function executeTagGetAPIRequest(
+  tagPath: string,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof tagGetResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "tag.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = await tagManagerClient.accounts.containers.workspaces.tags.get({
+    path: tagPath,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Tag not found", {
+      tag: tagPath,
+    });
+  }
+
+  return validateSchema(tagGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute tag get operation
+ */
+async function executeTagGet(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof tagGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.tag.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { path: string }).path.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.tag.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(tagGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const cacheKey = `gtm:tag:${validatedRequest.path}`;
+  const cached = await checkTagCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeTagGetAPIRequest(validatedRequest.path, gtmClient);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("gtm.tag.get completed", {
+    opId: envelope.opId,
+    tag: validatedRequest.path,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.tag.get tool
+ */
+function registerTagGetTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.tag.get",
+    description: "Get GTM tag details by tag path",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/222222",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeTagGet(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.tag.get failed", error);
+        } else {
+          logger.error("gtm.tag.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create/update tag
+ */
+async function executeTagUpsertAPIRequest(
+  validatedRequest: z.infer<typeof tagUpsertRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof tagUpsertResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "tag.upsert");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const tagData: Record<string, unknown> = {
+    name: validatedRequest.name,
+    type: validatedRequest.type,
+  };
+  if (validatedRequest.parameter) {
+    tagData.parameter = validatedRequest.parameter;
+  }
+  if (validatedRequest.firingTriggerId) {
+    tagData.firingTriggerId = validatedRequest.firingTriggerId;
+  }
+  if (validatedRequest.blockingTriggerId) {
+    tagData.blockingTriggerId = validatedRequest.blockingTriggerId;
+  }
+  if (validatedRequest.tagFiringOption) {
+    tagData.tagFiringOption = validatedRequest.tagFiringOption;
+  }
+
+  let response;
+  if (validatedRequest.tagId) {
+    // Update existing tag
+    const tagPath = `${validatedRequest.parent}/tags/${validatedRequest.tagId}`;
+    response = await tagManagerClient.accounts.containers.workspaces.tags.update({
+      path: tagPath,
+      requestBody: tagData,
+    });
+  } else {
+    // Create new tag
+    response = await tagManagerClient.accounts.containers.workspaces.tags.create({
+      parent: validatedRequest.parent,
+      requestBody: tagData,
+    });
+  }
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Tag operation failed", {});
+  }
+
+  return validateSchema(tagUpsertResponseSchema, responseData.data);
+}
+
+/**
+ * Execute tag upsert operation with idempotency via tag name + type
+ */
+async function executeTagUpsert(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof tagUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.tag.upsert",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { parent: string }).parent.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.tag.upsert", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(tagUpsertRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const validatedResponse = await executeTagUpsertAPIRequest(validatedRequest, gtmClient);
+
+  // Post-check: verify tag was created/updated
+  const tagPath = `${validatedResponse.accountId ? `accounts/${validatedResponse.accountId}` : validatedRequest.parent}/tags/${validatedResponse.tagId || validatedRequest.tagId}`;
+  const cacheKey = `gtm:tag:${tagPath}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("gtm.tag.upsert completed", {
+    opId: envelope.opId,
+    tag: tagPath,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.tag.upsert tool
+ */
+function registerTagUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.tag.upsert",
+    description: "Create or update GTM tag with firing rules and sequencing",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+        name: {
+          type: "string",
+          description: "Tag name",
+        },
+        type: {
+          type: "string",
+          description: "Tag type (e.g., GOOGLE_ANALYTICS_GA4_CONFIGURATION)",
+        },
+        parameter: {
+          type: "array",
+          description: "Tag parameters",
+        },
+        firingTriggerId: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+          description: "Firing trigger IDs",
+        },
+        blockingTriggerId: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+          description: "Blocking trigger IDs",
+        },
+        tagFiringOption: {
+          type: "string",
+          description: "Tag firing option",
+        },
+        tagId: {
+          type: "string",
+          description: "Tag ID for updates (optional)",
+        },
+      },
+      required: ["parent", "name", "type"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeTagUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.tag.upsert failed", error);
+        } else {
+          logger.error("gtm.tag.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute tag delete operation
+ */
+async function executeTagDelete(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof tagDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.tag.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { path: string }).path.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.tag.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(tagDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  // Pre-check: verify tag exists
+  await gtmClient.checkRateLimit("gtm", "tag.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  try {
+    await tagManagerClient.accounts.containers.workspaces.tags.get({ path: validatedRequest.path });
+  } catch {
+    throw createPreconditionError("not_found", "Tag not found", {
+      tag: validatedRequest.path,
+    });
+  }
+
+  // Delete tag
+  await gtmClient.checkRateLimit("gtm", "tag.delete");
+  try {
+    await tagManagerClient.accounts.containers.workspaces.tags.delete({
+      path: validatedRequest.path,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Tag delete failed", error);
+    } else {
+      logger.error("Tag delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Invalidate cache
+  const cacheKey = `gtm:tag:${validatedRequest.path}`;
+  await cache.delete(cacheKey);
+
+  logger.info("gtm.tag.delete completed", {
+    opId: envelope.opId,
+    tag: validatedRequest.path,
+  });
+
+  return {
+    success: true,
+    path: validatedRequest.path,
+  };
+}
+
+/**
+ * Register gtm.tag.delete tool
+ */
+function registerTagDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.tag.delete",
+    description: "Delete GTM tag",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/222222",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeTagDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.tag.delete failed", error);
+        } else {
+          logger.error("gtm.tag.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
