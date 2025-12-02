@@ -1210,6 +1210,91 @@ export const conversionDeleteResponseSchema = z.object({
 });
 
 /**
+ * Audience ID schema (format: properties/123456789/audiences/987654321)
+ */
+const audienceIdSchema = z
+  .string()
+  .regex(
+    /^properties\/\d+\/audiences\/\d+$/,
+    "Audience ID must be in format properties/123456789/audiences/987654321"
+  );
+
+/**
+ * Audience List Request Schema
+ */
+export const audienceListRequestSchema = z.object({
+  parent: propertyIdSchema,
+  pageSize: z.number().int().positive().max(200).optional(),
+  pageToken: z.string().optional(),
+});
+
+/**
+ * Audience List Response Schema
+ */
+export const audienceListResponseSchema = z.object({
+  audiences: z.array(
+    z.object({
+      name: z.string(),
+      displayName: z.string().optional(),
+      description: z.string().optional(),
+      membershipDurationDays: z.number().int().min(1).max(540).optional(),
+      audienceType: z.string().optional(),
+    })
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+/**
+ * Audience Get Request Schema
+ */
+export const audienceGetRequestSchema = z.object({
+  name: audienceIdSchema,
+});
+
+/**
+ * Audience Get Response Schema
+ */
+export const audienceGetResponseSchema = z.object({
+  name: z.string(),
+  displayName: z.string().optional(),
+  description: z.string().optional(),
+  membershipDurationDays: z.number().int().min(1).max(540).optional(),
+  audienceType: z.string().optional(),
+  filterClauses: z.array(z.unknown()).optional(),
+});
+
+/**
+ * Audience Upsert Request Schema
+ */
+export const audienceUpsertRequestSchema = z.object({
+  parent: propertyIdSchema,
+  displayName: z.string().min(1, "Display name is required"),
+  description: z.string().optional(),
+  membershipDurationDays: z.number().int().min(1).max(540).optional(),
+  filterClauses: z.array(z.unknown()).optional(),
+});
+
+/**
+ * Audience Upsert Response Schema
+ */
+export const audienceUpsertResponseSchema = audienceGetResponseSchema;
+
+/**
+ * Audience Delete Request Schema
+ */
+export const audienceDeleteRequestSchema = z.object({
+  name: audienceIdSchema,
+});
+
+/**
+ * Audience Delete Response Schema
+ */
+export const audienceDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  name: z.string(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({
