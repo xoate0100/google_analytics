@@ -429,3 +429,36 @@ export const runRealtimeReportResponseSchema = z.object({
   kind: z.string().optional(),
 });
 
+/**
+ * Measurement Protocol Event Schema
+ */
+const measurementEventSchema = z.object({
+  name: z.string().min(1),
+  params: z.record(z.unknown()).optional(),
+});
+
+/**
+ * Measurement Protocol Request Schema
+ */
+export const measurementRequestSchema = z.object({
+  client_id: z.string().optional(),
+  user_id: z.string().optional(),
+  events: z.array(measurementEventSchema).min(1),
+  user_properties: z.record(z.object({ value: z.string().optional(), set_once: z.boolean().optional() })).optional(),
+  timestamp_micros: z.string().optional(),
+  non_personalized_ads: z.boolean().optional(),
+});
+
+/**
+ * Measurement Protocol Validation Response Schema
+ */
+export const measurementValidationResponseSchema = z.object({
+  validationMessages: z.array(
+    z.object({
+      fieldPath: z.string().optional(),
+      description: z.string(),
+      validationCode: z.string().optional(),
+    })
+  ),
+});
+

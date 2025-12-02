@@ -6,6 +6,7 @@
 import { z } from "zod";
 import type { MCPServerBootstrap } from "../server/bootstrap.js";
 import type { GA4Client } from "./client.js";
+import type { MeasurementProtocolClient } from "./measurement.js";
 import type { ILogger, ICache } from "../core/types.js";
 import type { ICapabilitiesRegistry } from "../core/types.js";
 import {
@@ -17,6 +18,8 @@ import {
   runPivotReportResponseSchema,
   runRealtimeReportRequestSchema,
   runRealtimeReportResponseSchema,
+  measurementRequestSchema,
+  measurementValidationResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -28,6 +31,7 @@ import { createPreconditionError } from "../core/errors.js";
 export interface GA4ToolsOptions {
   bootstrap: MCPServerBootstrap;
   ga4Client: GA4Client;
+  measurementClient?: MeasurementProtocolClient;
   cache: ICache;
   capabilitiesRegistry: ICapabilitiesRegistry;
   logger: ILogger;
@@ -47,6 +51,12 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerReportBatchTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerReportPivotTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerRealtimeSnapshotTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Measurement Protocol tools
+  if (options.measurementClient) {
+    registerMeasurementSendTool(bootstrap, options.measurementClient, logger);
+    registerMeasurementValidateTool(bootstrap, options.measurementClient, logger);
+  }
 
   logger.info("GA4 tools registered");
 }
@@ -573,6 +583,125 @@ function registerRealtimeSnapshotTool(
           logger.error("ga4.realtime.snapshot failed", error);
         } else {
           logger.error("ga4.realtime.snapshot failed", new Error(String(error)));
+        }
+        throw error;
+      }
+    },
+  });
+}
+
+/**
+ * Execute measurement send operation
+ */
+async function executeMeasurementSend(
+  args: unknown,
+  measurementClient: MeasurementProtocolClient,
+  logger: ILogger
+): Promise<void> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.measurement.send",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", operation: "measurement.send" },
+  });
+
+  logger.info("Executing ga4.measurement.send", { opId: envelope.opId });
+
+  // Validate input
+  const validatedRequest = validateSchema(measurementRequestSchema, args);
+
+  // Send event (cast to MeasurementRequest to satisfy exactOptionalPropertyTypes)
+  await measurementClient.sendEvent(validatedRequest as Parameters<typeof measurementClient.sendEvent>[0]);
+
+  logger.info("ga4.measurement.send completed", {
+    opId: envelope.opId,
+    eventCount: validatedRequest.events.length,
+  });
+}
+
+/**
+ * Register ga4.measurement.send tool
+ */
+function registerMeasurementSendTool(
+  bootstrap: MCPServerBootstrap,
+  measurementClient: MeasurementProtocolClient,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.measurement.send",
+    description:
+      "Send events via GA4 Measurement Protocol. Supports client_id, user_id, custom parameters, and user properties.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeMeasurementSend(args, measurementClient, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.measurement.send failed", error);
+        } else {
+          logger.error("ga4.measurement.send failed", new Error(String(error)));
+        }
+        throw error;
+      }
+    },
+  });
+}
+
+/**
+ * Execute measurement validate operation
+ */
+async function executeMeasurementValidate(
+  args: unknown,
+  measurementClient: MeasurementProtocolClient,
+  logger: ILogger
+): Promise<z.infer<typeof measurementValidationResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.measurement.validate",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", operation: "measurement.validate" },
+  });
+
+  logger.info("Executing ga4.measurement.validate", { opId: envelope.opId });
+
+  // Validate input
+  const validatedRequest = validateSchema(measurementRequestSchema, args);
+
+  // Validate event (cast to MeasurementRequest to satisfy exactOptionalPropertyTypes)
+  const validationResult = await measurementClient.validateEvent(validatedRequest as Parameters<typeof measurementClient.validateEvent>[0]);
+
+  // Validate response schema
+  const validatedResponse = validateSchema(measurementValidationResponseSchema, validationResult);
+
+  logger.info("ga4.measurement.validate completed", {
+    opId: envelope.opId,
+    messageCount: validatedResponse.validationMessages.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.measurement.validate tool
+ */
+function registerMeasurementValidateTool(
+  bootstrap: MCPServerBootstrap,
+  measurementClient: MeasurementProtocolClient,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.measurement.validate",
+    description:
+      "Validate event structure via GA4 Measurement Protocol debug endpoint. Does not send events, only validates structure.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeMeasurementValidate(args, measurementClient, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.measurement.validate failed", error);
+        } else {
+          logger.error("ga4.measurement.validate failed", new Error(String(error)));
         }
         throw error;
       }
