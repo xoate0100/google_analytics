@@ -83,6 +83,11 @@ import {
   previewCreateResponseSchema,
   previewGetRequestSchema,
   previewGetResponseSchema,
+  consentConfigureRequestSchema,
+  consentConfigureResponseSchema,
+  consentGetRequestSchema,
+  consentGetResponseSchema,
+  consentModeSettingsSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -160,6 +165,10 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   registerWorkspacePublishTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerPreviewCreateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerPreviewGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+
+  // Consent mode tools
+  registerConsentConfigureTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerConsentGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -4612,6 +4621,290 @@ function registerPreviewGetTool(
           logger.error("gtm.preview.get failed", error);
         } else {
           logger.error("gtm.preview.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to configure consent mode
+ */
+async function executeConsentConfigureAPIRequest(
+  validatedRequest: z.infer<typeof consentConfigureRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof consentConfigureResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "consent.configure");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  // Get current container to retrieve fingerprint
+  const containerResponse = (await (tagManagerClient.accounts.containers as unknown as {
+    get?: (params: unknown) => Promise<{ data?: { fingerprint?: string } }>;
+  }).get?.({
+    path: validatedRequest.path,
+  })) as { data?: { fingerprint?: string } };
+
+  const fingerprint = containerResponse.data?.fingerprint || "";
+
+  // Build update request body
+  const requestBody: Record<string, unknown> = {
+    fingerprint,
+  };
+
+  // Set consent mode enabled flag
+  requestBody.consentModeEnabled = validatedRequest.enabled;
+
+  // Set consent mode settings if provided
+  if (validatedRequest.settings) {
+    requestBody.consentModeSettings = validatedRequest.settings;
+  }
+
+  const response = (await (tagManagerClient.accounts.containers as unknown as {
+    update?: (params: unknown) => Promise<{
+      data?: {
+        consentModeEnabled?: boolean;
+        consentModeSettings?: z.infer<typeof consentModeSettingsSchema>;
+      };
+    }>;
+  }).update?.({
+    path: validatedRequest.path,
+    requestBody,
+  })) as {
+    data?: {
+      consentModeEnabled?: boolean;
+      consentModeSettings?: z.infer<typeof consentModeSettingsSchema>;
+    };
+  };
+
+  return {
+    enabled: response.data?.consentModeEnabled ?? false,
+    settings: response.data?.consentModeSettings,
+  };
+}
+
+/**
+ * Execute consent configure
+ */
+export async function executeConsentConfigure(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof consentConfigureResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.consent.configure",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.consent.configure", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(consentConfigureRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM consent configure not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeConsentConfigureAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.consent.configure completed", {
+    opId: envelope.opId,
+    enabled: result.enabled,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.consent.configure tool
+ */
+function registerConsentConfigureTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.consent.configure",
+    description: "Configure GTM consent mode settings for a container",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Container path in format accounts/123456/containers/987654",
+        },
+        enabled: {
+          type: "boolean",
+          description: "Enable or disable consent mode",
+        },
+        settings: {
+          type: "object",
+          description: "Consent mode settings (ad_storage, analytics_storage, etc.)",
+          properties: {
+            ad_storage: {
+              type: "string",
+              enum: ["granted", "denied", "pending"],
+              description: "Ad storage consent state",
+            },
+            analytics_storage: {
+              type: "string",
+              enum: ["granted", "denied", "pending"],
+              description: "Analytics storage consent state",
+            },
+            functionality_storage: {
+              type: "string",
+              enum: ["granted", "denied", "pending"],
+              description: "Functionality storage consent state",
+            },
+            personalization_storage: {
+              type: "string",
+              enum: ["granted", "denied", "pending"],
+              description: "Personalization storage consent state",
+            },
+            security_storage: {
+              type: "string",
+              enum: ["granted", "denied", "pending"],
+              description: "Security storage consent state",
+            },
+          },
+        },
+      },
+      required: ["path", "enabled"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConsentConfigure(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.consent.configure failed", error);
+        } else {
+          logger.error("gtm.consent.configure failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to get consent mode configuration
+ */
+async function executeConsentGetAPIRequest(
+  validatedRequest: z.infer<typeof consentGetRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof consentGetResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "consent.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const response = (await (tagManagerClient.accounts.containers as unknown as {
+    get?: (params: unknown) => Promise<{
+      data?: {
+        consentModeEnabled?: boolean;
+        consentModeSettings?: z.infer<typeof consentModeSettingsSchema>;
+      };
+    }>;
+  }).get?.({
+    path: validatedRequest.path,
+  })) as {
+    data?: {
+      consentModeEnabled?: boolean;
+      consentModeSettings?: z.infer<typeof consentModeSettingsSchema>;
+    };
+  };
+
+  return {
+    enabled: response.data?.consentModeEnabled ?? false,
+    settings: response.data?.consentModeSettings,
+  };
+}
+
+/**
+ * Execute consent get
+ */
+export async function executeConsentGet(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof consentGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.consent.get",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.consent.get", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(consentGetRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM consent get not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeConsentGetAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.consent.get completed", {
+    opId: envelope.opId,
+    enabled: result.enabled,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.consent.get tool
+ */
+function registerConsentGetTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.consent.get",
+    description: "Get GTM consent mode configuration for a container",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Container path in format accounts/123456/containers/987654",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConsentGet(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.consent.get failed", error);
+        } else {
+          logger.error("gtm.consent.get failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

@@ -823,3 +823,46 @@ export const previewGetResponseSchema = z.object({
   containerVersionId: z.string().optional(),
 });
 
+/**
+ * Consent Mode Settings Schema
+ */
+export const consentModeSettingsSchema = z.object({
+  ad_storage: z.enum(["granted", "denied", "pending"]).optional(),
+  analytics_storage: z.enum(["granted", "denied", "pending"]).optional(),
+  functionality_storage: z.enum(["granted", "denied", "pending"]).optional(),
+  personalization_storage: z.enum(["granted", "denied", "pending"]).optional(),
+  security_storage: z.enum(["granted", "denied", "pending"]).optional(),
+});
+
+/**
+ * Consent Configure Request Schema
+ */
+export const consentConfigureRequestSchema = z.object({
+  path: containerPathSchema,
+  enabled: z.boolean(),
+  settings: consentModeSettingsSchema.optional(),
+});
+
+/**
+ * Consent Configure Response Schema
+ */
+export const consentConfigureResponseSchema = z.object({
+  enabled: z.boolean(),
+  settings: consentModeSettingsSchema.optional(),
+});
+
+/**
+ * Consent Get Request Schema
+ */
+export const consentGetRequestSchema = z.object({
+  path: containerPathSchema,
+});
+
+/**
+ * Consent Get Response Schema
+ */
+export const consentGetResponseSchema = z.object({
+  enabled: z.boolean(),
+  settings: consentModeSettingsSchema.optional(),
+});
+
