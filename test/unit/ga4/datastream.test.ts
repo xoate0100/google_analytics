@@ -76,6 +76,30 @@ describe("GA4 Data Stream Tools", () => {
 
       expect(registeredTools.has("ga4.datastream.get")).toBe(true);
     });
+
+    it("should register ga4.datastream.upsert tool", () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      expect(registeredTools.has("ga4.datastream.upsert")).toBe(true);
+    });
+
+    it("should register ga4.datastream.delete tool", () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      expect(registeredTools.has("ga4.datastream.delete")).toBe(true);
+    });
   });
 
   describe("ga4.datastream.list handler", () => {
@@ -207,6 +231,147 @@ describe("GA4 Data Stream Tools", () => {
 
       expect(mockGA4Client.checkRateLimit).toHaveBeenCalled();
       expect(result).toHaveProperty("name");
+    });
+  });
+
+  describe("ga4.datastream.upsert handler", () => {
+    it("should validate request schema", async () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      const tool = registeredTools.get("ga4.datastream.upsert") as {
+        handler: (args: unknown) => Promise<unknown>;
+      };
+
+      const invalidArgs = {
+        parent: "invalid-format",
+      };
+
+      await expect(tool.handler(invalidArgs)).rejects.toThrow();
+    });
+
+    it("should call Analytics Admin API to create data stream", async () => {
+      const mockAdminClient = {
+        properties: {
+          dataStreams: {
+            create: vi.fn().mockResolvedValue({
+              data: {
+                name: "properties/123456789/dataStreams/987654321",
+                displayName: "New Web Stream",
+                type: "WEB_DATA_STREAM",
+                webStreamData: {
+                  defaultUri: "https://example.com",
+                },
+              },
+            }),
+            get: vi.fn().mockResolvedValue({
+              data: {
+                name: "properties/123456789/dataStreams/987654321",
+                displayName: "New Web Stream",
+              },
+            }),
+          },
+        },
+      };
+
+      (mockGA4Client.getAnalyticsAdminClient as ReturnType<typeof vi.fn>).mockReturnValue(
+        mockAdminClient
+      );
+
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      const tool = registeredTools.get("ga4.datastream.upsert") as {
+        handler: (args: unknown) => Promise<unknown>;
+      };
+
+      const result = await tool.handler({
+        parent: "properties/123456789",
+        displayName: "New Web Stream",
+        type: "WEB_DATA_STREAM",
+        webStreamData: {
+          defaultUri: "https://example.com",
+        },
+      });
+
+      expect(mockGA4Client.checkRateLimit).toHaveBeenCalled();
+      expect(result).toHaveProperty("name");
+    });
+  });
+
+  describe("ga4.datastream.delete handler", () => {
+    it("should validate request schema", async () => {
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      const tool = registeredTools.get("ga4.datastream.delete") as {
+        handler: (args: unknown) => Promise<unknown>;
+      };
+
+      const invalidArgs = {
+        name: "invalid-format",
+      };
+
+      await expect(tool.handler(invalidArgs)).rejects.toThrow();
+    });
+
+    it("should call Analytics Admin API to delete data stream", async () => {
+      const mockAdminClient = {
+        properties: {
+          dataStreams: {
+            get: vi.fn()
+              .mockResolvedValueOnce({
+                data: {
+                  name: "properties/123456789/dataStreams/987654321",
+                  displayName: "Test Stream",
+                },
+              })
+              .mockRejectedValueOnce(new Error("not found")),
+            delete: vi.fn().mockResolvedValue({}),
+          },
+        },
+      };
+
+      (mockGA4Client.getAnalyticsAdminClient as ReturnType<typeof vi.fn>).mockReturnValue(
+        mockAdminClient
+      );
+
+      registerGA4Tools({
+        bootstrap: mockBootstrap,
+        ga4Client: mockGA4Client,
+        cache: mockCache,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        logger: mockLogger,
+      });
+
+      const tool = registeredTools.get("ga4.datastream.delete") as {
+        handler: (args: unknown) => Promise<unknown>;
+      };
+
+      const result = await tool.handler({
+        name: "properties/123456789/dataStreams/987654321",
+      });
+
+      expect(mockGA4Client.checkRateLimit).toHaveBeenCalled();
+      expect(mockAdminClient.properties.dataStreams.delete).toHaveBeenCalledWith({
+        name: "properties/123456789/dataStreams/987654321",
+      });
+      expect(result).toHaveProperty("success", true);
     });
   });
 });

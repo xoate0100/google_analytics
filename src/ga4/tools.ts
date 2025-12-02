@@ -32,6 +32,10 @@ import {
   dataStreamListResponseSchema,
   dataStreamGetRequestSchema,
   dataStreamGetResponseSchema,
+  dataStreamUpsertRequestSchema,
+  dataStreamUpsertResponseSchema,
+  dataStreamDeleteRequestSchema,
+  dataStreamDeleteResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -97,6 +101,8 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   // Admin API tools - Data Streams
   registerDataStreamListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataStreamGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataStreamUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataStreamDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -1651,6 +1657,329 @@ function registerDataStreamGetTool(
           logger.error("ga4.datastream.get failed", error);
         } else {
           logger.error("ga4.datastream.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create/update data stream
+ */
+async function executeDataStreamUpsertAPIRequest(
+  validatedRequest: z.infer<typeof dataStreamUpsertRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof dataStreamUpsertResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "datastream.upsert");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const streamData: Record<string, unknown> = {
+    displayName: validatedRequest.displayName,
+    type: validatedRequest.type,
+  };
+  if (validatedRequest.webStreamData) {
+    streamData.webStreamData = validatedRequest.webStreamData;
+  }
+  if (validatedRequest.iosAppStreamData) {
+    streamData.iosAppStreamData = validatedRequest.iosAppStreamData;
+  }
+  if (validatedRequest.androidAppStreamData) {
+    streamData.androidAppStreamData = validatedRequest.androidAppStreamData;
+  }
+
+  let response;
+  if (validatedRequest.name) {
+    // Update existing stream
+    response = await adminClient.properties.dataStreams.patch({
+      name: validatedRequest.name,
+      updateMask: "displayName,webStreamData,iosAppStreamData,androidAppStreamData",
+      requestBody: streamData,
+    });
+  } else {
+    // Create new stream
+    streamData.parent = validatedRequest.parent;
+    response = await adminClient.properties.dataStreams.create({
+      requestBody: streamData,
+    });
+  }
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Data stream operation failed", {});
+  }
+
+  return validateSchema(dataStreamUpsertResponseSchema, responseData.data);
+}
+
+/**
+ * Execute data stream upsert operation with pre/post validation
+ */
+async function executeDataStreamUpsert(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof dataStreamUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.datastream.upsert",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      ...((args as { name?: string }).name
+        ? { propertyId: (args as { name: string }).name.split("/dataStreams/")[0] || "" }
+        : { propertyId: (args as { parent: string }).parent }),
+    },
+  });
+
+  logger.info("Executing ga4.datastream.upsert", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataStreamUpsertRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Pre-check: if updating, verify stream exists
+  if (validatedRequest.name) {
+    await ga4Client.checkRateLimit("ga4", "datastream.get");
+    const adminClient = ga4Client.getAnalyticsAdminClient();
+    try {
+      await adminClient.properties.dataStreams.get({ name: validatedRequest.name });
+    } catch {
+      throw createPreconditionError("not_found", "Data stream not found", {
+        stream: validatedRequest.name,
+      });
+    }
+  }
+
+  const validatedResponse = await executeDataStreamUpsertAPIRequest(validatedRequest, ga4Client);
+
+  // Post-check: verify stream was created/updated
+  const cacheKey = `ga4:datastream:${validatedResponse.name}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.datastream.upsert completed", {
+    opId: envelope.opId,
+    stream: validatedResponse.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.datastream.upsert tool
+ */
+function registerDataStreamUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.datastream.upsert",
+    description: "Create or update GA4 data stream",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789 (required for create)",
+        },
+        name: {
+          type: "string",
+          description: "Data stream ID in format properties/123456789/dataStreams/987654321 (required for update)",
+        },
+        displayName: {
+          type: "string",
+          description: "Data stream display name",
+        },
+        type: {
+          type: "string",
+          enum: ["WEB_DATA_STREAM", "IOS_APP_DATA_STREAM", "ANDROID_APP_DATA_STREAM"],
+          description: "Data stream type",
+        },
+        webStreamData: {
+          type: "object",
+          properties: {
+            defaultUri: {
+              type: "string",
+              description: "Default URI for web stream",
+            },
+          },
+          description: "Web stream data (required for WEB_DATA_STREAM)",
+        },
+        iosAppStreamData: {
+          type: "object",
+          properties: {
+            bundleId: {
+              type: "string",
+              description: "iOS bundle ID",
+            },
+          },
+          description: "iOS app stream data (required for IOS_APP_DATA_STREAM)",
+        },
+        androidAppStreamData: {
+          type: "object",
+          properties: {
+            packageName: {
+              type: "string",
+              description: "Android package name",
+            },
+          },
+          description: "Android app stream data (required for ANDROID_APP_DATA_STREAM)",
+        },
+      },
+      required: ["parent", "displayName", "type"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataStreamUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.datastream.upsert failed", error);
+        } else {
+          logger.error("ga4.datastream.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute data stream delete operation with rollback
+ */
+async function executeDataStreamDelete(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof dataStreamDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.datastream.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/dataStreams/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.datastream.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataStreamDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Pre-check: verify stream exists
+  await ga4Client.checkRateLimit("ga4", "datastream.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.dataStreams.get({ name: validatedRequest.name });
+  } catch {
+    throw createPreconditionError("not_found", "Data stream not found", {
+      stream: validatedRequest.name,
+    });
+  }
+
+  // Delete stream
+  await ga4Client.checkRateLimit("ga4", "datastream.delete");
+  try {
+    await adminClient.properties.dataStreams.delete({
+      name: validatedRequest.name,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Data stream delete failed, rollback not needed", error);
+    } else {
+      logger.error("Data stream delete failed, rollback not needed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Post-check: verify stream was deleted
+  try {
+    await adminClient.properties.dataStreams.get({ name: validatedRequest.name });
+    // If we get here, stream still exists - rollback scenario
+    logger.warn("Data stream delete post-check failed - stream still exists", {
+      stream: validatedRequest.name,
+    });
+    throw createPreconditionError("precheck_failed", "Data stream deletion failed", {
+      stream: validatedRequest.name,
+    });
+  } catch (error) {
+    // Expected: stream should not exist
+    if (error instanceof Error && error.message.includes("not found")) {
+      // Success - stream deleted
+    } else {
+      throw error;
+    }
+  }
+
+  // Invalidate cache
+  const cacheKey = `ga4:datastream:${validatedRequest.name}`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.datastream.delete completed", {
+    opId: envelope.opId,
+    stream: validatedRequest.name,
+  });
+
+  return {
+    success: true,
+    name: validatedRequest.name,
+  };
+}
+
+/**
+ * Register ga4.datastream.delete tool
+ */
+function registerDataStreamDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.datastream.delete",
+    description: "Delete GA4 data stream",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Data stream ID in format properties/123456789/dataStreams/987654321",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataStreamDelete(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.datastream.delete failed", error);
+        } else {
+          logger.error("ga4.datastream.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

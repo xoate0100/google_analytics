@@ -661,6 +661,51 @@ export const dataStreamGetResponseSchema = z.object({
 });
 
 /**
+ * Data Stream Upsert Request Schema
+ */
+export const dataStreamUpsertRequestSchema = z.object({
+  parent: propertyIdSchema,
+  name: dataStreamIdSchema.optional(),
+  displayName: z.string().min(1, "Display name is required"),
+  type: z.enum(["WEB_DATA_STREAM", "IOS_APP_DATA_STREAM", "ANDROID_APP_DATA_STREAM"]),
+  webStreamData: z
+    .object({
+      defaultUri: z.string().url().optional(),
+    })
+    .optional(),
+  iosAppStreamData: z
+    .object({
+      bundleId: z.string().optional(),
+    })
+    .optional(),
+  androidAppStreamData: z
+    .object({
+      packageName: z.string().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * Data Stream Upsert Response Schema
+ */
+export const dataStreamUpsertResponseSchema = dataStreamGetResponseSchema;
+
+/**
+ * Data Stream Delete Request Schema
+ */
+export const dataStreamDeleteRequestSchema = z.object({
+  name: dataStreamIdSchema,
+});
+
+/**
+ * Data Stream Delete Response Schema
+ */
+export const dataStreamDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  name: z.string(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({
