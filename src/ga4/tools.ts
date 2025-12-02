@@ -26,6 +26,9 @@ import {
   googleSignalsGetRequestSchema,
   googleSignalsResponseSchema,
   googleSignalsUpdateRequestSchema,
+  dataRetentionGetRequestSchema,
+  dataRetentionResponseSchema,
+  dataRetentionUpdateRequestSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -71,6 +74,10 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   // Admin API tools - Google Signals
   registerGoogleSignalsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerGoogleSignalsUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Data Retention
+  registerDataRetentionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataRetentionUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   logger.info("GA4 tools registered");
 }
@@ -1225,6 +1232,245 @@ function registerGoogleSignalsUpdateTool(
           logger.error("ga4.property.googleSignals.update failed", error);
         } else {
           logger.error("ga4.property.googleSignals.update failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return data retention settings if found
+ */
+async function checkDataRetentionCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof dataRetentionResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for data retention settings", { cacheKey });
+    return validateSchema(dataRetentionResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get data retention settings
+ */
+async function executeDataRetentionGetAPIRequest(
+  property: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof dataRetentionResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "getDataRetentionSettings");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = (await (adminClient.properties as { getDataRetentionSettings?: (params: { name: string }) => Promise<{ data?: unknown }> }).getDataRetentionSettings?.({
+    name: `${property}/dataRetentionSettings`,
+  })) as { data?: unknown };
+  
+  if (!response) {
+    throw createPreconditionError("not_found", "Data retention settings not found", {
+      property,
+    });
+  }
+
+  const responseData = response;
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Data retention settings not found", {
+      property,
+    });
+  }
+
+  return validateSchema(dataRetentionResponseSchema, responseData.data);
+}
+
+/**
+ * Execute data retention get operation
+ */
+async function executeDataRetentionGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof dataRetentionResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.property.dataRetention.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.property.dataRetention.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataRetentionGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:property:${validatedRequest.property}:dataRetention`;
+  const cached = await checkDataRetentionCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeDataRetentionGetAPIRequest(validatedRequest.property, ga4Client);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.property.dataRetention.get completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.property.dataRetention.get tool
+ */
+function registerDataRetentionGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.property.dataRetention.get",
+    description:
+      "Get data retention settings for a GA4 property. Data retention determines how long user-level and event-level data is stored.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataRetentionGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.property.dataRetention.get failed", error);
+        } else {
+          logger.error("ga4.property.dataRetention.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to update data retention settings
+ */
+async function executeDataRetentionUpdateAPIRequest(
+  property: string,
+  retentionDays: "RETENTION_14_MONTHS" | "RETENTION_26_MONTHS" | "RETENTION_38_MONTHS" | "RETENTION_50_MONTHS",
+  eventDataRetention: "EVENT_DATA_RETENTION_2_MONTHS" | "EVENT_DATA_RETENTION_14_MONTHS" | "EVENT_DATA_RETENTION_26_MONTHS" | "EVENT_DATA_RETENTION_38_MONTHS" | "EVENT_DATA_RETENTION_50_MONTHS" | undefined,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof dataRetentionResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "updateDataRetentionSettings");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const updateMask = eventDataRetention ? "retentionDays,eventDataRetention" : "retentionDays";
+  const response = (await (adminClient.properties as { updateDataRetentionSettings?: (params: { dataRetentionSettings: { name: string; retentionDays: string; eventDataRetention?: string }; updateMask: string }) => Promise<{ data?: unknown }> }).updateDataRetentionSettings?.({
+    dataRetentionSettings: {
+      name: `${property}/dataRetentionSettings`,
+      retentionDays,
+      eventDataRetention,
+    } as never,
+    updateMask,
+  })) as { data?: unknown };
+  
+  if (!response) {
+    throw createPreconditionError("not_found", "Data retention settings not found", {
+      property,
+    });
+  }
+
+  const responseData = response;
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Data retention settings not found", {
+      property,
+    });
+  }
+
+  return validateSchema(dataRetentionResponseSchema, responseData.data);
+}
+
+/**
+ * Execute data retention update operation
+ */
+async function executeDataRetentionUpdate(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof dataRetentionResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.property.dataRetention.update",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.property.dataRetention.update", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(dataRetentionUpdateRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeDataRetentionUpdateAPIRequest(
+    validatedRequest.property,
+    validatedRequest.retentionDays,
+    validatedRequest.eventDataRetention,
+    ga4Client
+  );
+
+  const cacheKey = `ga4:property:${validatedRequest.property}:dataRetention`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.property.dataRetention.update completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+    retentionDays: validatedRequest.retentionDays,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.property.dataRetention.update tool
+ */
+function registerDataRetentionUpdateTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.property.dataRetention.update",
+    description:
+      "Update data retention settings for a GA4 property. Set retention period to 14, 26, 38, or 50 months.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeDataRetentionUpdate(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.property.dataRetention.update failed", error);
+        } else {
+          logger.error("ga4.property.dataRetention.update failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

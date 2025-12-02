@@ -519,3 +519,28 @@ export const googleSignalsUpdateRequestSchema = z.object({
   state: z.enum(["GOOGLE_SIGNALS_ENABLED", "GOOGLE_SIGNALS_DISABLED"]),
 });
 
+/**
+ * Data Retention Get Request Schema
+ */
+export const dataRetentionGetRequestSchema = z.object({
+  property: propertyIdSchema,
+});
+
+/**
+ * Data Retention Response Schema
+ */
+export const dataRetentionResponseSchema = z.object({
+  name: z.string(),
+  retentionDays: z.enum(["RETENTION_DURATION_UNSPECIFIED", "RETENTION_14_MONTHS", "RETENTION_26_MONTHS", "RETENTION_38_MONTHS", "RETENTION_50_MONTHS"]),
+  eventDataRetention: z.enum(["EVENT_DATA_RETENTION_UNSPECIFIED", "EVENT_DATA_RETENTION_2_MONTHS", "EVENT_DATA_RETENTION_14_MONTHS", "EVENT_DATA_RETENTION_26_MONTHS", "EVENT_DATA_RETENTION_38_MONTHS", "EVENT_DATA_RETENTION_50_MONTHS"]).optional(),
+});
+
+/**
+ * Data Retention Update Request Schema
+ */
+export const dataRetentionUpdateRequestSchema = z.object({
+  property: propertyIdSchema,
+  retentionDays: z.enum(["RETENTION_14_MONTHS", "RETENTION_26_MONTHS", "RETENTION_38_MONTHS", "RETENTION_50_MONTHS"]),
+  eventDataRetention: z.enum(["EVENT_DATA_RETENTION_2_MONTHS", "EVENT_DATA_RETENTION_14_MONTHS", "EVENT_DATA_RETENTION_26_MONTHS", "EVENT_DATA_RETENTION_38_MONTHS", "EVENT_DATA_RETENTION_50_MONTHS"]).optional(),
+});
+
