@@ -52,27 +52,27 @@ describe("GA4 Admin API Discovery", () => {
               ],
             },
           }),
-        },
-        dataStreams: {
-          list: vi.fn().mockResolvedValue({
-            data: {
-              dataStreams: [],
-            },
-          }),
-        },
-        customDimensions: {
-          list: vi.fn().mockResolvedValue({
-            data: {
-              customDimensions: [],
-            },
-          }),
-        },
-        customMetrics: {
-          list: vi.fn().mockResolvedValue({
-            data: {
-              customMetrics: [],
-            },
-          }),
+          dataStreams: {
+            list: vi.fn().mockResolvedValue({
+              data: {
+                dataStreams: [],
+              },
+            }),
+          },
+          customDimensions: {
+            list: vi.fn().mockResolvedValue({
+              data: {
+                customDimensions: [],
+              },
+            }),
+          },
+          customMetrics: {
+            list: vi.fn().mockResolvedValue({
+              data: {
+                customMetrics: [],
+              },
+            }),
+          },
         },
       };
 
@@ -117,21 +117,25 @@ describe("GA4 Admin API Discovery", () => {
     });
 
     it("should verify all Admin API endpoints are not deprecated", async () => {
+      const mockDataStreamsList = vi.fn().mockResolvedValue({ data: { dataStreams: [] } });
+      const mockCustomDimensionsList = vi.fn().mockResolvedValue({ data: { customDimensions: [] } });
+      const mockCustomMetricsList = vi.fn().mockResolvedValue({ data: { customMetrics: [] } });
+
       const mockAdminClient = {
         accounts: {
           list: vi.fn().mockResolvedValue({ data: { accounts: [] } }),
         },
         properties: {
           list: vi.fn().mockResolvedValue({ data: { properties: [] } }),
-        },
-        dataStreams: {
-          list: vi.fn().mockResolvedValue({ data: { dataStreams: [] } }),
-        },
-        customDimensions: {
-          list: vi.fn().mockResolvedValue({ data: { customDimensions: [] } }),
-        },
-        customMetrics: {
-          list: vi.fn().mockResolvedValue({ data: { customMetrics: [] } }),
+          dataStreams: {
+            list: mockDataStreamsList,
+          },
+          customDimensions: {
+            list: mockCustomDimensionsList,
+          },
+          customMetrics: {
+            list: mockCustomMetricsList,
+          },
         },
       };
 
@@ -150,9 +154,9 @@ describe("GA4 Admin API Discovery", () => {
       // Verify all endpoints were called
       expect(mockAdminClient.accounts.list).toHaveBeenCalled();
       expect(mockAdminClient.properties.list).toHaveBeenCalled();
-      expect(mockAdminClient.dataStreams.list).toHaveBeenCalled();
-      expect(mockAdminClient.customDimensions.list).toHaveBeenCalled();
-      expect(mockAdminClient.customMetrics.list).toHaveBeenCalled();
+      expect(mockDataStreamsList).toHaveBeenCalled();
+      expect(mockCustomDimensionsList).toHaveBeenCalled();
+      expect(mockCustomMetricsList).toHaveBeenCalled();
     });
 
     it("should update capabilities registry with Admin API status", async () => {

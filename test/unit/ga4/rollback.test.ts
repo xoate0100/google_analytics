@@ -148,9 +148,19 @@ describe("GA4 Rollback Mechanics", () => {
     });
 
     it("should handle rollback errors gracefully", async () => {
+      const deleteEnvelope: OperationEnvelope = {
+        ...mockEnvelope,
+        opName: "ga4.property.delete",
+        result: {
+          status: "success" as const,
+          resourceId: "987654",
+        },
+      };
+
       const previousState = {
         name: "properties/987654",
         displayName: "Test Property",
+        timeZone: "America/New_York",
       };
 
       const mockAdminClient = {
@@ -164,7 +174,7 @@ describe("GA4 Rollback Mechanics", () => {
       );
 
       const rollback = createGA4PropertyRollback(
-        mockEnvelope,
+        deleteEnvelope,
         previousState,
         mockGA4Client,
         mockLogger
