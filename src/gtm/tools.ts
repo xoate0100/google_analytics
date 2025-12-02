@@ -41,6 +41,18 @@ import {
   triggerUpsertResponseSchema,
   triggerDeleteRequestSchema,
   triggerDeleteResponseSchema,
+  variableListRequestSchema,
+  variableListResponseSchema,
+  variableGetRequestSchema,
+  variableGetResponseSchema,
+  variableUpsertRequestSchema,
+  variableUpsertResponseSchema,
+  variableDeleteRequestSchema,
+  variableDeleteResponseSchema,
+  builtinVariableListRequestSchema,
+  builtinVariableListResponseSchema,
+  builtinVariableEnableRequestSchema,
+  builtinVariableEnableResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -87,6 +99,14 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   registerTriggerGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTriggerUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTriggerDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+
+  // Variable tools
+  registerVariableListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerVariableGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerVariableUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerVariableDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerBuiltinVariableListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerBuiltinVariableEnableTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -2123,6 +2143,713 @@ function registerTriggerDeleteTool(
           logger.error("gtm.trigger.delete failed", error);
         } else {
           logger.error("gtm.trigger.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list variables
+ */
+async function executeVariableListAPIRequest(
+  validatedRequest: z.infer<typeof variableListRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof variableListResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "variable.list");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const response = await tagManagerClient.accounts.containers.workspaces.variables.list({
+    parent: validatedRequest.parent,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No variables found", {});
+  }
+
+  // Transform variable array to variables format
+  const variablesData = responseData.data as { variable?: unknown[] };
+  return validateSchema(variableListResponseSchema, {
+    variables: variablesData.variable || [],
+  });
+}
+
+/**
+ * Execute variable list operation
+ */
+async function executeVariableList(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof variableListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.variable.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { parent: string }).parent.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.variable.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(variableListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const validatedResponse = await executeVariableListAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.variable.list completed", {
+    opId: envelope.opId,
+    variableCount: validatedResponse.variables.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.variable.list tool
+ */
+function registerVariableListTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.variable.list",
+    description: "List GTM variables for a workspace",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeVariableList(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.variable.list failed", error);
+        } else {
+          logger.error("gtm.variable.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return variable if found
+ */
+async function checkVariableCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof variableGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for variable", { cacheKey });
+    return validateSchema(variableGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get variable
+ */
+async function executeVariableGetAPIRequest(
+  variablePath: string,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof variableGetResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "variable.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const response = await tagManagerClient.accounts.containers.workspaces.variables.get({
+    path: variablePath,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Variable not found", {
+      variable: variablePath,
+    });
+  }
+
+  return validateSchema(variableGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute variable get operation
+ */
+async function executeVariableGet(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof variableGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.variable.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { path: string }).path.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.variable.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(variableGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const cacheKey = `gtm:variable:${validatedRequest.path}`;
+  const cached = await checkVariableCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeVariableGetAPIRequest(validatedRequest.path, gtmClient);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("gtm.variable.get completed", {
+    opId: envelope.opId,
+    variable: validatedRequest.path,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.variable.get tool
+ */
+function registerVariableGetTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.variable.get",
+    description: "Get GTM variable details by variable path",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Variable path in format accounts/123456/containers/987654/workspaces/111111/variables/444444",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeVariableGet(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.variable.get failed", error);
+        } else {
+          logger.error("gtm.variable.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create/update variable
+ */
+async function executeVariableUpsertAPIRequest(
+  validatedRequest: z.infer<typeof variableUpsertRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof variableUpsertResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "variable.upsert");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const variableData: Record<string, unknown> = {
+    name: validatedRequest.name,
+    type: validatedRequest.type,
+  };
+  if (validatedRequest.parameter) {
+    variableData.parameter = validatedRequest.parameter;
+  }
+  if (validatedRequest.formatValue) {
+    variableData.formatValue = validatedRequest.formatValue;
+  }
+
+  let response;
+  if (validatedRequest.variableId) {
+    // Update existing variable
+    const variablePath = `${validatedRequest.parent}/variables/${validatedRequest.variableId}`;
+    response = await tagManagerClient.accounts.containers.workspaces.variables.update({
+      path: variablePath,
+      requestBody: variableData,
+    });
+  } else {
+    // Create new variable
+    response = await tagManagerClient.accounts.containers.workspaces.variables.create({
+      parent: validatedRequest.parent,
+      requestBody: variableData,
+    });
+  }
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Variable operation failed", {});
+  }
+
+  return validateSchema(variableUpsertResponseSchema, responseData.data);
+}
+
+/**
+ * Execute variable upsert operation
+ */
+async function executeVariableUpsert(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof variableUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.variable.upsert",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { parent: string }).parent.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.variable.upsert", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(variableUpsertRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const validatedResponse = await executeVariableUpsertAPIRequest(validatedRequest, gtmClient);
+
+  // Post-check: verify variable was created/updated
+  const variablePath = `${validatedResponse.accountId ? `accounts/${validatedResponse.accountId}` : validatedRequest.parent}/variables/${validatedResponse.variableId || validatedRequest.variableId}`;
+  const cacheKey = `gtm:variable:${variablePath}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("gtm.variable.upsert completed", {
+    opId: envelope.opId,
+    variable: variablePath,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.variable.upsert tool
+ */
+function registerVariableUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.variable.upsert",
+    description: "Create or update GTM variable (data layer, custom JS, URL, constant, lookup tables)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+        name: {
+          type: "string",
+          description: "Variable name",
+        },
+        type: {
+          type: "string",
+          description: "Variable type (e.g., v, cjs, u, c, lookupTable)",
+        },
+        parameter: {
+          type: "array",
+          description: "Variable parameters",
+        },
+        formatValue: {
+          type: "object",
+          description: "Format value configuration",
+        },
+        variableId: {
+          type: "string",
+          description: "Variable ID for updates (optional)",
+        },
+      },
+      required: ["parent", "name", "type"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeVariableUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.variable.upsert failed", error);
+        } else {
+          logger.error("gtm.variable.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute variable delete operation
+ */
+async function executeVariableDelete(
+  args: unknown,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof variableDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.variable.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { path: string }).path.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.variable.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(variableDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  // Pre-check: verify variable exists
+  await gtmClient.checkRateLimit("gtm", "variable.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  try {
+    await tagManagerClient.accounts.containers.workspaces.variables.get({
+      path: validatedRequest.path,
+    });
+  } catch {
+    throw createPreconditionError("not_found", "Variable not found", {
+      variable: validatedRequest.path,
+    });
+  }
+
+  // Delete variable
+  await gtmClient.checkRateLimit("gtm", "variable.delete");
+  try {
+    await tagManagerClient.accounts.containers.workspaces.variables.delete({
+      path: validatedRequest.path,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Variable delete failed", error);
+    } else {
+      logger.error("Variable delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Invalidate cache
+  const cacheKey = `gtm:variable:${validatedRequest.path}`;
+  await cache.delete(cacheKey);
+
+  logger.info("gtm.variable.delete completed", {
+    opId: envelope.opId,
+    variable: validatedRequest.path,
+  });
+
+  return {
+    success: true,
+    path: validatedRequest.path,
+  };
+}
+
+/**
+ * Register gtm.variable.delete tool
+ */
+function registerVariableDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.variable.delete",
+    description: "Delete GTM variable",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Variable path in format accounts/123456/containers/987654/workspaces/111111/variables/444444",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeVariableDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.variable.delete failed", error);
+        } else {
+          logger.error("gtm.variable.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list built-in variables
+ */
+async function executeBuiltinVariableListAPIRequest(
+  validatedRequest: z.infer<typeof builtinVariableListRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof builtinVariableListResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "builtinVariable.list");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const response = await tagManagerClient.accounts.containers.workspaces.built_in_variables.list({
+    parent: validatedRequest.parent,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No built-in variables found", {});
+  }
+
+  // Transform builtInVariable array to builtInVariables format
+  const builtInVariablesData = responseData.data as { builtInVariable?: unknown[] };
+  return validateSchema(builtinVariableListResponseSchema, {
+    builtInVariables: builtInVariablesData.builtInVariable || [],
+  });
+}
+
+/**
+ * Execute built-in variable list operation
+ */
+async function executeBuiltinVariableList(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof builtinVariableListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.builtinVariable.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { parent: string }).parent.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.builtinVariable.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(builtinVariableListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  const validatedResponse = await executeBuiltinVariableListAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.builtinVariable.list completed", {
+    opId: envelope.opId,
+    builtInVariableCount: validatedResponse.builtInVariables.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register gtm.builtinVariable.list tool
+ */
+function registerBuiltinVariableListTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.builtinVariable.list",
+    description: "List GTM built-in variables for a workspace",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBuiltinVariableList(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.builtinVariable.list failed", error);
+        } else {
+          logger.error("gtm.builtinVariable.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute built-in variable enable operation
+ */
+async function executeBuiltinVariableEnable(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof builtinVariableEnableResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.builtinVariable.enable",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "gtm",
+      accountId: (args as { path: string }).path.split("/containers/")[0] || "",
+    },
+  });
+
+  logger.info("Executing gtm.builtinVariable.enable", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(builtinVariableEnableRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+
+  await gtmClient.checkRateLimit("gtm", "builtinVariable.enable");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  try {
+    await tagManagerClient.accounts.containers.workspaces.built_in_variables.create({
+      parent: validatedRequest.path,
+      type: [validatedRequest.type],
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Built-in variable enable failed", error);
+    } else {
+      logger.error("Built-in variable enable failed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  logger.info("gtm.builtinVariable.enable completed", {
+    opId: envelope.opId,
+    type: validatedRequest.type,
+  });
+
+  return {
+    success: true,
+    type: validatedRequest.type,
+  };
+}
+
+/**
+ * Register gtm.builtinVariable.enable tool
+ */
+function registerBuiltinVariableEnableTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.builtinVariable.enable",
+    description: "Enable GTM built-in variable",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+        },
+        type: {
+          type: "string",
+          description: "Built-in variable type (e.g., PAGE_URL, PAGE_HOSTNAME, CLICK_ELEMENT)",
+        },
+      },
+      required: ["path", "type"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBuiltinVariableEnable(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.builtinVariable.enable failed", error);
+        } else {
+          logger.error("gtm.builtinVariable.enable failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

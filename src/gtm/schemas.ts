@@ -368,3 +368,129 @@ export const triggerDeleteResponseSchema = z.object({
   path: z.string(),
 });
 
+/**
+ * Variable path schema (format: accounts/123456/containers/987654/workspaces/111111/variables/444444)
+ */
+export const variablePathSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+\/workspaces\/\d+\/variables\/\d+$/,
+    "Variable path must be in format accounts/123456/containers/987654/workspaces/111111/variables/444444"
+  );
+
+/**
+ * Variable List Request Schema
+ */
+export const variableListRequestSchema = z.object({
+  parent: workspacePathSchema,
+});
+
+/**
+ * Variable List Response Schema
+ */
+export const variableListResponseSchema = z.object({
+  variables: z.array(
+    z.object({
+      accountId: z.string().optional(),
+      containerId: z.string().optional(),
+      workspaceId: z.string().optional(),
+      variableId: z.string().optional(),
+      name: z.string().optional(),
+      type: z.string().optional(),
+      fingerprint: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Variable Get Request Schema
+ */
+export const variableGetRequestSchema = z.object({
+  path: variablePathSchema,
+});
+
+/**
+ * Variable Get Response Schema
+ */
+export const variableGetResponseSchema = z.object({
+  accountId: z.string().optional(),
+  containerId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  variableId: z.string().optional(),
+  name: z.string().optional(),
+  type: z.string().optional(),
+  fingerprint: z.string().optional(),
+  parameter: z.array(z.unknown()).optional(),
+  formatValue: z.unknown().optional(),
+});
+
+/**
+ * Variable Upsert Request Schema
+ */
+export const variableUpsertRequestSchema = z.object({
+  parent: workspacePathSchema,
+  name: z.string().min(1, "Variable name is required"),
+  type: z.string().min(1, "Variable type is required"),
+  parameter: z.array(z.unknown()).optional(),
+  formatValue: z.unknown().optional(),
+  variableId: z.string().optional(), // For updates
+});
+
+/**
+ * Variable Upsert Response Schema
+ */
+export const variableUpsertResponseSchema = variableGetResponseSchema;
+
+/**
+ * Variable Delete Request Schema
+ */
+export const variableDeleteRequestSchema = z.object({
+  path: variablePathSchema,
+});
+
+/**
+ * Variable Delete Response Schema
+ */
+export const variableDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  path: z.string(),
+});
+
+/**
+ * Built-in Variable List Request Schema
+ */
+export const builtinVariableListRequestSchema = z.object({
+  parent: workspacePathSchema,
+});
+
+/**
+ * Built-in Variable List Response Schema
+ */
+export const builtinVariableListResponseSchema = z.object({
+  builtInVariables: z.array(
+    z.object({
+      accountId: z.string().optional(),
+      containerId: z.string().optional(),
+      workspaceId: z.string().optional(),
+      type: z.string().optional(),
+      name: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Built-in Variable Enable Request Schema
+ */
+export const builtinVariableEnableRequestSchema = z.object({
+  path: workspacePathSchema,
+  type: z.string().min(1, "Built-in variable type is required"),
+});
+
+/**
+ * Built-in Variable Enable Response Schema
+ */
+export const builtinVariableEnableResponseSchema = z.object({
+  success: z.boolean(),
+  type: z.string(),
+});
+
