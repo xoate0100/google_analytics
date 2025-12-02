@@ -48,6 +48,14 @@ import {
   customDimensionUpsertResponseSchema,
   customDimensionDeleteRequestSchema,
   customDimensionDeleteResponseSchema,
+  customMetricListRequestSchema,
+  customMetricListResponseSchema,
+  customMetricGetRequestSchema,
+  customMetricGetResponseSchema,
+  customMetricUpsertRequestSchema,
+  customMetricUpsertResponseSchema,
+  customMetricDeleteRequestSchema,
+  customMetricDeleteResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -123,6 +131,12 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerCustomDimensionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerCustomDimensionUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerCustomDimensionDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Custom Metrics
+  registerCustomMetricListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerCustomMetricGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerCustomMetricUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerCustomMetricDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -2830,6 +2844,538 @@ function registerCustomDimensionDeleteTool(
           logger.error("ga4.customDimension.delete failed", error);
         } else {
           logger.error("ga4.customDimension.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list custom metrics
+ */
+async function executeCustomMetricListAPIRequest(
+  validatedRequest: z.infer<typeof customMetricListRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof customMetricListResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "customMetric.list");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const params: Record<string, unknown> = {
+    parent: validatedRequest.parent,
+  };
+  if (validatedRequest.pageSize) {
+    params.pageSize = validatedRequest.pageSize;
+  }
+  if (validatedRequest.pageToken) {
+    params.pageToken = validatedRequest.pageToken;
+  }
+
+  const response = await adminClient.properties.customMetrics.list(params);
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No custom metrics found", {});
+  }
+
+  return validateSchema(customMetricListResponseSchema, responseData.data);
+}
+
+/**
+ * Execute custom metric list operation
+ */
+async function executeCustomMetricList(
+  args: unknown,
+  ga4Client: GA4Client,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof customMetricListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.customMetric.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { parent: string }).parent },
+  });
+
+  logger.info("Executing ga4.customMetric.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(customMetricListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeCustomMetricListAPIRequest(validatedRequest, ga4Client);
+
+  logger.info("ga4.customMetric.list completed", {
+    opId: envelope.opId,
+    metricCount: validatedResponse.customMetrics.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.customMetric.list tool
+ */
+function registerCustomMetricListTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.customMetric.list",
+    description: "List custom metrics for a GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        pageSize: {
+          type: "number",
+          description: "Maximum number of metrics to return (1-200)",
+        },
+        pageToken: {
+          type: "string",
+          description: "Token for pagination",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeCustomMetricList(args, ga4Client, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.customMetric.list failed", error);
+        } else {
+          logger.error("ga4.customMetric.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return custom metric if found
+ */
+async function checkCustomMetricCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof customMetricGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for custom metric", { cacheKey });
+    return validateSchema(customMetricGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get custom metric
+ */
+async function executeCustomMetricGetAPIRequest(
+  metricName: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof customMetricGetResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "customMetric.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = await adminClient.properties.customMetrics.get({
+    name: metricName,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Custom metric not found", {
+      metric: metricName,
+    });
+  }
+
+  return validateSchema(customMetricGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute custom metric get operation
+ */
+async function executeCustomMetricGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof customMetricGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.customMetric.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/customMetrics/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.customMetric.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(customMetricGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:customMetric:${validatedRequest.name}`;
+  const cached = await checkCustomMetricCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeCustomMetricGetAPIRequest(validatedRequest.name, ga4Client);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.customMetric.get completed", {
+    opId: envelope.opId,
+    metric: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.customMetric.get tool
+ */
+function registerCustomMetricGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.customMetric.get",
+    description: "Get GA4 custom metric details by metric ID",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Custom metric ID in format properties/123456789/customMetrics/metric_name",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeCustomMetricGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.customMetric.get failed", error);
+        } else {
+          logger.error("ga4.customMetric.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create/update custom metric
+ */
+async function executeCustomMetricUpsertAPIRequest(
+  validatedRequest: z.infer<typeof customMetricUpsertRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof customMetricUpsertResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "customMetric.upsert");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const metricData: Record<string, unknown> = {
+    parameterName: validatedRequest.parameterName,
+    scope: validatedRequest.scope,
+    type: validatedRequest.type,
+  };
+  if (validatedRequest.displayName) {
+    metricData.displayName = validatedRequest.displayName;
+  }
+  if (validatedRequest.description) {
+    metricData.description = validatedRequest.description;
+  }
+  if (validatedRequest.measurementUnit) {
+    metricData.measurementUnit = validatedRequest.measurementUnit;
+  }
+
+  // Check if metric exists by trying to get it
+  const metricName = `${validatedRequest.parent}/customMetrics/${validatedRequest.parameterName}`;
+  let response;
+  try {
+    await adminClient.properties.customMetrics.get({ name: metricName });
+    // Metric exists, update it
+    response = await adminClient.properties.customMetrics.patch({
+      name: metricName,
+      updateMask: "displayName,description,measurementUnit",
+      requestBody: metricData,
+    });
+  } catch {
+    // Metric doesn't exist, create it
+    metricData.parent = validatedRequest.parent;
+    response = await adminClient.properties.customMetrics.create({
+      requestBody: metricData,
+    });
+  }
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Custom metric operation failed", {});
+  }
+
+  return validateSchema(customMetricUpsertResponseSchema, responseData.data);
+}
+
+/**
+ * Execute custom metric upsert operation with pre/post validation
+ */
+async function executeCustomMetricUpsert(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof customMetricUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.customMetric.upsert",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { parent: string }).parent,
+    },
+  });
+
+  logger.info("Executing ga4.customMetric.upsert", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(customMetricUpsertRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeCustomMetricUpsertAPIRequest(validatedRequest, ga4Client);
+
+  // Post-check: verify metric was created/updated
+  const cacheKey = `ga4:customMetric:${validatedResponse.name}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.customMetric.upsert completed", {
+    opId: envelope.opId,
+    metric: validatedResponse.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.customMetric.upsert tool
+ */
+function registerCustomMetricUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.customMetric.upsert",
+    description: "Create or update GA4 custom metric (supports currency/time units)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        parameterName: {
+          type: "string",
+          description: "Parameter name for the custom metric",
+        },
+        displayName: {
+          type: "string",
+          description: "Display name for the custom metric",
+        },
+        description: {
+          type: "string",
+          description: "Description of the custom metric",
+        },
+        measurementUnit: {
+          type: "string",
+          enum: [
+            "MEASUREMENT_UNIT_UNSPECIFIED",
+            "STANDARD",
+            "CURRENCY",
+            "FEET",
+            "METERS",
+            "KILOMETERS",
+            "MILES",
+            "MILLISECONDS",
+            "SECONDS",
+            "MINUTES",
+            "HOURS",
+          ],
+          description: "Measurement unit for the metric",
+        },
+        scope: {
+          type: "string",
+          enum: ["USER", "EVENT", "ITEM"],
+          description: "Scope of the custom metric",
+        },
+        type: {
+          type: "string",
+          enum: ["INTEGER", "FLOAT", "SECONDS", "MILLISECONDS", "CURRENCY", "FEET", "METERS"],
+          description: "Type of the custom metric",
+        },
+      },
+      required: ["parent", "parameterName", "scope", "type"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeCustomMetricUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.customMetric.upsert failed", error);
+        } else {
+          logger.error("ga4.customMetric.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute custom metric delete operation (archive)
+ */
+async function executeCustomMetricDelete(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof customMetricDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.customMetric.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/customMetrics/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.customMetric.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(customMetricDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Pre-check: verify metric exists
+  await ga4Client.checkRateLimit("ga4", "customMetric.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.customMetrics.get({ name: validatedRequest.name });
+  } catch {
+    throw createPreconditionError("not_found", "Custom metric not found", {
+      metric: validatedRequest.name,
+    });
+  }
+
+  // Archive metric (GA4 uses archive, not delete)
+  await ga4Client.checkRateLimit("ga4", "customMetric.archive");
+  try {
+    await adminClient.properties.customMetrics.archive({
+      name: validatedRequest.name,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Custom metric archive failed", error);
+    } else {
+      logger.error("Custom metric archive failed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Invalidate cache
+  const cacheKey = `ga4:customMetric:${validatedRequest.name}`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.customMetric.delete completed", {
+    opId: envelope.opId,
+    metric: validatedRequest.name,
+  });
+
+  return {
+    success: true,
+    name: validatedRequest.name,
+  };
+}
+
+/**
+ * Register ga4.customMetric.delete tool
+ */
+function registerCustomMetricDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.customMetric.delete",
+    description: "Archive (delete) GA4 custom metric",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Custom metric ID in format properties/123456789/customMetrics/metric_name",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeCustomMetricDelete(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.customMetric.delete failed", error);
+        } else {
+          logger.error("ga4.customMetric.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

@@ -847,6 +847,138 @@ export const customDimensionDeleteResponseSchema = z.object({
 });
 
 /**
+ * Custom Metric ID schema (format: properties/123456789/customMetrics/metric_name)
+ */
+const customMetricIdSchema = z
+  .string()
+  .regex(
+    /^properties\/\d+\/customMetrics\/[a-zA-Z0-9_]+$/,
+    "Custom metric ID must be in format properties/123456789/customMetrics/metric_name"
+  );
+
+/**
+ * Custom Metric List Request Schema
+ */
+export const customMetricListRequestSchema = z.object({
+  parent: propertyIdSchema,
+  pageSize: z.number().int().positive().max(200).optional(),
+  pageToken: z.string().optional(),
+});
+
+/**
+ * Custom Metric List Response Schema
+ */
+export const customMetricListResponseSchema = z.object({
+  customMetrics: z.array(
+    z.object({
+      name: z.string(),
+      parameterName: z.string().optional(),
+      displayName: z.string().optional(),
+      description: z.string().optional(),
+      measurementUnit: z
+        .enum([
+          "MEASUREMENT_UNIT_UNSPECIFIED",
+          "STANDARD",
+          "CURRENCY",
+          "FEET",
+          "METERS",
+          "KILOMETERS",
+          "MILES",
+          "MILLISECONDS",
+          "SECONDS",
+          "MINUTES",
+          "HOURS",
+        ])
+        .optional(),
+      scope: z.enum(["USER", "EVENT", "ITEM"]).optional(),
+      type: z.enum(["INTEGER", "FLOAT", "SECONDS", "MILLISECONDS", "CURRENCY", "FEET", "METERS"]).optional(),
+    })
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+/**
+ * Custom Metric Get Request Schema
+ */
+export const customMetricGetRequestSchema = z.object({
+  name: customMetricIdSchema,
+});
+
+/**
+ * Custom Metric Get Response Schema
+ */
+export const customMetricGetResponseSchema = z.object({
+  name: z.string(),
+  parameterName: z.string().optional(),
+  displayName: z.string().optional(),
+  description: z.string().optional(),
+  measurementUnit: z
+    .enum([
+      "MEASUREMENT_UNIT_UNSPECIFIED",
+      "STANDARD",
+      "CURRENCY",
+      "FEET",
+      "METERS",
+      "KILOMETERS",
+      "MILES",
+      "MILLISECONDS",
+      "SECONDS",
+      "MINUTES",
+      "HOURS",
+    ])
+    .optional(),
+  scope: z.enum(["USER", "EVENT", "ITEM"]).optional(),
+  type: z.enum(["INTEGER", "FLOAT", "SECONDS", "MILLISECONDS", "CURRENCY", "FEET", "METERS"]).optional(),
+});
+
+/**
+ * Custom Metric Upsert Request Schema
+ */
+export const customMetricUpsertRequestSchema = z.object({
+  parent: propertyIdSchema,
+  parameterName: z.string().min(1, "Parameter name is required"),
+  displayName: z.string().min(1, "Display name is required").optional(),
+  description: z.string().optional(),
+  measurementUnit: z
+    .enum([
+      "MEASUREMENT_UNIT_UNSPECIFIED",
+      "STANDARD",
+      "CURRENCY",
+      "FEET",
+      "METERS",
+      "KILOMETERS",
+      "MILES",
+      "MILLISECONDS",
+      "SECONDS",
+      "MINUTES",
+      "HOURS",
+    ])
+    .optional(),
+  scope: z.enum(["USER", "EVENT", "ITEM"]),
+  type: z.enum(["INTEGER", "FLOAT", "SECONDS", "MILLISECONDS", "CURRENCY", "FEET", "METERS"]),
+});
+
+/**
+ * Custom Metric Upsert Response Schema
+ */
+export const customMetricUpsertResponseSchema = customMetricGetResponseSchema;
+
+/**
+ * Custom Metric Delete Request Schema
+ */
+export const customMetricDeleteRequestSchema = z.object({
+  name: customMetricIdSchema,
+});
+
+/**
+ * Custom Metric Delete Response Schema
+ */
+export const customMetricDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  name: z.string(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({
