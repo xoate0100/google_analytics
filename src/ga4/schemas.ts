@@ -1126,6 +1126,90 @@ export const eventParameterDeleteResponseSchema = z.object({
 });
 
 /**
+ * Conversion Event ID schema (format: properties/123456789/conversionEvents/event_name)
+ */
+const conversionEventIdSchema = z
+  .string()
+  .regex(
+    /^properties\/\d+\/conversionEvents\/[a-zA-Z0-9_]+$/,
+    "Conversion event ID must be in format properties/123456789/conversionEvents/event_name"
+  );
+
+/**
+ * Conversion List Request Schema
+ */
+export const conversionListRequestSchema = z.object({
+  parent: propertyIdSchema,
+  pageSize: z.number().int().positive().max(200).optional(),
+  pageToken: z.string().optional(),
+});
+
+/**
+ * Conversion List Response Schema
+ */
+export const conversionListResponseSchema = z.object({
+  conversions: z.array(
+    z.object({
+      name: z.string(),
+      eventName: z.string().optional(),
+      createTime: z.string().optional(),
+      deletable: z.boolean().optional(),
+      custom: z.boolean().optional(),
+      countingMethod: z.enum(["CONVERSION_COUNTING_METHOD_UNSPECIFIED", "ONCE_PER_EVENT", "ONCE_PER_SESSION"]).optional(),
+    })
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+/**
+ * Conversion Get Request Schema
+ */
+export const conversionGetRequestSchema = z.object({
+  name: conversionEventIdSchema,
+});
+
+/**
+ * Conversion Get Response Schema
+ */
+export const conversionGetResponseSchema = z.object({
+  name: z.string(),
+  eventName: z.string().optional(),
+  createTime: z.string().optional(),
+  deletable: z.boolean().optional(),
+  custom: z.boolean().optional(),
+  countingMethod: z.enum(["CONVERSION_COUNTING_METHOD_UNSPECIFIED", "ONCE_PER_EVENT", "ONCE_PER_SESSION"]).optional(),
+});
+
+/**
+ * Conversion Upsert Request Schema
+ */
+export const conversionUpsertRequestSchema = z.object({
+  parent: propertyIdSchema,
+  eventName: z.string().min(1, "Event name is required"),
+  countingMethod: z.enum(["CONVERSION_COUNTING_METHOD_UNSPECIFIED", "ONCE_PER_EVENT", "ONCE_PER_SESSION"]).optional(),
+});
+
+/**
+ * Conversion Upsert Response Schema
+ */
+export const conversionUpsertResponseSchema = conversionGetResponseSchema;
+
+/**
+ * Conversion Delete Request Schema
+ */
+export const conversionDeleteRequestSchema = z.object({
+  name: conversionEventIdSchema,
+});
+
+/**
+ * Conversion Delete Response Schema
+ */
+export const conversionDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  name: z.string(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({

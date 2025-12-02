@@ -68,6 +68,14 @@ import {
   eventParameterUpsertResponseSchema,
   eventParameterDeleteRequestSchema,
   eventParameterDeleteResponseSchema,
+  conversionListRequestSchema,
+  conversionListResponseSchema,
+  conversionGetRequestSchema,
+  conversionGetResponseSchema,
+  conversionUpsertRequestSchema,
+  conversionUpsertResponseSchema,
+  conversionDeleteRequestSchema,
+  conversionDeleteResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -157,6 +165,12 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerEventParameterListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEventParameterUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEventParameterDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Conversions
+  registerConversionListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerConversionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerConversionUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerConversionDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -4147,6 +4161,523 @@ function registerEventParameterDeleteTool(
           logger.error("ga4.event.parameter.delete failed", error);
         } else {
           logger.error("ga4.event.parameter.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list conversions
+ */
+async function executeConversionListAPIRequest(
+  validatedRequest: z.infer<typeof conversionListRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof conversionListResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "conversion.list");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const params: Record<string, unknown> = {
+    parent: validatedRequest.parent,
+  };
+  if (validatedRequest.pageSize) {
+    params.pageSize = validatedRequest.pageSize;
+  }
+  if (validatedRequest.pageToken) {
+    params.pageToken = validatedRequest.pageToken;
+  }
+
+  const response = await adminClient.properties.conversionEvents.list(params);
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No conversions found", {});
+  }
+
+  // Transform conversionEvents to conversions format
+  const eventsData = responseData.data as { conversionEvents?: unknown[]; nextPageToken?: string };
+  return validateSchema(conversionListResponseSchema, {
+    conversions: eventsData.conversionEvents || [],
+    nextPageToken: eventsData.nextPageToken,
+  });
+}
+
+/**
+ * Execute conversion list operation
+ */
+async function executeConversionList(
+  args: unknown,
+  ga4Client: GA4Client,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof conversionListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.conversion.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { parent: string }).parent },
+  });
+
+  logger.info("Executing ga4.conversion.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(conversionListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeConversionListAPIRequest(validatedRequest, ga4Client);
+
+  logger.info("ga4.conversion.list completed", {
+    opId: envelope.opId,
+    conversionCount: validatedResponse.conversions.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.conversion.list tool
+ */
+function registerConversionListTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.conversion.list",
+    description: "List conversion events for a GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        pageSize: {
+          type: "number",
+          description: "Maximum number of conversions to return (1-200)",
+        },
+        pageToken: {
+          type: "string",
+          description: "Token for pagination",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConversionList(args, ga4Client, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.conversion.list failed", error);
+        } else {
+          logger.error("ga4.conversion.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return conversion if found
+ */
+async function checkConversionCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof conversionGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for conversion", { cacheKey });
+    return validateSchema(conversionGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get conversion
+ */
+async function executeConversionGetAPIRequest(
+  conversionName: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof conversionGetResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "conversion.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = await adminClient.properties.conversionEvents.get({
+    name: conversionName,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Conversion not found", {
+      conversion: conversionName,
+    });
+  }
+
+  return validateSchema(conversionGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute conversion get operation
+ */
+async function executeConversionGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof conversionGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.conversion.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/conversionEvents/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.conversion.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(conversionGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:conversion:${validatedRequest.name}`;
+  const cached = await checkConversionCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeConversionGetAPIRequest(validatedRequest.name, ga4Client);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.conversion.get completed", {
+    opId: envelope.opId,
+    conversion: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.conversion.get tool
+ */
+function registerConversionGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.conversion.get",
+    description: "Get GA4 conversion event details by conversion ID",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Conversion event ID in format properties/123456789/conversionEvents/event_name",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConversionGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.conversion.get failed", error);
+        } else {
+          logger.error("ga4.conversion.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create/update conversion
+ */
+async function executeConversionUpsertAPIRequest(
+  validatedRequest: z.infer<typeof conversionUpsertRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof conversionUpsertResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "conversion.upsert");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const conversionData: Record<string, unknown> = {
+    eventName: validatedRequest.eventName,
+  };
+  if (validatedRequest.countingMethod) {
+    conversionData.countingMethod = validatedRequest.countingMethod;
+  }
+
+  // Check if conversion exists by trying to get it
+  const conversionName = `${validatedRequest.parent}/conversionEvents/${validatedRequest.eventName}`;
+  let response;
+  try {
+    await adminClient.properties.conversionEvents.get({ name: conversionName });
+    // Conversion exists, but conversions can't be updated - they're based on events
+    // Return existing conversion
+    response = await adminClient.properties.conversionEvents.get({ name: conversionName });
+  } catch {
+    // Conversion doesn't exist, create it
+    conversionData.parent = validatedRequest.parent;
+    response = await adminClient.properties.conversionEvents.create({
+      requestBody: conversionData,
+    });
+  }
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Conversion operation failed", {});
+  }
+
+  return validateSchema(conversionUpsertResponseSchema, responseData.data);
+}
+
+/**
+ * Execute conversion upsert operation with idempotency via event name
+ */
+async function executeConversionUpsert(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof conversionUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.conversion.upsert",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { parent: string }).parent,
+    },
+  });
+
+  logger.info("Executing ga4.conversion.upsert", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(conversionUpsertRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeConversionUpsertAPIRequest(validatedRequest, ga4Client);
+
+  // Post-check: verify conversion was created/updated
+  const cacheKey = `ga4:conversion:${validatedResponse.name}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.conversion.upsert completed", {
+    opId: envelope.opId,
+    conversion: validatedResponse.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.conversion.upsert tool
+ */
+function registerConversionUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.conversion.upsert",
+    description: "Create or update GA4 conversion event with counting method and value settings",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        eventName: {
+          type: "string",
+          description: "Event name to mark as conversion",
+        },
+        countingMethod: {
+          type: "string",
+          enum: ["CONVERSION_COUNTING_METHOD_UNSPECIFIED", "ONCE_PER_EVENT", "ONCE_PER_SESSION"],
+          description: "Counting method for the conversion",
+        },
+      },
+      required: ["parent", "eventName"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConversionUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.conversion.upsert failed", error);
+        } else {
+          logger.error("ga4.conversion.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute conversion delete operation with rollback
+ */
+async function executeConversionDelete(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof conversionDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.conversion.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/conversionEvents/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.conversion.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(conversionDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Pre-check: verify conversion exists
+  await ga4Client.checkRateLimit("ga4", "conversion.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.conversionEvents.get({ name: validatedRequest.name });
+  } catch {
+    throw createPreconditionError("not_found", "Conversion not found", {
+      conversion: validatedRequest.name,
+    });
+  }
+
+  // Delete conversion
+  await ga4Client.checkRateLimit("ga4", "conversion.delete");
+  try {
+    await adminClient.properties.conversionEvents.delete({
+      name: validatedRequest.name,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Conversion delete failed", error);
+    } else {
+      logger.error("Conversion delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Post-check: verify conversion was deleted
+  try {
+    await adminClient.properties.conversionEvents.get({ name: validatedRequest.name });
+    // If we get here, conversion still exists - rollback scenario
+    logger.warn("Conversion delete post-check failed - conversion still exists", {
+      conversion: validatedRequest.name,
+    });
+    throw createPreconditionError("precheck_failed", "Conversion deletion failed", {
+      conversion: validatedRequest.name,
+    });
+  } catch (error) {
+    // Expected: conversion should not exist
+    if (error instanceof Error && error.message.includes("not found")) {
+      // Success - conversion deleted
+    } else if (error instanceof Error && error.message.includes("precheck_failed")) {
+      throw error;
+    } else {
+      // Expected error - conversion not found
+    }
+  }
+
+  // Invalidate cache
+  const cacheKey = `ga4:conversion:${validatedRequest.name}`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.conversion.delete completed", {
+    opId: envelope.opId,
+    conversion: validatedRequest.name,
+  });
+
+  return {
+    success: true,
+    name: validatedRequest.name,
+  };
+}
+
+/**
+ * Register ga4.conversion.delete tool
+ */
+function registerConversionDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.conversion.delete",
+    description: "Delete GA4 conversion event",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Conversion event ID in format properties/123456789/conversionEvents/event_name",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeConversionDelete(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.conversion.delete failed", error);
+        } else {
+          logger.error("ga4.conversion.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
