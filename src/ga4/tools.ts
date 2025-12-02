@@ -88,6 +88,16 @@ import {
   attributionGetResponseSchema,
   attributionUpdateRequestSchema,
   attributionUpdateResponseSchema,
+  googleAdsIntegrationListRequestSchema,
+  googleAdsIntegrationListResponseSchema,
+  googleAdsIntegrationGetRequestSchema,
+  googleAdsIntegrationGetResponseSchema,
+  googleAdsIntegrationCreateRequestSchema,
+  googleAdsIntegrationCreateResponseSchema,
+  googleAdsIntegrationUpdateRequestSchema,
+  googleAdsIntegrationUpdateResponseSchema,
+  googleAdsIntegrationDeleteRequestSchema,
+  googleAdsIntegrationDeleteResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -193,6 +203,13 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   // Admin API tools - Attribution
   registerAttributionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerAttributionUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Google Ads Integration
+  registerGoogleAdsIntegrationListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerGoogleAdsIntegrationGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerGoogleAdsIntegrationCreateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerGoogleAdsIntegrationUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerGoogleAdsIntegrationDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -5561,6 +5578,679 @@ function registerAttributionUpdateTool(
           logger.error("ga4.attribution.update failed", error);
         } else {
           logger.error("ga4.attribution.update failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list Google Ads links
+ */
+async function executeGoogleAdsIntegrationListAPIRequest(
+  validatedRequest: z.infer<typeof googleAdsIntegrationListRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof googleAdsIntegrationListResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "integration.ads.list");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const params: Record<string, unknown> = {
+    parent: validatedRequest.parent,
+  };
+  if (validatedRequest.pageSize) {
+    params.pageSize = validatedRequest.pageSize;
+  }
+  if (validatedRequest.pageToken) {
+    params.pageToken = validatedRequest.pageToken;
+  }
+
+  const googleAdsLinks = (
+    adminClient.properties as {
+      googleAdsLinks?: {
+        list: (params: Record<string, unknown>) => Promise<{ data?: unknown }>;
+      };
+    }
+  ).googleAdsLinks;
+
+  if (!googleAdsLinks) {
+    throw createPreconditionError("not_found", "Google Ads links API not available", {});
+  }
+
+  const response = await googleAdsLinks.list(params);
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No Google Ads links found", {});
+  }
+
+  return validateSchema(googleAdsIntegrationListResponseSchema, responseData.data);
+}
+
+/**
+ * Execute Google Ads integration list operation
+ */
+async function executeGoogleAdsIntegrationList(
+  args: unknown,
+  ga4Client: GA4Client,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof googleAdsIntegrationListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.integration.ads.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { parent: string }).parent },
+  });
+
+  logger.info("Executing ga4.integration.ads.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(googleAdsIntegrationListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeGoogleAdsIntegrationListAPIRequest(validatedRequest, ga4Client);
+
+  logger.info("ga4.integration.ads.list completed", {
+    opId: envelope.opId,
+    linkCount: validatedResponse.googleAdsLinks.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.integration.ads.list tool
+ */
+function registerGoogleAdsIntegrationListTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.integration.ads.list",
+    description: "List Google Ads links for a GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        pageSize: {
+          type: "number",
+          description: "Maximum number of links to return (1-200)",
+        },
+        pageToken: {
+          type: "string",
+          description: "Token for pagination",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeGoogleAdsIntegrationList(args, ga4Client, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.integration.ads.list failed", error);
+        } else {
+          logger.error("ga4.integration.ads.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return Google Ads link if found
+ */
+async function checkGoogleAdsIntegrationCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof googleAdsIntegrationGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for Google Ads link", { cacheKey });
+    return validateSchema(googleAdsIntegrationGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get Google Ads link
+ */
+async function executeGoogleAdsIntegrationGetAPIRequest(
+  linkName: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof googleAdsIntegrationGetResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "integration.ads.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const googleAdsLinks = (
+    adminClient.properties as unknown as {
+      googleAdsLinks?: {
+        get: (params: { name: string }) => Promise<{ data?: unknown }>;
+      };
+    }
+  ).googleAdsLinks;
+
+  if (!googleAdsLinks) {
+    throw createPreconditionError("not_found", "Google Ads links API not available", {
+      link: linkName,
+    });
+  }
+
+  const response = await googleAdsLinks.get({
+    name: linkName,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Google Ads link not found", {
+      link: linkName,
+    });
+  }
+
+  return validateSchema(googleAdsIntegrationGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute Google Ads integration get operation
+ */
+async function executeGoogleAdsIntegrationGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof googleAdsIntegrationGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.integration.ads.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/googleAdsLinks/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.integration.ads.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(googleAdsIntegrationGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:googleAdsLink:${validatedRequest.name}`;
+  const cached = await checkGoogleAdsIntegrationCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeGoogleAdsIntegrationGetAPIRequest(
+    validatedRequest.name,
+    ga4Client
+  );
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.integration.ads.get completed", {
+    opId: envelope.opId,
+    link: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.integration.ads.get tool
+ */
+function registerGoogleAdsIntegrationGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.integration.ads.get",
+    description: "Get GA4 Google Ads link details by link ID",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Google Ads link ID in format properties/123456789/googleAdsLinks/987654321",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeGoogleAdsIntegrationGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.integration.ads.get failed", error);
+        } else {
+          logger.error("ga4.integration.ads.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create Google Ads link
+ */
+async function executeGoogleAdsIntegrationCreateAPIRequest(
+  validatedRequest: z.infer<typeof googleAdsIntegrationCreateRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof googleAdsIntegrationCreateResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "integration.ads.create");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const linkData: Record<string, unknown> = {
+    customerId: validatedRequest.customerId,
+    parent: validatedRequest.parent,
+  };
+  if (validatedRequest.adsPersonalizationEnabled !== undefined) {
+    linkData.adsPersonalizationEnabled = validatedRequest.adsPersonalizationEnabled;
+  }
+
+  const googleAdsLinks = (
+    adminClient.properties as {
+      googleAdsLinks?: {
+        create: (params: { requestBody?: Record<string, unknown> }) => Promise<{ data?: unknown }>;
+      };
+    }
+  ).googleAdsLinks;
+
+  if (!googleAdsLinks) {
+    throw createPreconditionError("not_found", "Google Ads links API not available", {});
+  }
+
+  const response = await googleAdsLinks.create({
+    requestBody: linkData,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Google Ads link creation failed", {});
+  }
+
+  return validateSchema(googleAdsIntegrationCreateResponseSchema, responseData.data);
+}
+
+/**
+ * Execute Google Ads integration create operation
+ */
+async function executeGoogleAdsIntegrationCreate(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof googleAdsIntegrationCreateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.integration.ads.create",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { parent: string }).parent,
+    },
+  });
+
+  logger.info("Executing ga4.integration.ads.create", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(googleAdsIntegrationCreateRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeGoogleAdsIntegrationCreateAPIRequest(validatedRequest, ga4Client);
+
+  // Post-check: verify link was created
+  const cacheKey = `ga4:googleAdsLink:${validatedResponse.name}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.integration.ads.create completed", {
+    opId: envelope.opId,
+    link: validatedResponse.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.integration.ads.create tool
+ */
+function registerGoogleAdsIntegrationCreateTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.integration.ads.create",
+    description: "Create Google Ads link for GA4 property with conversion import mapping",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        customerId: {
+          type: "string",
+          description: "Google Ads customer ID",
+        },
+        adsPersonalizationEnabled: {
+          type: "boolean",
+          description: "Enable ads personalization",
+        },
+      },
+      required: ["parent", "customerId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeGoogleAdsIntegrationCreate(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.integration.ads.create failed", error);
+        } else {
+          logger.error("ga4.integration.ads.create failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to update Google Ads link
+ */
+async function executeGoogleAdsIntegrationUpdateAPIRequest(
+  validatedRequest: z.infer<typeof googleAdsIntegrationUpdateRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof googleAdsIntegrationUpdateResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "integration.ads.update");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const updateMask: string[] = [];
+  const linkData: Record<string, unknown> = {};
+
+  if (validatedRequest.adsPersonalizationEnabled !== undefined) {
+    updateMask.push("adsPersonalizationEnabled");
+    linkData.adsPersonalizationEnabled = validatedRequest.adsPersonalizationEnabled;
+  }
+
+  const googleAdsLinks = (
+    adminClient.properties as {
+      googleAdsLinks?: {
+        patch: (params: {
+          name: string;
+          updateMask?: string;
+          requestBody?: Record<string, unknown>;
+        }) => Promise<{ data?: unknown }>;
+      };
+    }
+  ).googleAdsLinks;
+
+  if (!googleAdsLinks) {
+    throw createPreconditionError("not_found", "Google Ads links API not available", {});
+  }
+
+  const response = await googleAdsLinks.patch({
+    name: validatedRequest.name,
+    updateMask: updateMask.join(","),
+    requestBody: linkData,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Google Ads link update failed", {});
+  }
+
+  return validateSchema(googleAdsIntegrationUpdateResponseSchema, responseData.data);
+}
+
+/**
+ * Execute Google Ads integration update operation
+ */
+async function executeGoogleAdsIntegrationUpdate(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof googleAdsIntegrationUpdateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.integration.ads.update",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/googleAdsLinks/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.integration.ads.update", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(googleAdsIntegrationUpdateRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeGoogleAdsIntegrationUpdateAPIRequest(validatedRequest, ga4Client);
+
+  // Post-check: verify link was updated
+  const cacheKey = `ga4:googleAdsLink:${validatedResponse.name}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.integration.ads.update completed", {
+    opId: envelope.opId,
+    link: validatedResponse.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.integration.ads.update tool
+ */
+function registerGoogleAdsIntegrationUpdateTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.integration.ads.update",
+    description: "Update Google Ads link configuration",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Google Ads link ID in format properties/123456789/googleAdsLinks/987654321",
+        },
+        adsPersonalizationEnabled: {
+          type: "boolean",
+          description: "Enable ads personalization",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeGoogleAdsIntegrationUpdate(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.integration.ads.update failed", error);
+        } else {
+          logger.error("ga4.integration.ads.update failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute Google Ads integration delete operation with rollback
+ */
+async function executeGoogleAdsIntegrationDelete(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof googleAdsIntegrationDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.integration.ads.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/googleAdsLinks/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.integration.ads.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(googleAdsIntegrationDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Pre-check: verify link exists
+  await ga4Client.checkRateLimit("ga4", "integration.ads.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const googleAdsLinks = (
+    adminClient.properties as unknown as {
+      googleAdsLinks?: {
+        get: (params: { name: string }) => Promise<{ data?: unknown }>;
+        delete: (params: { name: string }) => Promise<unknown>;
+      };
+    }
+  ).googleAdsLinks;
+
+  if (!googleAdsLinks) {
+    throw createPreconditionError("not_found", "Google Ads links API not available", {
+      link: validatedRequest.name,
+    });
+  }
+
+  try {
+    await googleAdsLinks.get({ name: validatedRequest.name });
+  } catch {
+    throw createPreconditionError("not_found", "Google Ads link not found", {
+      link: validatedRequest.name,
+    });
+  }
+
+  // Delete link
+  await ga4Client.checkRateLimit("ga4", "integration.ads.delete");
+  try {
+    await googleAdsLinks.delete({
+      name: validatedRequest.name,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Google Ads link delete failed", error);
+    } else {
+      logger.error("Google Ads link delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Invalidate cache
+  const cacheKey = `ga4:googleAdsLink:${validatedRequest.name}`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.integration.ads.delete completed", {
+    opId: envelope.opId,
+    link: validatedRequest.name,
+  });
+
+  return {
+    success: true,
+    name: validatedRequest.name,
+  };
+}
+
+/**
+ * Register ga4.integration.ads.delete tool
+ */
+function registerGoogleAdsIntegrationDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.integration.ads.delete",
+    description: "Delete Google Ads link for GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Google Ads link ID in format properties/123456789/googleAdsLinks/987654321",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeGoogleAdsIntegrationDelete(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.integration.ads.delete failed", error);
+        } else {
+          logger.error("ga4.integration.ads.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

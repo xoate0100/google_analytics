@@ -1391,6 +1391,99 @@ export const attributionUpdateRequestSchema = z.object({
 export const attributionUpdateResponseSchema = attributionGetResponseSchema;
 
 /**
+ * Google Ads Link ID schema (format: properties/123456789/googleAdsLinks/987654321)
+ */
+const googleAdsLinkIdSchema = z
+  .string()
+  .regex(
+    /^properties\/\d+\/googleAdsLinks\/\d+$/,
+    "Google Ads link ID must be in format properties/123456789/googleAdsLinks/987654321"
+  );
+
+/**
+ * Google Ads Integration List Request Schema
+ */
+export const googleAdsIntegrationListRequestSchema = z.object({
+  parent: propertyIdSchema,
+  pageSize: z.number().int().positive().max(200).optional(),
+  pageToken: z.string().optional(),
+});
+
+/**
+ * Google Ads Integration List Response Schema
+ */
+export const googleAdsIntegrationListResponseSchema = z.object({
+  googleAdsLinks: z.array(
+    z.object({
+      name: z.string(),
+      customerId: z.string().optional(),
+      canManageClients: z.boolean().optional(),
+      adsPersonalizationEnabled: z.boolean().optional(),
+    })
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+/**
+ * Google Ads Integration Get Request Schema
+ */
+export const googleAdsIntegrationGetRequestSchema = z.object({
+  name: googleAdsLinkIdSchema,
+});
+
+/**
+ * Google Ads Integration Get Response Schema
+ */
+export const googleAdsIntegrationGetResponseSchema = z.object({
+  name: z.string(),
+  customerId: z.string().optional(),
+  canManageClients: z.boolean().optional(),
+  adsPersonalizationEnabled: z.boolean().optional(),
+});
+
+/**
+ * Google Ads Integration Create Request Schema
+ */
+export const googleAdsIntegrationCreateRequestSchema = z.object({
+  parent: propertyIdSchema,
+  customerId: z.string().min(1, "Customer ID is required"),
+  adsPersonalizationEnabled: z.boolean().optional(),
+});
+
+/**
+ * Google Ads Integration Create Response Schema
+ */
+export const googleAdsIntegrationCreateResponseSchema = googleAdsIntegrationGetResponseSchema;
+
+/**
+ * Google Ads Integration Update Request Schema
+ */
+export const googleAdsIntegrationUpdateRequestSchema = z.object({
+  name: googleAdsLinkIdSchema,
+  adsPersonalizationEnabled: z.boolean().optional(),
+});
+
+/**
+ * Google Ads Integration Update Response Schema
+ */
+export const googleAdsIntegrationUpdateResponseSchema = googleAdsIntegrationGetResponseSchema;
+
+/**
+ * Google Ads Integration Delete Request Schema
+ */
+export const googleAdsIntegrationDeleteRequestSchema = z.object({
+  name: googleAdsLinkIdSchema,
+});
+
+/**
+ * Google Ads Integration Delete Response Schema
+ */
+export const googleAdsIntegrationDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  name: z.string(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({
