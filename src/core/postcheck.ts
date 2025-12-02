@@ -93,3 +93,506 @@ export async function executeRollback(rollback: Rollback): Promise<void> {
   await rollback.action();
 }
 
+/**
+ * Create GA4 property rollback action
+ * Restores property to previous state if operation fails
+ */
+export function createGA4PropertyRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  ga4Client: import("../ga4/client.js").GA4Client,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const propertyPath = envelope.target.propertyId
+    ? `properties/${envelope.target.propertyId}`
+    : envelope.result?.resourceId
+      ? `properties/${envelope.result.resourceId}`
+      : null;
+
+  if (!propertyPath) {
+    return {
+      needed: false,
+      action: null,
+    };
+  }
+
+  return {
+    needed: true,
+    action: async () => {
+      try {
+        await ga4Client.checkRateLimit("ga4", "rollback");
+        const adminClient = ga4Client.getAnalyticsAdminClient();
+
+        const prevState = previousState as { name?: string; displayName?: string; timeZone?: string };
+
+        // Determine rollback type based on operation
+        if (envelope.opName.includes("delete")) {
+          // Rollback delete: recreate property
+          if (prevState.displayName && prevState.timeZone && envelope.target.accountId) {
+            await adminClient.properties.create({
+              requestBody: {
+                displayName: prevState.displayName,
+                timeZone: prevState.timeZone,
+                parent: `accounts/${envelope.target.accountId}`,
+              },
+            });
+            logger.info("GA4 property rollback: recreated property", {
+              opId: envelope.opId,
+              property: propertyPath,
+            });
+          }
+        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+          // Rollback update: restore previous state
+          const updateMask: string[] = [];
+          if (prevState.displayName) updateMask.push("display_name");
+          if (prevState.timeZone) updateMask.push("time_zone");
+
+          if (updateMask.length > 0 && prevState.displayName && prevState.timeZone) {
+            await adminClient.properties.patch({
+              name: propertyPath,
+              updateMask: updateMask.join(","),
+              requestBody: {
+                displayName: prevState.displayName,
+                timeZone: prevState.timeZone,
+              },
+            });
+            logger.info("GA4 property rollback: restored previous state", {
+              opId: envelope.opId,
+              property: propertyPath,
+            });
+          }
+        }
+      } catch (error) {
+        logger.error("GA4 property rollback failed", error instanceof Error ? error : new Error(String(error)), {
+          opId: envelope.opId,
+          property: propertyPath,
+        });
+        throw error;
+      }
+    },
+    compensation: previousState,
+  };
+}
+
+/**
+ * Create GA4 data stream rollback action
+ * Restores data stream to previous state if operation fails
+ */
+export function createGA4DataStreamRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  ga4Client: import("../ga4/client.js").GA4Client,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const propertyPath = envelope.target.propertyId
+    ? `properties/${envelope.target.propertyId}`
+    : envelope.result?.resourceId
+      ? `properties/${envelope.result.resourceId.split("/dataStreams/")[0]}`
+      : null;
+
+  const dataStreamId = envelope.result?.resourceId?.split("/dataStreams/")[1] || null;
+
+  if (!propertyPath || !dataStreamId) {
+    return {
+      needed: false,
+      action: null,
+    };
+  }
+
+  return {
+    needed: true,
+    action: async () => {
+      try {
+        await ga4Client.checkRateLimit("ga4", "rollback");
+        const adminClient = ga4Client.getAnalyticsAdminClient();
+
+        const prevState = previousState as { name?: string; displayName?: string; type?: string };
+
+        // Determine rollback type based on operation
+        if (envelope.opName.includes("delete")) {
+          // Rollback delete: recreate data stream
+          if (prevState.displayName && prevState.type) {
+            await (adminClient.properties.dataStreams as unknown as { create?: (params: unknown) => Promise<unknown> }).create?.({
+              parent: propertyPath,
+              requestBody: {
+                displayName: prevState.displayName,
+                type: prevState.type,
+              },
+            });
+            logger.info("GA4 data stream rollback: recreated data stream", {
+              opId: envelope.opId,
+              dataStream: `${propertyPath}/dataStreams/${dataStreamId}`,
+            });
+          }
+        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+          // Rollback update: restore previous state
+          const updateMask: string[] = [];
+          if (prevState.displayName) updateMask.push("display_name");
+
+          if (updateMask.length > 0) {
+            await (adminClient.properties.dataStreams as unknown as { patch?: (params: unknown) => Promise<unknown> }).patch?.({
+              name: `${propertyPath}/dataStreams/${dataStreamId}`,
+              updateMask: updateMask.join(","),
+              requestBody: {
+                displayName: prevState.displayName,
+              },
+            });
+            logger.info("GA4 data stream rollback: restored previous state", {
+              opId: envelope.opId,
+              dataStream: `${propertyPath}/dataStreams/${dataStreamId}`,
+            });
+          }
+        }
+      } catch (error) {
+        logger.error("GA4 data stream rollback failed", error instanceof Error ? error : new Error(String(error)), {
+          opId: envelope.opId,
+          dataStream: `${propertyPath}/dataStreams/${dataStreamId}`,
+        });
+        throw error;
+      }
+    },
+    compensation: previousState,
+  };
+}
+
+/**
+ * Create GA4 conversion rollback action
+ * Restores conversion to previous state if operation fails
+ */
+export function createGA4ConversionRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  ga4Client: import("../ga4/client.js").GA4Client,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const propertyPath = envelope.target.propertyId
+    ? `properties/${envelope.target.propertyId}`
+    : envelope.result?.resourceId
+      ? `properties/${envelope.result.resourceId.split("/conversions/")[0]}`
+      : null;
+
+  const conversionId = envelope.result?.resourceId?.split("/conversions/")[1] || null;
+
+  if (!propertyPath) {
+    return {
+      needed: false,
+      action: null,
+    };
+  }
+
+  return {
+    needed: true,
+    action: async () => {
+      try {
+        await ga4Client.checkRateLimit("ga4", "rollback");
+        const adminClient = ga4Client.getAnalyticsAdminClient();
+
+        const prevState = previousState as { name?: string; eventName?: string; countingMethod?: string };
+
+        // Determine rollback type based on operation
+        if (envelope.opName.includes("delete")) {
+          // Rollback delete: recreate conversion
+          if (prevState.eventName && prevState.countingMethod) {
+            const conversions = (adminClient.properties as unknown as { eventCreateRules?: { create?: (params: unknown) => Promise<unknown> } }).eventCreateRules;
+            if (conversions?.create) {
+              await conversions.create({
+                parent: propertyPath,
+                requestBody: {
+                  eventName: prevState.eventName,
+                  countingMethod: prevState.countingMethod,
+                },
+              });
+              logger.info("GA4 conversion rollback: recreated conversion", {
+                opId: envelope.opId,
+                conversion: conversionId ? `${propertyPath}/conversions/${conversionId}` : propertyPath,
+              });
+            }
+          }
+        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+          // Rollback update: restore previous state
+          if (conversionId && prevState.countingMethod) {
+            const updateMask: string[] = [];
+            if (prevState.countingMethod) updateMask.push("counting_method");
+
+            if (updateMask.length > 0) {
+              const conversions = (adminClient.properties as unknown as { eventCreateRules?: { patch?: (params: unknown) => Promise<unknown> } }).eventCreateRules;
+              if (conversions?.patch) {
+                await conversions.patch({
+                  name: `${propertyPath}/conversions/${conversionId}`,
+                  updateMask: updateMask.join(","),
+                  requestBody: {
+                    countingMethod: prevState.countingMethod,
+                  },
+                });
+                logger.info("GA4 conversion rollback: restored previous state", {
+                  opId: envelope.opId,
+                  conversion: `${propertyPath}/conversions/${conversionId}`,
+                });
+              }
+            }
+          }
+        }
+      } catch (error) {
+        logger.error("GA4 conversion rollback failed", error instanceof Error ? error : new Error(String(error)), {
+          opId: envelope.opId,
+          conversion: conversionId ? `${propertyPath}/conversions/${conversionId}` : propertyPath,
+        });
+        throw error;
+      }
+    },
+    compensation: previousState,
+  };
+}
+
+/**
+ * Create GTM tag rollback action
+ * Reverts tag to previous version if operation fails
+ */
+export function createGTMTagRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  gtmClient: import("../gtm/client.js").GTMClient,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const workspacePath = envelope.target.containerId && envelope.target.accountId
+    ? `accounts/${envelope.target.accountId}/containers/${envelope.target.containerId}/workspaces/${(envelope.target as { workspaceId?: string }).workspaceId || "default"}`
+    : null;
+
+  const tagId = envelope.result?.resourceId || null;
+
+  if (!workspacePath || !tagId) {
+    return {
+      needed: false,
+      action: null,
+    };
+  }
+
+  return {
+    needed: true,
+    action: async () => {
+      try {
+        await gtmClient.checkRateLimit("gtm", "rollback");
+        const tagManagerClient = gtmClient.getTagManagerClient();
+
+        const prevState = previousState as { name?: string; type?: string; parameter?: unknown[] };
+
+        // Determine rollback type based on operation
+        if (envelope.opName.includes("delete")) {
+          // Rollback delete: recreate tag
+          if (prevState.name && prevState.type) {
+            const tagData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              tagData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.tags.create({
+              parent: workspacePath,
+              requestBody: tagData,
+            });
+            logger.info("GTM tag rollback: recreated tag", {
+              opId: envelope.opId,
+              tag: `${workspacePath}/tags/${tagId}`,
+            });
+          }
+        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+          // Rollback update: restore previous state
+          if (prevState.name && prevState.type) {
+            const tagData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              tagData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.tags.update({
+              path: `${workspacePath}/tags/${tagId}`,
+              requestBody: tagData,
+            });
+            logger.info("GTM tag rollback: restored previous state", {
+              opId: envelope.opId,
+              tag: `${workspacePath}/tags/${tagId}`,
+            });
+          }
+        }
+      } catch (error) {
+        logger.error("GTM tag rollback failed", error instanceof Error ? error : new Error(String(error)), {
+          opId: envelope.opId,
+          tag: `${workspacePath}/tags/${tagId}`,
+        });
+        throw error;
+      }
+    },
+    compensation: previousState,
+  };
+}
+
+/**
+ * Create GTM trigger rollback action
+ * Reverts trigger to previous version if operation fails
+ */
+export function createGTMTriggerRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  gtmClient: import("../gtm/client.js").GTMClient,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const workspacePath = envelope.target.containerId && envelope.target.accountId
+    ? `accounts/${envelope.target.accountId}/containers/${envelope.target.containerId}/workspaces/${(envelope.target as { workspaceId?: string }).workspaceId || "default"}`
+    : null;
+
+  const triggerId = envelope.result?.resourceId || null;
+
+  if (!workspacePath || !triggerId) {
+    return {
+      needed: false,
+      action: null,
+    };
+  }
+
+  return {
+    needed: true,
+    action: async () => {
+      try {
+        await gtmClient.checkRateLimit("gtm", "rollback");
+        const tagManagerClient = gtmClient.getTagManagerClient();
+
+        const prevState = previousState as { name?: string; type?: string; parameter?: unknown[] };
+
+        // Determine rollback type based on operation
+        if (envelope.opName.includes("delete")) {
+          // Rollback delete: recreate trigger
+          if (prevState.name && prevState.type) {
+            const triggerData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              triggerData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.triggers.create({
+              parent: workspacePath,
+              requestBody: triggerData,
+            });
+            logger.info("GTM trigger rollback: recreated trigger", {
+              opId: envelope.opId,
+              trigger: `${workspacePath}/triggers/${triggerId}`,
+            });
+          }
+        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+          // Rollback update: restore previous state
+          if (prevState.name && prevState.type) {
+            const triggerData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              triggerData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.triggers.update({
+              path: `${workspacePath}/triggers/${triggerId}`,
+              requestBody: triggerData,
+            });
+            logger.info("GTM trigger rollback: restored previous state", {
+              opId: envelope.opId,
+              trigger: `${workspacePath}/triggers/${triggerId}`,
+            });
+          }
+        }
+      } catch (error) {
+        logger.error("GTM trigger rollback failed", error instanceof Error ? error : new Error(String(error)), {
+          opId: envelope.opId,
+          trigger: `${workspacePath}/triggers/${triggerId}`,
+        });
+        throw error;
+      }
+    },
+    compensation: previousState,
+  };
+}
+
+/**
+ * Create GTM variable rollback action
+ * Reverts variable to previous version if operation fails
+ */
+export function createGTMVariableRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  gtmClient: import("../gtm/client.js").GTMClient,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const workspacePath = envelope.target.containerId && envelope.target.accountId
+    ? `accounts/${envelope.target.accountId}/containers/${envelope.target.containerId}/workspaces/${(envelope.target as { workspaceId?: string }).workspaceId || "default"}`
+    : null;
+
+  const variableId = envelope.result?.resourceId || null;
+
+  if (!workspacePath || !variableId) {
+    return {
+      needed: false,
+      action: null,
+    };
+  }
+
+  return {
+    needed: true,
+    action: async () => {
+      try {
+        await gtmClient.checkRateLimit("gtm", "rollback");
+        const tagManagerClient = gtmClient.getTagManagerClient();
+
+        const prevState = previousState as { name?: string; type?: string; parameter?: unknown[] };
+
+        // Determine rollback type based on operation
+        if (envelope.opName.includes("delete")) {
+          // Rollback delete: recreate variable
+          if (prevState.name && prevState.type) {
+            const variableData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              variableData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.variables.create({
+              parent: workspacePath,
+              requestBody: variableData,
+            });
+            logger.info("GTM variable rollback: recreated variable", {
+              opId: envelope.opId,
+              variable: `${workspacePath}/variables/${variableId}`,
+            });
+          }
+        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+          // Rollback update: restore previous state
+          if (prevState.name && prevState.type) {
+            const variableData: Record<string, unknown> = {
+              name: prevState.name,
+              type: prevState.type,
+            };
+            if (prevState.parameter) {
+              variableData.parameter = prevState.parameter;
+            }
+            await tagManagerClient.accounts.containers.workspaces.variables.update({
+              path: `${workspacePath}/variables/${variableId}`,
+              requestBody: variableData,
+            });
+            logger.info("GTM variable rollback: restored previous state", {
+              opId: envelope.opId,
+              variable: `${workspacePath}/variables/${variableId}`,
+            });
+          }
+        }
+      } catch (error) {
+        logger.error("GTM variable rollback failed", error instanceof Error ? error : new Error(String(error)), {
+          opId: envelope.opId,
+          variable: `${workspacePath}/variables/${variableId}`,
+        });
+        throw error;
+      }
+    },
+    compensation: previousState,
+  };
+}
+

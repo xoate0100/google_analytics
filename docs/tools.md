@@ -836,9 +836,2150 @@ Delete a data filter.
 
 ---
 
+## GA4 Admin API Tools
+
+### Properties
+
+#### `ga4.property.list`
+
+List all GA4 properties accessible to the authenticated account.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456"
+}
+```
+
+**Returns:**
+```json
+{
+  "properties": [
+    {
+      "name": "properties/987654",
+      "displayName": "My Property",
+      "timeZone": "America/New_York",
+      "currencyCode": "USD"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all GA4 properties for an account
+- **Required Args**: `parent` (account path)
+- **Safety Checks**: Account ID validation, Admin API capability check
+- **Canonical Example**: `ga4.property.list({ parent: "accounts/123456" })`
+
+---
+
+#### `ga4.property.get`
+
+Get details for a specific GA4 property.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654",
+  "displayName": "My Property",
+  "timeZone": "America/New_York",
+  "currencyCode": "USD",
+  "createTime": "2024-01-01T00:00:00Z"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a GA4 property
+- **Required Args**: `name` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check
+- **Canonical Example**: `ga4.property.get({ name: "properties/987654" })`
+
+---
+
+#### `ga4.property.upsert`
+
+Create or update a GA4 property.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456",
+  "displayName": "My Property",
+  "timeZone": "America/New_York",
+  "currencyCode": "USD",
+  "propertyId": "987654" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654",
+  "displayName": "My Property",
+  "timeZone": "America/New_York",
+  "currencyCode": "USD"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create a new GA4 property or update an existing one
+- **Required Args**: `parent`, `displayName`, `timeZone`, `currencyCode`
+- **Safety Checks**: Account ID validation, timezone validation, currency code validation, Admin API capability check
+- **Canonical Example**: `ga4.property.upsert({ parent: "accounts/123456", displayName: "My Property", timeZone: "America/New_York", currencyCode: "USD" })`
+
+---
+
+#### `ga4.property.delete`
+
+Delete a GA4 property.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "name": "properties/987654"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a GA4 property (use with caution)
+- **Required Args**: `name` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check, rollback support
+- **Canonical Example**: `ga4.property.delete({ name: "properties/987654" })`
+
+---
+
+### Data Streams
+
+#### `ga4.datastream.list`
+
+List all data streams for a GA4 property.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "dataStreams": [
+    {
+      "name": "properties/987654/dataStreams/111111",
+      "displayName": "Web Stream",
+      "type": "WEB_DATA_STREAM",
+      "webStreamData": {
+        "measurementId": "G-XXXXXXXXXX",
+        "defaultUri": "https://example.com"
+      }
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all data streams (WEB, IOS, ANDROID) for a property
+- **Required Args**: `parent` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check
+- **Canonical Example**: `ga4.datastream.list({ parent: "properties/987654" })`
+
+---
+
+#### `ga4.datastream.get`
+
+Get details for a specific data stream.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/dataStreams/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/dataStreams/111111",
+  "displayName": "Web Stream",
+  "type": "WEB_DATA_STREAM",
+  "webStreamData": {
+    "measurementId": "G-XXXXXXXXXX",
+    "defaultUri": "https://example.com"
+  }
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a data stream
+- **Required Args**: `name` (data stream path)
+- **Safety Checks**: Data stream path validation, Admin API capability check
+- **Canonical Example**: `ga4.datastream.get({ name: "properties/987654/dataStreams/111111" })`
+
+---
+
+#### `ga4.datastream.upsert`
+
+Create or update a data stream.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654",
+  "displayName": "Web Stream",
+  "type": "WEB_DATA_STREAM",
+  "webStreamData": {
+    "defaultUri": "https://example.com"
+  },
+  "dataStreamId": "111111" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/dataStreams/111111",
+  "displayName": "Web Stream",
+  "type": "WEB_DATA_STREAM"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a data stream (WEB, IOS, or ANDROID)
+- **Required Args**: `parent`, `displayName`, `type`
+- **Safety Checks**: Property ID validation, data stream type validation, Admin API capability check
+- **Canonical Example**: `ga4.datastream.upsert({ parent: "properties/987654", displayName: "Web Stream", type: "WEB_DATA_STREAM", webStreamData: { defaultUri: "https://example.com" } })`
+
+---
+
+#### `ga4.datastream.delete`
+
+Delete a data stream.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/dataStreams/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "name": "properties/987654/dataStreams/111111"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a data stream (use with caution)
+- **Required Args**: `name` (data stream path)
+- **Safety Checks**: Data stream path validation, Admin API capability check, rollback support
+- **Canonical Example**: `ga4.datastream.delete({ name: "properties/987654/dataStreams/111111" })`
+
+---
+
+#### `ga4.datastream.enhancedMeasurement.get`
+
+Get enhanced measurement settings for a web data stream.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/dataStreams/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/dataStreams/111111/enhancedMeasurementSettings",
+  "streamEnabled": true,
+  "scrollsEnabled": true,
+  "outboundClicksEnabled": true,
+  "siteSearchEnabled": true,
+  "videoEngagementEnabled": true,
+  "fileDownloadsEnabled": true,
+  "pageChangesEnabled": true,
+  "formInteractionsEnabled": true
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get enhanced measurement configuration for a web data stream
+- **Required Args**: `name` (data stream path)
+- **Safety Checks**: Data stream path validation, Admin API capability check
+- **Canonical Example**: `ga4.datastream.enhancedMeasurement.get({ name: "properties/987654/dataStreams/111111" })`
+
+---
+
+#### `ga4.datastream.enhancedMeasurement.update`
+
+Update enhanced measurement settings for a web data stream.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/dataStreams/111111",
+  "streamEnabled": true,
+  "scrollsEnabled": true,
+  "outboundClicksEnabled": true,
+  "siteSearchEnabled": true,
+  "videoEngagementEnabled": true,
+  "fileDownloadsEnabled": true,
+  "pageChangesEnabled": true,
+  "formInteractionsEnabled": true
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/dataStreams/111111/enhancedMeasurementSettings",
+  "streamEnabled": true,
+  "scrollsEnabled": true
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Configure enhanced measurement settings (scrolls, clicks, video, etc.)
+- **Required Args**: `name`, at least one setting field
+- **Safety Checks**: Data stream path validation, Admin API capability check
+- **Canonical Example**: `ga4.datastream.enhancedMeasurement.update({ name: "properties/987654/dataStreams/111111", scrollsEnabled: true, outboundClicksEnabled: true })`
+
+---
+
+### Custom Dimensions
+
+#### `ga4.customDimension.list`
+
+List all custom dimensions for a property.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "customDimensions": [
+    {
+      "name": "properties/987654/customDimensions/222222",
+      "parameterName": "user_type",
+      "displayName": "User Type",
+      "description": "Type of user",
+      "scope": "USER",
+      "disallowAdsPersonalization": false
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all custom dimensions (USER, EVENT, ITEM scopes)
+- **Required Args**: `parent` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check
+- **Canonical Example**: `ga4.customDimension.list({ parent: "properties/987654" })`
+
+---
+
+#### `ga4.customDimension.get`
+
+Get details for a specific custom dimension.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/customDimensions/222222"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/customDimensions/222222",
+  "parameterName": "user_type",
+  "displayName": "User Type",
+  "scope": "USER"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a custom dimension
+- **Required Args**: `name` (custom dimension path)
+- **Safety Checks**: Custom dimension path validation, Admin API capability check
+- **Canonical Example**: `ga4.customDimension.get({ name: "properties/987654/customDimensions/222222" })`
+
+---
+
+#### `ga4.customDimension.upsert`
+
+Create or update a custom dimension.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654",
+  "parameterName": "user_type",
+  "displayName": "User Type",
+  "description": "Type of user",
+  "scope": "USER",
+  "disallowAdsPersonalization": false,
+  "customDimensionId": "222222" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/customDimensions/222222",
+  "parameterName": "user_type",
+  "displayName": "User Type",
+  "scope": "USER"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a custom dimension (supports USER, EVENT, ITEM scopes)
+- **Required Args**: `parent`, `parameterName`, `displayName`, `scope`
+- **Safety Checks**: Property ID validation, scope validation, Admin API capability check, idempotency via dimension name
+- **Canonical Example**: `ga4.customDimension.upsert({ parent: "properties/987654", parameterName: "user_type", displayName: "User Type", scope: "USER" })`
+
+---
+
+#### `ga4.customDimension.delete`
+
+Delete a custom dimension.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/customDimensions/222222"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "name": "properties/987654/customDimensions/222222"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a custom dimension (use with caution)
+- **Required Args**: `name` (custom dimension path)
+- **Safety Checks**: Custom dimension path validation, Admin API capability check, rollback support
+- **Canonical Example**: `ga4.customDimension.delete({ name: "properties/987654/customDimensions/222222" })`
+
+---
+
+### Custom Metrics
+
+#### `ga4.customMetric.list`
+
+List all custom metrics for a property.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "customMetrics": [
+    {
+      "name": "properties/987654/customMetrics/333333",
+      "parameterName": "engagement_score",
+      "displayName": "Engagement Score",
+      "measurementUnit": "STANDARD",
+      "type": "INTEGER"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all custom metrics with currency/time units
+- **Required Args**: `parent` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check
+- **Canonical Example**: `ga4.customMetric.list({ parent: "properties/987654" })`
+
+---
+
+#### `ga4.customMetric.get`
+
+Get details for a specific custom metric.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/customMetrics/333333"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/customMetrics/333333",
+  "parameterName": "engagement_score",
+  "displayName": "Engagement Score",
+  "measurementUnit": "STANDARD",
+  "type": "INTEGER"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a custom metric
+- **Required Args**: `name` (custom metric path)
+- **Safety Checks**: Custom metric path validation, Admin API capability check
+- **Canonical Example**: `ga4.customMetric.get({ name: "properties/987654/customMetrics/333333" })`
+
+---
+
+#### `ga4.customMetric.upsert`
+
+Create or update a custom metric.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654",
+  "parameterName": "engagement_score",
+  "displayName": "Engagement Score",
+  "measurementUnit": "STANDARD",
+  "type": "INTEGER",
+  "customMetricId": "333333" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/customMetrics/333333",
+  "parameterName": "engagement_score",
+  "displayName": "Engagement Score",
+  "measurementUnit": "STANDARD",
+  "type": "INTEGER"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a custom metric (supports currency/time units: STANDARD, CURRENCY, FEET, METERS, etc.)
+- **Required Args**: `parent`, `parameterName`, `displayName`, `measurementUnit`, `type`
+- **Safety Checks**: Property ID validation, type validation (INTEGER, FLOAT, SECONDS, etc.), Admin API capability check
+- **Canonical Example**: `ga4.customMetric.upsert({ parent: "properties/987654", parameterName: "engagement_score", displayName: "Engagement Score", measurementUnit: "STANDARD", type: "INTEGER" })`
+
+---
+
+#### `ga4.customMetric.delete`
+
+Delete a custom metric.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/customMetrics/333333"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "name": "properties/987654/customMetrics/333333"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a custom metric (use with caution)
+- **Required Args**: `name` (custom metric path)
+- **Safety Checks**: Custom metric path validation, Admin API capability check, rollback support
+- **Canonical Example**: `ga4.customMetric.delete({ name: "properties/987654/customMetrics/333333" })`
+
+---
+
+### Events
+
+#### `ga4.event.list`
+
+List all event definitions for a property.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "events": [
+    {
+      "name": "properties/987654/eventCreateRules/444444",
+      "eventName": "purchase",
+      "displayName": "Purchase",
+      "description": "Purchase event"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all custom event definitions
+- **Required Args**: `parent` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check
+- **Canonical Example**: `ga4.event.list({ parent: "properties/987654" })`
+
+---
+
+#### `ga4.event.get`
+
+Get details for a specific event definition.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/eventCreateRules/444444"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/eventCreateRules/444444",
+  "eventName": "purchase",
+  "displayName": "Purchase",
+  "description": "Purchase event"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about an event definition
+- **Required Args**: `name` (event path)
+- **Safety Checks**: Event path validation, Admin API capability check
+- **Canonical Example**: `ga4.event.get({ name: "properties/987654/eventCreateRules/444444" })`
+
+---
+
+#### `ga4.event.upsert`
+
+Create or update an event definition.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654",
+  "eventName": "purchase",
+  "displayName": "Purchase",
+  "description": "Purchase event",
+  "eventId": "444444" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/eventCreateRules/444444",
+  "eventName": "purchase",
+  "displayName": "Purchase"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a custom event definition with parameters
+- **Required Args**: `parent`, `eventName`, `displayName`
+- **Safety Checks**: Property ID validation, event name conflict check, Admin API capability check
+- **Canonical Example**: `ga4.event.upsert({ parent: "properties/987654", eventName: "purchase", displayName: "Purchase" })`
+
+---
+
+#### `ga4.event.parameter.list`
+
+List event parameters for an event.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654/eventCreateRules/444444"
+}
+```
+
+**Returns:**
+```json
+{
+  "eventParameters": []
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List parameters for an event (note: API limitations may apply)
+- **Required Args**: `parent` (event path)
+- **Safety Checks**: Event path validation, Admin API capability check
+- **Canonical Example**: `ga4.event.parameter.list({ parent: "properties/987654/eventCreateRules/444444" })`
+
+**Note:** Event parameters have limited API support. Some operations may not be directly available via the Admin API.
+
+---
+
+### Conversions
+
+#### `ga4.conversion.list`
+
+List all conversions for a property.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "conversions": [
+    {
+      "name": "properties/987654/conversions/555555",
+      "eventName": "purchase",
+      "countingMethod": "ONCE_PER_EVENT",
+      "valueSettings": {
+        "valueType": "FIXED_VALUE",
+        "currencyCode": "USD"
+      }
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all conversions with counting methods and value settings
+- **Required Args**: `parent` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check
+- **Canonical Example**: `ga4.conversion.list({ parent: "properties/987654" })`
+
+---
+
+#### `ga4.conversion.get`
+
+Get details for a specific conversion.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/conversions/555555"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/conversions/555555",
+  "eventName": "purchase",
+  "countingMethod": "ONCE_PER_EVENT",
+  "valueSettings": {
+    "valueType": "FIXED_VALUE",
+    "currencyCode": "USD"
+  }
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a conversion
+- **Required Args**: `name` (conversion path)
+- **Safety Checks**: Conversion path validation, Admin API capability check
+- **Canonical Example**: `ga4.conversion.get({ name: "properties/987654/conversions/555555" })`
+
+---
+
+#### `ga4.conversion.upsert`
+
+Create or update a conversion.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654",
+  "eventName": "purchase",
+  "countingMethod": "ONCE_PER_EVENT",
+  "valueSettings": {
+    "valueType": "FIXED_VALUE",
+    "currencyCode": "USD"
+  },
+  "conversionId": "555555" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/conversions/555555",
+  "eventName": "purchase",
+  "countingMethod": "ONCE_PER_EVENT"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a conversion with counting methods, value settings, and attribution settings
+- **Required Args**: `parent`, `eventName`, `countingMethod`
+- **Safety Checks**: Property ID validation, counting method validation, Admin API capability check, idempotency via event name
+- **Canonical Example**: `ga4.conversion.upsert({ parent: "properties/987654", eventName: "purchase", countingMethod: "ONCE_PER_EVENT", valueSettings: { valueType: "FIXED_VALUE", currencyCode: "USD" } })`
+
+---
+
+#### `ga4.conversion.delete`
+
+Delete a conversion.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/conversions/555555"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "name": "properties/987654/conversions/555555"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a conversion (use with caution)
+- **Required Args**: `name` (conversion path)
+- **Safety Checks**: Conversion path validation, Admin API capability check, rollback support
+- **Canonical Example**: `ga4.conversion.delete({ name: "properties/987654/conversions/555555" })`
+
+---
+
+### Audiences
+
+#### `ga4.audience.list`
+
+List all audiences for a property.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "audiences": [
+    {
+      "name": "properties/987654/audiences/666666",
+      "displayName": "High Value Users",
+      "description": "Users with high engagement",
+      "membershipDurationDays": 30
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all audiences with definitions and filters
+- **Required Args**: `parent` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check
+- **Canonical Example**: `ga4.audience.list({ parent: "properties/987654" })`
+
+---
+
+#### `ga4.audience.get`
+
+Get details for a specific audience.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/audiences/666666"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/audiences/666666",
+  "displayName": "High Value Users",
+  "description": "Users with high engagement",
+  "membershipDurationDays": 30
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about an audience
+- **Required Args**: `name` (audience path)
+- **Safety Checks**: Audience path validation, Admin API capability check
+- **Canonical Example**: `ga4.audience.get({ name: "properties/987654/audiences/666666" })`
+
+---
+
+#### `ga4.audience.upsert`
+
+Create or update an audience.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654",
+  "displayName": "High Value Users",
+  "description": "Users with high engagement",
+  "membershipDurationDays": 30,
+  "audienceId": "666666" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/audiences/666666",
+  "displayName": "High Value Users",
+  "membershipDurationDays": 30
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update an audience with definitions, filters, and trigger configuration
+- **Required Args**: `parent`, `displayName`, `membershipDurationDays`
+- **Safety Checks**: Property ID validation, audience definition validation, Admin API capability check
+- **Canonical Example**: `ga4.audience.upsert({ parent: "properties/987654", displayName: "High Value Users", membershipDurationDays: 30 })`
+
+---
+
+#### `ga4.audience.delete`
+
+Delete an audience.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/audiences/666666"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "name": "properties/987654/audiences/666666"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete an audience (use with caution)
+- **Required Args**: `name` (audience path)
+- **Safety Checks**: Audience path validation, Admin API capability check, rollback support
+- **Canonical Example**: `ga4.audience.delete({ name: "properties/987654/audiences/666666" })`
+
+---
+
+### Attribution
+
+#### `ga4.attribution.get`
+
+Get attribution settings for a property.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/attributionSettings",
+  "acquisitionConversionEventLookbackWindow": "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_7_DAYS",
+  "otherConversionEventLookbackWindow": "OTHER_CONVERSION_EVENT_LOOKBACK_WINDOW_30_DAYS",
+  "reportingAttributionModel": "CROSS_CHANNEL_DATA_DRIVEN"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get attribution model configuration for a property
+- **Required Args**: `name` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check
+- **Canonical Example**: `ga4.attribution.get({ name: "properties/987654" })`
+
+---
+
+#### `ga4.attribution.update`
+
+Update attribution settings for a property.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654",
+  "acquisitionConversionEventLookbackWindow": "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_7_DAYS",
+  "otherConversionEventLookbackWindow": "OTHER_CONVERSION_EVENT_LOOKBACK_WINDOW_30_DAYS",
+  "reportingAttributionModel": "CROSS_CHANNEL_DATA_DRIVEN"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/attributionSettings",
+  "reportingAttributionModel": "CROSS_CHANNEL_DATA_DRIVEN"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Update attribution models and lookback windows
+- **Required Args**: `name`, at least one attribution setting
+- **Safety Checks**: Property ID validation, attribution model validation, Admin API capability check
+- **Canonical Example**: `ga4.attribution.update({ name: "properties/987654", reportingAttributionModel: "CROSS_CHANNEL_DATA_DRIVEN" })`
+
+---
+
+### Integrations
+
+#### `ga4.integration.ads.list`
+
+List all Google Ads links for a property.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "googleAdsLinks": [
+    {
+      "name": "properties/987654/googleAdsLinks/777777",
+      "customerId": "123-456-7890",
+      "canManageClients": true
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all Google Ads integration links
+- **Required Args**: `parent` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check
+- **Canonical Example**: `ga4.integration.ads.list({ parent: "properties/987654" })`
+
+---
+
+#### `ga4.integration.ads.get`
+
+Get details for a specific Google Ads link.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/googleAdsLinks/777777"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/googleAdsLinks/777777",
+  "customerId": "123-456-7890",
+  "canManageClients": true
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a Google Ads link
+- **Required Args**: `name` (Google Ads link path)
+- **Safety Checks**: Google Ads link path validation, Admin API capability check
+- **Canonical Example**: `ga4.integration.ads.get({ name: "properties/987654/googleAdsLinks/777777" })`
+
+---
+
+#### `ga4.integration.ads.create`
+
+Create a new Google Ads link.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654",
+  "customerId": "123-456-7890",
+  "canManageClients": true
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/googleAdsLinks/777777",
+  "customerId": "123-456-7890",
+  "canManageClients": true
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create a Google Ads integration link with conversion import mapping
+- **Required Args**: `parent`, `customerId`
+- **Safety Checks**: Property ID validation, customer ID validation, Admin API capability check
+- **Canonical Example**: `ga4.integration.ads.create({ parent: "properties/987654", customerId: "123-456-7890" })`
+
+---
+
+#### `ga4.integration.ads.update`
+
+Update an existing Google Ads link.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/googleAdsLinks/777777",
+  "canManageClients": false
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/googleAdsLinks/777777",
+  "customerId": "123-456-7890",
+  "canManageClients": false
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Update Google Ads link configuration
+- **Required Args**: `name`, at least one update field
+- **Safety Checks**: Google Ads link path validation, Admin API capability check
+- **Canonical Example**: `ga4.integration.ads.update({ name: "properties/987654/googleAdsLinks/777777", canManageClients: false })`
+
+---
+
+#### `ga4.integration.ads.delete`
+
+Delete a Google Ads link.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/googleAdsLinks/777777"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "name": "properties/987654/googleAdsLinks/777777"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a Google Ads integration link
+- **Required Args**: `name` (Google Ads link path)
+- **Safety Checks**: Google Ads link path validation, Admin API capability check, rollback support
+- **Canonical Example**: `ga4.integration.ads.delete({ name: "properties/987654/googleAdsLinks/777777" })`
+
+---
+
+#### `ga4.integration.bigquery.list`
+
+List all BigQuery links for a property.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "bigQueryLinks": [
+    {
+      "name": "properties/987654/bigqueryLinks/888888",
+      "projectId": "my-project",
+      "dailyExportEnabled": true,
+      "streamingExportEnabled": true
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all BigQuery integration links
+- **Required Args**: `parent` (property path)
+- **Safety Checks**: Property ID validation, Admin API capability check
+- **Canonical Example**: `ga4.integration.bigquery.list({ parent: "properties/987654" })`
+
+---
+
+#### `ga4.integration.bigquery.get`
+
+Get details for a specific BigQuery link.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/bigqueryLinks/888888"
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/bigqueryLinks/888888",
+  "projectId": "my-project",
+  "dailyExportEnabled": true,
+  "streamingExportEnabled": true
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a BigQuery link
+- **Required Args**: `name` (BigQuery link path)
+- **Safety Checks**: BigQuery link path validation, Admin API capability check
+- **Canonical Example**: `ga4.integration.bigquery.get({ name: "properties/987654/bigqueryLinks/888888" })`
+
+---
+
+#### `ga4.integration.bigquery.create`
+
+Create a new BigQuery link.
+
+**Parameters:**
+```json
+{
+  "parent": "properties/987654",
+  "projectId": "my-project",
+  "dailyExportEnabled": true,
+  "streamingExportEnabled": true
+}
+```
+
+**Returns:**
+```json
+{
+  "name": "properties/987654/bigqueryLinks/888888",
+  "projectId": "my-project",
+  "dailyExportEnabled": true,
+  "streamingExportEnabled": true
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create a BigQuery integration link with export configuration
+- **Required Args**: `parent`, `projectId`
+- **Safety Checks**: Property ID validation, project ID validation, Admin API capability check, rollback support
+- **Canonical Example**: `ga4.integration.bigquery.create({ parent: "properties/987654", projectId: "my-project", dailyExportEnabled: true })`
+
+---
+
+#### `ga4.integration.bigquery.delete`
+
+Delete a BigQuery link.
+
+**Parameters:**
+```json
+{
+  "name": "properties/987654/bigqueryLinks/888888"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "name": "properties/987654/bigqueryLinks/888888"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a BigQuery integration link
+- **Required Args**: `name` (BigQuery link path)
+- **Safety Checks**: BigQuery link path validation, Admin API capability check, rollback support
+- **Canonical Example**: `ga4.integration.bigquery.delete({ name: "properties/987654/bigqueryLinks/888888" })`
+
+---
+
 ## GTM Tools
 
-GTM tools are planned for future sprints. See roadmap for implementation timeline.
+### Containers
+
+#### `gtm.container.list`
+
+List all GTM containers for an account.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456"
+}
+```
+
+**Returns:**
+```json
+{
+  "containers": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "name": "My Container",
+      "publicId": "GTM-XXXXX",
+      "domainName": ["example.com"],
+      "containerVersionId": "1"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all GTM containers for an account
+- **Required Args**: `parent` (account path)
+- **Safety Checks**: Account ID validation, GTM API capability check
+- **Canonical Example**: `gtm.container.list({ parent: "accounts/123456" })`
+
+---
+
+#### `gtm.container.get`
+
+Get details for a specific GTM container.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "name": "My Container",
+  "publicId": "GTM-XXXXX",
+  "domainName": ["example.com"],
+  "containerVersionId": "1"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a GTM container
+- **Required Args**: `path` (container path)
+- **Safety Checks**: Container path validation, GTM API capability check
+- **Canonical Example**: `gtm.container.get({ path: "accounts/123456/containers/987654" })`
+
+---
+
+#### `gtm.container.upsert`
+
+Create or update a GTM container.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456",
+  "name": "My Container",
+  "domainName": ["example.com"],
+  "containerId": "987654" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "name": "My Container",
+  "publicId": "GTM-XXXXX",
+  "domainName": ["example.com"]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a GTM container configuration
+- **Required Args**: `parent`, `name`, `domainName`
+- **Safety Checks**: Account ID validation, container name validation, GTM API capability check, pre/post validation
+- **Canonical Example**: `gtm.container.upsert({ parent: "accounts/123456", name: "My Container", domainName: ["example.com"] })`
+
+---
+
+#### `gtm.container.delete`
+
+Delete a GTM container.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "path": "accounts/123456/containers/987654"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a GTM container (use with caution)
+- **Required Args**: `path` (container path)
+- **Safety Checks**: Container path validation, GTM API capability check, rollback support
+- **Canonical Example**: `gtm.container.delete({ path: "accounts/123456/containers/987654" })`
+
+---
+
+### Workspaces
+
+#### `gtm.workspace.list`
+
+List all workspaces for a GTM container.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "workspaces": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "workspaceId": "111111",
+      "name": "Default Workspace",
+      "description": "Default workspace"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all workspaces in a container
+- **Required Args**: `parent` (container path)
+- **Safety Checks**: Container path validation, GTM API capability check
+- **Canonical Example**: `gtm.workspace.list({ parent: "accounts/123456/containers/987654" })`
+
+---
+
+#### `gtm.workspace.get`
+
+Get details for a specific workspace.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "name": "Default Workspace",
+  "description": "Default workspace"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a workspace
+- **Required Args**: `path` (workspace path)
+- **Safety Checks**: Workspace path validation, GTM API capability check
+- **Canonical Example**: `gtm.workspace.get({ path: "accounts/123456/containers/987654/workspaces/111111" })`
+
+---
+
+#### `gtm.workspace.create`
+
+Create a new workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654",
+  "name": "My Workspace",
+  "description": "Custom workspace"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "222222",
+  "name": "My Workspace",
+  "description": "Custom workspace"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create a new workspace in a container
+- **Required Args**: `parent`, `name`
+- **Safety Checks**: Container path validation, workspace name validation, GTM API capability check
+- **Canonical Example**: `gtm.workspace.create({ parent: "accounts/123456/containers/987654", name: "My Workspace" })`
+
+---
+
+#### `gtm.workspace.merge`
+
+Merge changes from a source workspace into a destination workspace.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111",
+  "sourceWorkspacePath": "accounts/123456/containers/987654/workspaces/222222"
+}
+```
+
+**Returns:**
+```json
+{
+  "syncStatus": {
+    "mergeConflict": false,
+    "syncStatus": "SYNCED"
+  }
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Merge changes from source workspace with conflict resolution support
+- **Required Args**: `path` (destination workspace), `sourceWorkspacePath`
+- **Safety Checks**: Workspace path validation, conflict resolution, GTM API capability check, rollback for failed merges
+- **Canonical Example**: `gtm.workspace.merge({ path: "accounts/123456/containers/987654/workspaces/111111", sourceWorkspacePath: "accounts/123456/containers/987654/workspaces/222222" })`
+
+---
+
+### Tags
+
+#### `gtm.tag.list`
+
+List all tags in a workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "tags": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "workspaceId": "111111",
+      "tagId": "333333",
+      "name": "GA4 Configuration",
+      "type": "GOOGLE_ANALYTICS_GA4_CONFIGURATION"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all tags in a workspace
+- **Required Args**: `parent` (workspace path)
+- **Safety Checks**: Workspace path validation, GTM API capability check
+- **Canonical Example**: `gtm.tag.list({ parent: "accounts/123456/containers/987654/workspaces/111111" })`
+
+---
+
+#### `gtm.tag.get`
+
+Get details for a specific tag.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/tags/333333"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "tagId": "333333",
+  "name": "GA4 Configuration",
+  "type": "GOOGLE_ANALYTICS_GA4_CONFIGURATION",
+  "parameter": []
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a tag
+- **Required Args**: `path` (tag path)
+- **Safety Checks**: Tag path validation, GTM API capability check
+- **Canonical Example**: `gtm.tag.get({ path: "accounts/123456/containers/987654/workspaces/111111/tags/333333" })`
+
+---
+
+#### `gtm.tag.upsert`
+
+Create or update a tag.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111",
+  "name": "GA4 Configuration",
+  "type": "GOOGLE_ANALYTICS_GA4_CONFIGURATION",
+  "parameter": [],
+  "tagId": "333333" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "tagId": "333333",
+  "name": "GA4 Configuration",
+  "type": "GOOGLE_ANALYTICS_GA4_CONFIGURATION"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a tag with firing rules, sequencing, and tag types
+- **Required Args**: `parent`, `name`, `type`
+- **Safety Checks**: Workspace path validation, tag type validation, GTM API capability check, idempotency via tag name + type
+- **Canonical Example**: `gtm.tag.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "GA4 Configuration", type: "GOOGLE_ANALYTICS_GA4_CONFIGURATION" })`
+
+---
+
+#### `gtm.tag.delete`
+
+Delete a tag.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/tags/333333"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "path": "accounts/123456/containers/987654/workspaces/111111/tags/333333"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a tag (use with caution)
+- **Required Args**: `path` (tag path)
+- **Safety Checks**: Tag path validation, GTM API capability check, rollback support
+- **Canonical Example**: `gtm.tag.delete({ path: "accounts/123456/containers/987654/workspaces/111111/tags/333333" })`
+
+---
+
+### Triggers
+
+#### `gtm.trigger.list`
+
+List all triggers in a workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "triggers": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "workspaceId": "111111",
+      "triggerId": "444444",
+      "name": "Page View",
+      "type": "PAGEVIEW"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all triggers in a workspace
+- **Required Args**: `parent` (workspace path)
+- **Safety Checks**: Workspace path validation, GTM API capability check
+- **Canonical Example**: `gtm.trigger.list({ parent: "accounts/123456/containers/987654/workspaces/111111" })`
+
+---
+
+#### `gtm.trigger.get`
+
+Get details for a specific trigger.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/triggers/444444"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "triggerId": "444444",
+  "name": "Page View",
+  "type": "PAGEVIEW",
+  "parameter": []
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a trigger
+- **Required Args**: `path` (trigger path)
+- **Safety Checks**: Trigger path validation, GTM API capability check
+- **Canonical Example**: `gtm.trigger.get({ path: "accounts/123456/containers/987654/workspaces/111111/triggers/444444" })`
+
+---
+
+#### `gtm.trigger.upsert`
+
+Create or update a trigger.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111",
+  "name": "Page View",
+  "type": "PAGEVIEW",
+  "parameter": [],
+  "triggerId": "444444" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "triggerId": "444444",
+  "name": "Page View",
+  "type": "PAGEVIEW"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a trigger with types (custom event, page view, click, form, timer, etc.) and condition/filter support
+- **Required Args**: `parent`, `name`, `type`
+- **Safety Checks**: Workspace path validation, trigger type validation, GTM API capability check
+- **Canonical Example**: `gtm.trigger.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "Page View", type: "PAGEVIEW" })`
+
+---
+
+#### `gtm.trigger.delete`
+
+Delete a trigger.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/triggers/444444"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "path": "accounts/123456/containers/987654/workspaces/111111/triggers/444444"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a trigger (use with caution)
+- **Required Args**: `path` (trigger path)
+- **Safety Checks**: Trigger path validation, GTM API capability check, rollback support
+- **Canonical Example**: `gtm.trigger.delete({ path: "accounts/123456/containers/987654/workspaces/111111/triggers/444444" })`
+
+---
+
+### Variables
+
+#### `gtm.variable.list`
+
+List all variables in a workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "variables": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "workspaceId": "111111",
+      "variableId": "555555",
+      "name": "Page URL",
+      "type": "v"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all variables in a workspace
+- **Required Args**: `parent` (workspace path)
+- **Safety Checks**: Workspace path validation, GTM API capability check
+- **Canonical Example**: `gtm.variable.list({ parent: "accounts/123456/containers/987654/workspaces/111111" })`
+
+---
+
+#### `gtm.variable.get`
+
+Get details for a specific variable.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/variables/555555"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "variableId": "555555",
+  "name": "Page URL",
+  "type": "v",
+  "parameter": []
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a variable
+- **Required Args**: `path` (variable path)
+- **Safety Checks**: Variable path validation, GTM API capability check
+- **Canonical Example**: `gtm.variable.get({ path: "accounts/123456/containers/987654/workspaces/111111/variables/555555" })`
+
+---
+
+#### `gtm.variable.upsert`
+
+Create or update a variable.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111",
+  "name": "Page URL",
+  "type": "v",
+  "parameter": [],
+  "variableId": "555555" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "variableId": "555555",
+  "name": "Page URL",
+  "type": "v"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a variable with types (data layer, custom JS, URL, constant, lookup tables)
+- **Required Args**: `parent`, `name`, `type`
+- **Safety Checks**: Workspace path validation, variable type validation, GTM API capability check
+- **Canonical Example**: `gtm.variable.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "Page URL", type: "v" })`
+
+---
+
+#### `gtm.variable.delete`
+
+Delete a variable.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/variables/555555"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "path": "accounts/123456/containers/987654/workspaces/111111/variables/555555"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a variable (use with caution)
+- **Required Args**: `path` (variable path)
+- **Safety Checks**: Variable path validation, GTM API capability check, rollback support
+- **Canonical Example**: `gtm.variable.delete({ path: "accounts/123456/containers/987654/workspaces/111111/variables/555555" })`
+
+---
+
+#### `gtm.builtinVariable.list`
+
+List all built-in variables available in a workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "builtInVariables": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "workspaceId": "111111",
+      "type": "PAGE_URL",
+      "name": "Page URL"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all built-in variables (system variables) available in a workspace
+- **Required Args**: `parent` (workspace path)
+- **Safety Checks**: Workspace path validation, GTM API capability check
+- **Canonical Example**: `gtm.builtinVariable.list({ parent: "accounts/123456/containers/987654/workspaces/111111" })`
+
+---
+
+#### `gtm.builtinVariable.enable`
+
+Enable a built-in variable in a workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111",
+  "type": "PAGE_URL"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "type": "PAGE_URL",
+  "name": "Page URL"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Enable a built-in variable (system variable) in a workspace
+- **Required Args**: `parent` (workspace path), `type` (built-in variable type)
+- **Safety Checks**: Workspace path validation, built-in variable type validation, GTM API capability check
+- **Canonical Example**: `gtm.builtinVariable.enable({ parent: "accounts/123456/containers/987654/workspaces/111111", type: "PAGE_URL" })`
+
+---
+
+### GTM Workflow Examples
+
+**Creating a tag and publishing:**
+
+1. Create a workspace: `gtm.workspace.create({ parent: "accounts/123456/containers/987654", name: "My Workspace" })`
+2. Create a tag: `gtm.tag.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "GA4 Configuration", type: "GOOGLE_ANALYTICS_GA4_CONFIGURATION" })`
+3. Create a trigger: `gtm.trigger.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "Page View", type: "PAGEVIEW" })`
+4. Merge workspace: `gtm.workspace.merge({ path: "accounts/123456/containers/987654/workspaces/111111", sourceWorkspacePath: "accounts/123456/containers/987654/workspaces/222222" })`
+5. (Publish step would be in a future sprint)
 
 ## Google Ads Tools
 
