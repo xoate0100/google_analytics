@@ -146,3 +146,126 @@ export const campaignPauseResponseSchema = z.object({
   status: z.enum(["PAUSED"]).optional(),
 });
 
+/**
+ * Ad Group List Request Schema
+ */
+export const adGroupListRequestSchema = z.object({
+  customerId: customerIdSchema,
+  campaignId: z.string().optional(),
+});
+
+/**
+ * Ad Group List Response Schema
+ */
+export const adGroupListResponseSchema = z.object({
+  adGroups: z.array(
+    z.object({
+      adGroupId: z.string().optional(),
+      name: z.string().optional(),
+      status: z.enum(["ENABLED", "PAUSED", "REMOVED"]).optional(),
+      type: z.string().optional(),
+      campaignId: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Ad Group Get Request Schema
+ */
+export const adGroupGetRequestSchema = z.object({
+  customerId: customerIdSchema,
+  adGroupId: z.string().min(1, "Ad Group ID is required"),
+});
+
+/**
+ * Ad Group Get Response Schema
+ */
+export const adGroupGetResponseSchema = z.object({
+  adGroupId: z.string().optional(),
+  name: z.string().optional(),
+  status: z.enum(["ENABLED", "PAUSED", "REMOVED"]).optional(),
+  type: z.string().optional(),
+  campaignId: z.string().optional(),
+  targeting: z.record(z.unknown()).optional(),
+});
+
+/**
+ * Ad Group Upsert Request Schema
+ */
+export const adGroupUpsertRequestSchema = z.object({
+  customerId: customerIdSchema,
+  adGroupId: z.string().optional(), // Required for update, optional for create
+  campaignId: z.string().min(1, "Campaign ID is required"),
+  name: z.string().min(1, "Ad Group name is required"),
+  status: z.enum(["ENABLED", "PAUSED", "REMOVED"]).optional(),
+  type: z.enum(["SEARCH_STANDARD", "SEARCH_DYNAMIC_ADS", "DISPLAY_STANDARD", "DISPLAY_ENGAGEMENT", "SHOPPING_PRODUCT_ADS", "HOTEL_ADS", "VIDEO_RESPONSIVE", "VIDEO_TRUE_VIEW_DISCOVERY", "VIDEO_TRUE_VIEW_IN_STREAM", "VIDEO_NON_SKIPPABLE_IN_STREAM", "VIDEO_OUTSTREAM", "VIDEO_SEQUENCE"]).optional(),
+  targeting: z.record(z.unknown()).optional(),
+});
+
+/**
+ * Ad Group Upsert Response Schema
+ */
+export const adGroupUpsertResponseSchema = adGroupGetResponseSchema;
+
+/**
+ * Keyword List Request Schema
+ */
+export const keywordListRequestSchema = z.object({
+  customerId: customerIdSchema,
+  adGroupId: z.string().optional(),
+});
+
+/**
+ * Keyword List Response Schema
+ */
+export const keywordListResponseSchema = z.object({
+  keywords: z.array(
+    z.object({
+      keywordId: z.string().optional(),
+      text: z.string().optional(),
+      matchType: z.enum(["EXACT", "PHRASE", "BROAD"]).optional(),
+      cpcBid: z.number().optional(),
+      negative: z.boolean().optional(),
+    })
+  ),
+});
+
+/**
+ * Keyword Upsert Request Schema
+ */
+export const keywordUpsertRequestSchema = z.object({
+  customerId: customerIdSchema,
+  adGroupId: z.string().min(1, "Ad Group ID is required"),
+  keywordId: z.string().optional(), // Required for update, optional for create
+  text: z.string().min(1, "Keyword text is required"),
+  matchType: z.enum(["EXACT", "PHRASE", "BROAD"]),
+  cpcBid: z.number().positive().optional(),
+  negative: z.boolean().optional(),
+});
+
+/**
+ * Keyword Upsert Response Schema
+ */
+export const keywordUpsertResponseSchema = z.object({
+  keywordId: z.string().optional(),
+  text: z.string().optional(),
+  matchType: z.enum(["EXACT", "PHRASE", "BROAD"]).optional(),
+  cpcBid: z.number().optional(),
+});
+
+/**
+ * Keyword Delete Request Schema
+ */
+export const keywordDeleteRequestSchema = z.object({
+  customerId: customerIdSchema,
+  keywordId: z.string().min(1, "Keyword ID is required"),
+});
+
+/**
+ * Keyword Delete Response Schema
+ */
+export const keywordDeleteResponseSchema = z.object({
+  keywordId: z.string().optional(),
+  deleted: z.boolean().optional(),
+});
+
