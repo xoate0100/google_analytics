@@ -1063,6 +1063,69 @@ export const eventUpsertRequestSchema = z.object({
 export const eventUpsertResponseSchema = eventGetResponseSchema;
 
 /**
+ * Event Parameter List Request Schema
+ * Note: Event parameters are dynamic and not directly supported via API.
+ * Use custom dimensions instead for event parameter tracking.
+ */
+export const eventParameterListRequestSchema = z.object({
+  parent: propertyIdSchema,
+  eventName: z.string().min(1, "Event name is required"),
+});
+
+/**
+ * Event Parameter List Response Schema
+ */
+export const eventParameterListResponseSchema = z.object({
+  parameters: z.array(
+    z.object({
+      parameterName: z.string(),
+      parameterType: z.string().optional(),
+      required: z.boolean().optional(),
+      description: z.string().optional(),
+    })
+  ),
+  note: z.string().optional(),
+});
+
+/**
+ * Event Parameter Upsert Request Schema
+ */
+export const eventParameterUpsertRequestSchema = z.object({
+  parent: propertyIdSchema,
+  eventName: z.string().min(1, "Event name is required"),
+  parameterName: z.string().min(1, "Parameter name is required"),
+  parameterType: z.string().optional(),
+  required: z.boolean().optional(),
+  description: z.string().optional(),
+});
+
+/**
+ * Event Parameter Upsert Response Schema
+ */
+export const eventParameterUpsertResponseSchema = z.object({
+  success: z.boolean(),
+  note: z.string(),
+  suggestion: z.string(),
+});
+
+/**
+ * Event Parameter Delete Request Schema
+ */
+export const eventParameterDeleteRequestSchema = z.object({
+  parent: propertyIdSchema,
+  eventName: z.string().min(1, "Event name is required"),
+  parameterName: z.string().min(1, "Parameter name is required"),
+});
+
+/**
+ * Event Parameter Delete Response Schema
+ */
+export const eventParameterDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  note: z.string(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({

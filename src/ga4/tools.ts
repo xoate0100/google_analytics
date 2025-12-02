@@ -62,6 +62,12 @@ import {
   eventGetResponseSchema,
   eventUpsertRequestSchema,
   eventUpsertResponseSchema,
+  eventParameterListRequestSchema,
+  eventParameterListResponseSchema,
+  eventParameterUpsertRequestSchema,
+  eventParameterUpsertResponseSchema,
+  eventParameterDeleteRequestSchema,
+  eventParameterDeleteResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -148,6 +154,9 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerEventListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEventGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEventUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerEventParameterListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerEventParameterUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerEventParameterDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -3858,6 +3867,286 @@ function registerEventUpsertTool(
           logger.error("ga4.event.upsert failed", error);
         } else {
           logger.error("ga4.event.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute event parameter list operation
+ * Note: Event parameters are dynamic and not directly supported via GA4 Admin API.
+ * This tool returns a note suggesting to use custom dimensions instead.
+ */
+async function executeEventParameterList(
+  args: unknown,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof eventParameterListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.event.parameter.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { parent: string }).parent },
+  });
+
+  logger.info("Executing ga4.event.parameter.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(eventParameterListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  logger.warn("Event parameters are dynamic and not directly supported via API", {
+    event: validatedRequest.eventName,
+    suggestion: "Use custom dimensions for event parameter tracking",
+  });
+
+  await Promise.resolve(); // Satisfy async requirement
+
+  return {
+    parameters: [],
+    note: "Event parameters are dynamic and not directly supported via GA4 Admin API. Use custom dimensions (ga4.customDimension.upsert) with EVENT scope for event parameter tracking.",
+  };
+}
+
+/**
+ * Register ga4.event.parameter.list tool
+ */
+function registerEventParameterListTool(
+  bootstrap: MCPServerBootstrap,
+  _ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.event.parameter.list",
+    description:
+      "List event parameters. Note: Event parameters are dynamic and not directly supported via API. Use custom dimensions with EVENT scope instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        eventName: {
+          type: "string",
+          description: "Event name",
+        },
+      },
+      required: ["parent", "eventName"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeEventParameterList(args, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.event.parameter.list failed", error);
+        } else {
+          logger.error("ga4.event.parameter.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute event parameter upsert operation
+ * Note: Event parameters are dynamic and not directly supported via GA4 Admin API.
+ * This tool returns a note suggesting to use custom dimensions instead.
+ */
+async function executeEventParameterUpsert(
+  args: unknown,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof eventParameterUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.event.parameter.upsert",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { parent: string }).parent },
+  });
+
+  logger.info("Executing ga4.event.parameter.upsert", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(eventParameterUpsertRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  logger.warn("Event parameters are dynamic and not directly supported via API", {
+    event: validatedRequest.eventName,
+    parameter: validatedRequest.parameterName,
+    suggestion: "Use custom dimensions for event parameter tracking",
+  });
+
+  await Promise.resolve(); // Satisfy async requirement
+
+  return {
+    success: false,
+    note: "Event parameters are dynamic and not directly supported via GA4 Admin API.",
+    suggestion: `Use ga4.customDimension.upsert with parent="${validatedRequest.parent}", parameterName="${validatedRequest.parameterName}", scope="EVENT" to track this as a custom dimension instead.`,
+  };
+}
+
+/**
+ * Register ga4.event.parameter.upsert tool
+ */
+function registerEventParameterUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  _ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.event.parameter.upsert",
+    description:
+      "Create or update event parameter. Note: Event parameters are dynamic and not directly supported via API. Use custom dimensions with EVENT scope instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        eventName: {
+          type: "string",
+          description: "Event name",
+        },
+        parameterName: {
+          type: "string",
+          description: "Parameter name",
+        },
+        parameterType: {
+          type: "string",
+          description: "Parameter type",
+        },
+        required: {
+          type: "boolean",
+          description: "Whether parameter is required",
+        },
+        description: {
+          type: "string",
+          description: "Parameter description",
+        },
+      },
+      required: ["parent", "eventName", "parameterName"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeEventParameterUpsert(args, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.event.parameter.upsert failed", error);
+        } else {
+          logger.error("ga4.event.parameter.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute event parameter delete operation
+ * Note: Event parameters are dynamic and not directly supported via GA4 Admin API.
+ */
+async function executeEventParameterDelete(
+  args: unknown,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof eventParameterDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.event.parameter.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { parent: string }).parent },
+  });
+
+  logger.info("Executing ga4.event.parameter.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(eventParameterDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  logger.warn("Event parameters are dynamic and not directly supported via API", {
+    event: validatedRequest.eventName,
+    parameter: validatedRequest.parameterName,
+    suggestion: "Event parameters cannot be deleted via API",
+  });
+
+  await Promise.resolve(); // Satisfy async requirement
+
+  return {
+    success: false,
+    note: "Event parameters are dynamic and cannot be deleted via GA4 Admin API. If you created a custom dimension for this parameter, use ga4.customDimension.delete to archive it.",
+  };
+}
+
+/**
+ * Register ga4.event.parameter.delete tool
+ */
+function registerEventParameterDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  _ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.event.parameter.delete",
+    description:
+      "Delete event parameter. Note: Event parameters are dynamic and not directly supported via API. If you created a custom dimension for this parameter, use ga4.customDimension.delete instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        eventName: {
+          type: "string",
+          description: "Event name",
+        },
+        parameterName: {
+          type: "string",
+          description: "Parameter name",
+        },
+      },
+      required: ["parent", "eventName", "parameterName"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeEventParameterDelete(args, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.event.parameter.delete failed", error);
+        } else {
+          logger.error("ga4.event.parameter.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
