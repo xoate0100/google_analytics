@@ -279,6 +279,40 @@ export const tagDeleteResponseSchema = z.object({
 });
 
 /**
+ * Tag Sequence Update Request Schema
+ */
+export const tagSequenceUpdateRequestSchema = z.object({
+  path: tagPathSchema,
+  blockingTriggerId: z.array(z.string()).optional(),
+  setupTagId: z.array(z.string()).optional(),
+  teardownTagId: z.array(z.string()).optional(),
+  tagFiringOption: z.enum(["UNLIMITED", "ONCE_PER_EVENT", "ONCE_PER_LOAD"]).optional(),
+});
+
+/**
+ * Tag Sequence Update Response Schema
+ */
+export const tagSequenceUpdateResponseSchema = tagGetResponseSchema.extend({
+  setupTagId: z.array(z.string()).optional(),
+  teardownTagId: z.array(z.string()).optional(),
+});
+
+/**
+ * Tag Priority Update Request Schema
+ */
+export const tagPriorityUpdateRequestSchema = z.object({
+  path: tagPathSchema,
+  priority: z.number().int().describe("Tag priority (higher numbers fire first, can be negative)"),
+});
+
+/**
+ * Tag Priority Update Response Schema
+ */
+export const tagPriorityUpdateResponseSchema = tagGetResponseSchema.extend({
+  priority: z.number().int().optional(),
+});
+
+/**
  * Trigger path schema (format: accounts/123456/containers/987654/workspaces/111111/triggers/333333)
  */
 export const triggerPathSchema = z

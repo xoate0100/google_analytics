@@ -88,6 +88,10 @@ import {
   consentGetRequestSchema,
   consentGetResponseSchema,
   consentModeSettingsSchema,
+  tagSequenceUpdateRequestSchema,
+  tagSequenceUpdateResponseSchema,
+  tagPriorityUpdateRequestSchema,
+  tagPriorityUpdateResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -169,6 +173,10 @@ export function registerGTMTools(options: GTMToolsOptions): void {
   // Consent mode tools
   registerConsentConfigureTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerConsentGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+
+  // Tag sequencing and priority tools
+  registerTagSequenceUpdateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerTagPriorityUpdateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -4905,6 +4913,313 @@ function registerConsentGetTool(
           logger.error("gtm.consent.get failed", error);
         } else {
           logger.error("gtm.consent.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+
+/**
+ * Execute API request to update tag sequencing
+ */
+async function executeTagSequenceUpdateAPIRequest(
+  validatedRequest: z.infer<typeof tagSequenceUpdateRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof tagSequenceUpdateResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "tag.sequence.update");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  // Get current tag to retrieve fingerprint
+  const tagResponse = (await (tagManagerClient.accounts.containers.workspaces.tags as unknown as {
+    get?: (params: unknown) => Promise<{ data?: { fingerprint?: string } }>;
+  }).get?.({
+    path: validatedRequest.path,
+  })) as { data?: { fingerprint?: string } };
+
+  const fingerprint = tagResponse.data?.fingerprint || "";
+
+  // Get full tag data to preserve existing fields
+  const fullTagResponse = (await (tagManagerClient.accounts.containers.workspaces.tags as unknown as {
+    get?: (params: unknown) => Promise<{ data?: z.infer<typeof tagGetResponseSchema> }>;
+  }).get?.({
+    path: validatedRequest.path,
+  })) as { data?: z.infer<typeof tagGetResponseSchema> };
+
+  const currentTag = fullTagResponse.data;
+
+  // Build update request body, preserving existing fields
+  const requestBody: Record<string, unknown> = {
+    fingerprint,
+  };
+
+  // Preserve existing fields
+  if (currentTag) {
+    if (currentTag.name) requestBody.name = currentTag.name;
+    if (currentTag.type) requestBody.type = currentTag.type;
+    if (currentTag.parameter) requestBody.parameter = currentTag.parameter;
+    if (currentTag.firingTriggerId) requestBody.firingTriggerId = currentTag.firingTriggerId;
+  }
+
+  // Update sequencing fields
+  if (validatedRequest.blockingTriggerId !== undefined) {
+    requestBody.blockingTriggerId = validatedRequest.blockingTriggerId;
+  }
+  if (validatedRequest.setupTagId !== undefined) {
+    requestBody.setupTagId = validatedRequest.setupTagId;
+  }
+  if (validatedRequest.teardownTagId !== undefined) {
+    requestBody.teardownTagId = validatedRequest.teardownTagId;
+  }
+  if (validatedRequest.tagFiringOption !== undefined) {
+    requestBody.tagFiringOption = validatedRequest.tagFiringOption;
+  }
+
+  const response = (await (tagManagerClient.accounts.containers.workspaces.tags as unknown as {
+    update?: (params: unknown) => Promise<{ data?: z.infer<typeof tagSequenceUpdateResponseSchema> }>;
+  }).update?.({
+    path: validatedRequest.path,
+    requestBody,
+  })) as { data?: z.infer<typeof tagSequenceUpdateResponseSchema> };
+
+  return response.data as z.infer<typeof tagSequenceUpdateResponseSchema>;
+}
+
+/**
+ * Execute tag sequence update
+ */
+export async function executeTagSequenceUpdate(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof tagSequenceUpdateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.tag.sequence.update",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.tag.sequence.update", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(tagSequenceUpdateRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM tag sequence update not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeTagSequenceUpdateAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.tag.sequence.update completed", {
+    opId: envelope.opId,
+    tagId: result.tagId,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.tag.sequence.update tool
+ */
+function registerTagSequenceUpdateTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.tag.sequence.update",
+    description: "Update tag sequencing settings (blocking triggers, setup/teardown tags, firing options)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/tag1",
+        },
+        blockingTriggerId: {
+          type: "array",
+          items: { type: "string" },
+          description: "Trigger IDs that must fire before this tag",
+        },
+        setupTagId: {
+          type: "array",
+          items: { type: "string" },
+          description: "Tag IDs that must fire before this tag",
+        },
+        teardownTagId: {
+          type: "array",
+          items: { type: "string" },
+          description: "Tag IDs that must fire after this tag",
+        },
+        tagFiringOption: {
+          type: "string",
+          enum: ["UNLIMITED", "ONCE_PER_EVENT", "ONCE_PER_LOAD"],
+          description: "Tag firing option",
+        },
+      },
+      required: ["path"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeTagSequenceUpdate(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.tag.sequence.update failed", error);
+        } else {
+          logger.error("gtm.tag.sequence.update failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to update tag priority
+ */
+async function executeTagPriorityUpdateAPIRequest(
+  validatedRequest: z.infer<typeof tagPriorityUpdateRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof tagPriorityUpdateResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "tag.priority.update");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  // Get current tag to retrieve fingerprint
+  const tagResponse = (await (tagManagerClient.accounts.containers.workspaces.tags as unknown as {
+    get?: (params: unknown) => Promise<{ data?: { fingerprint?: string } }>;
+  }).get?.({
+    path: validatedRequest.path,
+  })) as { data?: { fingerprint?: string } };
+
+  const fingerprint = tagResponse.data?.fingerprint || "";
+
+  // Get full tag data to preserve existing fields
+  const fullTagResponse = (await (tagManagerClient.accounts.containers.workspaces.tags as unknown as {
+    get?: (params: unknown) => Promise<{ data?: z.infer<typeof tagGetResponseSchema> }>;
+  }).get?.({
+    path: validatedRequest.path,
+  })) as { data?: z.infer<typeof tagGetResponseSchema> };
+
+  const currentTag = fullTagResponse.data;
+
+  // Build update request body, preserving existing fields
+  const requestBody: Record<string, unknown> = {
+    fingerprint,
+    priority: validatedRequest.priority,
+  };
+
+  // Preserve existing fields
+  if (currentTag) {
+    if (currentTag.name) requestBody.name = currentTag.name;
+    if (currentTag.type) requestBody.type = currentTag.type;
+    if (currentTag.parameter) requestBody.parameter = currentTag.parameter;
+    if (currentTag.firingTriggerId) requestBody.firingTriggerId = currentTag.firingTriggerId;
+    if (currentTag.blockingTriggerId) requestBody.blockingTriggerId = currentTag.blockingTriggerId;
+    if (currentTag.tagFiringOption) requestBody.tagFiringOption = currentTag.tagFiringOption;
+  }
+
+  const response = (await (tagManagerClient.accounts.containers.workspaces.tags as unknown as {
+    update?: (params: unknown) => Promise<{ data?: z.infer<typeof tagPriorityUpdateResponseSchema> }>;
+  }).update?.({
+    path: validatedRequest.path,
+    requestBody,
+  })) as { data?: z.infer<typeof tagPriorityUpdateResponseSchema> };
+
+  return response.data as z.infer<typeof tagPriorityUpdateResponseSchema>;
+}
+
+/**
+ * Execute tag priority update
+ */
+export async function executeTagPriorityUpdate(
+  args: unknown,
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof tagPriorityUpdateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "gtm.tag.priority.update",
+    actor: "user",
+    target: { product: "gtm" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing gtm.tag.priority.update", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(tagPriorityUpdateRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("gtm", "admin_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM tag priority update not available",
+      {
+        product: "gtm",
+        capability: "admin_api",
+      }
+    );
+  }
+
+  const result = await executeTagPriorityUpdateAPIRequest(validatedRequest, gtmClient);
+
+  logger.info("gtm.tag.priority.update completed", {
+    opId: envelope.opId,
+    tagId: result.tagId,
+    priority: result.priority,
+  });
+
+  return result;
+}
+
+/**
+ * Register gtm.tag.priority.update tool
+ */
+function registerTagPriorityUpdateTool(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "gtm.tag.priority.update",
+    description: "Update tag priority (higher numbers fire first)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/tag1",
+        },
+        priority: {
+          type: "number",
+          description: "Tag priority (higher numbers fire first, can be negative)",
+        },
+      },
+      required: ["path", "priority"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeTagPriorityUpdate(args, gtmClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("gtm.tag.priority.update failed", error);
+        } else {
+          logger.error("gtm.tag.priority.update failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
