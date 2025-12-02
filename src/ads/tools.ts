@@ -47,6 +47,14 @@ import {
   conversionOfflineImportResponseSchema,
   conversionEnhancedRequestSchema,
   conversionEnhancedResponseSchema,
+  audienceListRequestSchema,
+  audienceListResponseSchema,
+  audienceGetRequestSchema,
+  audienceGetResponseSchema,
+  audienceUpsertRequestSchema,
+  audienceUpsertResponseSchema,
+  audienceAttachRequestSchema,
+  audienceAttachResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -513,6 +521,12 @@ export function registerAdsTools(
   registerConversionDeleteTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
   registerConversionOfflineImportTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
   registerConversionEnhancedTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+
+  // Audience tools
+  registerAudienceListTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerAudienceGetTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerAudienceUpsertTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerAudienceAttachTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -3379,6 +3393,745 @@ function registerConversionEnhancedTool(
           logger.error("ads.conversion.enhanced failed", error);
         } else {
           logger.error("ads.conversion.enhanced failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list audiences
+ */
+async function executeAudienceListAPIRequest(
+  validatedRequest: z.infer<typeof audienceListRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof audienceListResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "audience.list");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        audience?: {
+          id?: string;
+          name?: string;
+          type?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  // Build GAQL query
+  let query = "SELECT user_list.id, user_list.name, user_list.type, user_list.status FROM user_list";
+  if (validatedRequest.type) {
+    query = `${query} WHERE user_list.type = '${validatedRequest.type}'`;
+  }
+
+  const response = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      audience?: {
+        id?: string;
+        name?: string;
+        type?: string;
+        status?: string;
+      };
+      userList?: {
+        id?: string;
+        name?: string;
+        type?: string;
+        status?: string;
+      };
+    }>;
+  };
+
+  const audiences = (response.results || []).map((r) => {
+    const audience = r.audience || r.userList;
+    return {
+      audienceId: audience?.id,
+      name: audience?.name,
+      type: audience?.type,
+      status: audience?.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
+    };
+  });
+
+  return { audiences };
+}
+
+/**
+ * Execute audience list
+ */
+export async function executeAudienceList(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof audienceListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.audience.list",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.audience.list", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(audienceListRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "audiences")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads audience management not available",
+      {
+        product: "ads",
+        capability: "audiences",
+      }
+    );
+  }
+
+  const result = await executeAudienceListAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.audience.list completed", {
+    opId: envelope.opId,
+    audienceCount: result.audiences.length,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.audience.list tool
+ */
+function registerAudienceListTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.audience.list",
+    description: "List Google Ads audiences (remarketing, customer match, custom)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        type: {
+          type: "string",
+          enum: ["USER_LIST", "CUSTOMER_MATCH_USER_LIST", "BASIC_USER_LIST", "LOGICAL_USER_LIST", "SIMILAR_USER_LIST"],
+          description: "Optional audience type filter",
+        },
+      },
+      required: ["customerId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeAudienceList(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.audience.list failed", error);
+        } else {
+          logger.error("ads.audience.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to get audience
+ */
+async function executeAudienceGetAPIRequest(
+  validatedRequest: z.infer<typeof audienceGetRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof audienceGetResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "audience.get");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        userList?: {
+          id?: string;
+          name?: string;
+          type?: string;
+          status?: string;
+          membershipStatus?: string;
+          membershipLifeSpan?: number;
+          description?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  const query = `SELECT user_list.id, user_list.name, user_list.type, user_list.status, user_list.membership_status, user_list.membership_life_span, user_list.description FROM user_list WHERE user_list.id = ${validatedRequest.audienceId}`;
+
+  const response = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      userList?: {
+        id?: string;
+        name?: string;
+        type?: string;
+        status?: string;
+        membershipStatus?: string;
+        membershipLifeSpan?: number;
+        description?: string;
+      };
+    }>;
+  };
+
+  const audience = response.results?.[0]?.userList;
+
+  if (!audience) {
+    throw new Error(`Audience ${validatedRequest.audienceId} not found`);
+  }
+
+  return {
+    audienceId: audience.id,
+    name: audience.name,
+    type: audience.type as "USER_LIST" | "CUSTOMER_MATCH_USER_LIST" | "BASIC_USER_LIST" | "LOGICAL_USER_LIST" | "SIMILAR_USER_LIST" | undefined,
+    status: audience.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
+    membershipStatus: audience.membershipStatus as "OPEN" | "CLOSED" | undefined,
+    membershipLifeSpan: audience.membershipLifeSpan,
+    description: audience.description,
+  };
+}
+
+/**
+ * Execute audience get
+ */
+export async function executeAudienceGet(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof audienceGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.audience.get",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.audience.get", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(audienceGetRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "audiences")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads audience management not available",
+      {
+        product: "ads",
+        capability: "audiences",
+      }
+    );
+  }
+
+  const result = await executeAudienceGetAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.audience.get completed", {
+    opId: envelope.opId,
+    audienceId: result.audienceId,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.audience.get tool
+ */
+function registerAudienceGetTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.audience.get",
+    description: "Get Google Ads audience details",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        audienceId: {
+          type: "string",
+          description: "Audience ID",
+        },
+      },
+      required: ["customerId", "audienceId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeAudienceGet(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.audience.get failed", error);
+        } else {
+          logger.error("ads.audience.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to upsert audience
+ */
+async function executeAudienceUpsertAPIRequest(
+  validatedRequest: z.infer<typeof audienceUpsertRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof audienceUpsertResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "audience.upsert");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        userList?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        userList?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  // Check if audience exists (for idempotency)
+  let existingAudience: { id?: string; resourceName?: string } | undefined;
+  if (validatedRequest.audienceId) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT user_list.id, user_list.resource_name FROM user_list WHERE user_list.id = ${validatedRequest.audienceId}`,
+    })) as {
+      results?: Array<{
+        userList?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    existingAudience = searchResponse.results?.[0]?.userList;
+  } else {
+    // Check by name for idempotency
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT user_list.id, user_list.resource_name FROM user_list WHERE user_list.name = '${validatedRequest.name.replace(/'/g, "''")}'`,
+    })) as {
+      results?: Array<{
+        userList?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    existingAudience = searchResponse.results?.[0]?.userList;
+  }
+
+  // Build mutation operation
+  const operation: Record<string, unknown> = {};
+  if (existingAudience) {
+    // Update existing audience
+    operation.update = {
+      resourceName: existingAudience.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/userLists/${existingAudience.id}`,
+      name: validatedRequest.name,
+      status: validatedRequest.status || "ENABLED",
+    };
+    if (validatedRequest.membershipStatus) {
+      (operation.update as Record<string, unknown>).membershipStatus = validatedRequest.membershipStatus;
+    }
+    if (validatedRequest.membershipLifeSpan) {
+      (operation.update as Record<string, unknown>).membershipLifeSpan = validatedRequest.membershipLifeSpan;
+    }
+    if (validatedRequest.description) {
+      (operation.update as Record<string, unknown>).description = validatedRequest.description;
+    }
+  } else {
+    // Create new audience
+    operation.create = {
+      name: validatedRequest.name,
+      type: validatedRequest.type || "USER_LIST",
+      status: validatedRequest.status || "ENABLED",
+    };
+    if (validatedRequest.membershipStatus) {
+      (operation.create as Record<string, unknown>).membershipStatus = validatedRequest.membershipStatus;
+    }
+    if (validatedRequest.membershipLifeSpan) {
+      (operation.create as Record<string, unknown>).membershipLifeSpan = validatedRequest.membershipLifeSpan;
+    }
+    if (validatedRequest.description) {
+      (operation.create as Record<string, unknown>).description = validatedRequest.description;
+    }
+  }
+
+  const response = (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      userList?: {
+        resourceName?: string;
+        id?: string;
+        name?: string;
+        status?: string;
+      };
+    }>;
+  };
+
+  const result = response.results?.[0]?.userList;
+  if (!result) {
+    throw new Error("Failed to create/update audience");
+  }
+
+  // Extract audience ID from resource name
+  const audienceId = result.id || result.resourceName?.split("/").pop();
+
+  return {
+    audienceId,
+    name: result.name,
+    status: result.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
+    type: validatedRequest.type,
+    membershipStatus: validatedRequest.membershipStatus,
+    membershipLifeSpan: validatedRequest.membershipLifeSpan,
+    description: validatedRequest.description,
+  };
+}
+
+/**
+ * Execute audience upsert
+ */
+export async function executeAudienceUpsert(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof audienceUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.audience.upsert",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.audience.upsert", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(audienceUpsertRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "audiences")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads audience management not available",
+      {
+        product: "ads",
+        capability: "audiences",
+      }
+    );
+  }
+
+  const result = await executeAudienceUpsertAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.audience.upsert completed", {
+    opId: envelope.opId,
+    audienceId: result.audienceId,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.audience.upsert tool
+ */
+function registerAudienceUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.audience.upsert",
+    description: "Create or update Google Ads audience",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        audienceId: {
+          type: "string",
+          description: "Audience ID for updates (optional for create, uses name for idempotency)",
+        },
+        name: {
+          type: "string",
+          description: "Audience name",
+        },
+        type: {
+          type: "string",
+          enum: ["USER_LIST", "CUSTOMER_MATCH_USER_LIST", "BASIC_USER_LIST", "LOGICAL_USER_LIST", "SIMILAR_USER_LIST"],
+          description: "Audience type",
+        },
+        status: {
+          type: "string",
+          enum: ["ENABLED", "REMOVED", "HIDDEN"],
+          description: "Audience status",
+        },
+        membershipStatus: {
+          type: "string",
+          enum: ["OPEN", "CLOSED"],
+          description: "Membership status",
+        },
+        membershipLifeSpan: {
+          type: "number",
+          description: "Membership life span in days (1-540)",
+        },
+        description: {
+          type: "string",
+          description: "Audience description",
+        },
+      },
+      required: ["customerId", "name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeAudienceUpsert(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.audience.upsert failed", error);
+        } else {
+          logger.error("ads.audience.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to attach audience to campaign
+ */
+async function executeAudienceAttachAPIRequest(
+  validatedRequest: z.infer<typeof audienceAttachRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof audienceAttachResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "audience.attach");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaignAudienceView?: {
+          campaign?: string;
+          audience?: string;
+        };
+      }>;
+    }>;
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaignAudience?: {
+          resourceName?: string;
+          campaign?: string;
+          audience?: string;
+          bidModifier?: number;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  // Check if already attached
+  const searchResponse = (await googleAdsClient.search?.({
+    customerId,
+    query: `SELECT campaign_audience_view.campaign, campaign_audience_view.audience FROM campaign_audience_view WHERE campaign_audience_view.campaign = 'customers/${validatedRequest.customerId.replace(/^customers\//, "")}/campaigns/${validatedRequest.campaignId}' AND campaign_audience_view.audience = 'customers/${validatedRequest.customerId.replace(/^customers\//, "")}/userLists/${validatedRequest.audienceId}'`,
+  })) as {
+    results?: Array<{
+      campaignAudienceView?: {
+        campaign?: string;
+        audience?: string;
+      };
+    }>;
+  };
+
+  const existing = searchResponse.results?.[0]?.campaignAudienceView;
+
+  // Build mutation operation
+  const operation: Record<string, unknown> = {};
+  if (existing) {
+    // Update existing attachment
+    operation.update = {
+      campaign: existing.campaign,
+      audience: existing.audience,
+    };
+    if (validatedRequest.bidModifier !== undefined) {
+      (operation.update as Record<string, unknown>).bidModifier = validatedRequest.bidModifier;
+    }
+  } else {
+    // Create new attachment
+    operation.create = {
+      campaign: `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/campaigns/${validatedRequest.campaignId}`,
+      audience: `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/userLists/${validatedRequest.audienceId}`,
+    };
+    if (validatedRequest.bidModifier !== undefined) {
+      (operation.create as Record<string, unknown>).bidModifier = validatedRequest.bidModifier;
+    }
+  }
+
+  const response = (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      campaignAudience?: {
+        resourceName?: string;
+        campaign?: string;
+        audience?: string;
+        bidModifier?: number;
+      };
+    }>;
+  };
+
+  const result = response.results?.[0]?.campaignAudience;
+  if (!result) {
+    throw new Error("Failed to attach audience to campaign");
+  }
+
+  return {
+    campaignId: validatedRequest.campaignId,
+    audienceId: validatedRequest.audienceId,
+    attached: true,
+    bidModifier: result.bidModifier || validatedRequest.bidModifier,
+  };
+}
+
+/**
+ * Execute audience attach
+ */
+export async function executeAudienceAttach(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof audienceAttachResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.audience.attach",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.audience.attach", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(audienceAttachRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "audiences")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads audience management not available",
+      {
+        product: "ads",
+        capability: "audiences",
+      }
+    );
+  }
+
+  const result = await executeAudienceAttachAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.audience.attach completed", {
+    opId: envelope.opId,
+    campaignId: result.campaignId,
+    audienceId: result.audienceId,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.audience.attach tool
+ */
+function registerAudienceAttachTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.audience.attach",
+    description: "Attach audience to Google Ads campaign",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID",
+        },
+        audienceId: {
+          type: "string",
+          description: "Audience ID",
+        },
+        bidModifier: {
+          type: "number",
+          description: "Optional bid modifier (e.g., 1.2 for 20% increase)",
+        },
+      },
+      required: ["customerId", "campaignId", "audienceId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeAudienceAttach(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.audience.attach failed", error);
+        } else {
+          logger.error("ads.audience.attach failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }

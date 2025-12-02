@@ -398,3 +398,85 @@ export const conversionEnhancedResponseSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
+/**
+ * Audience List Request Schema
+ */
+export const audienceListRequestSchema = z.object({
+  customerId: customerIdSchema,
+  type: z.enum(["USER_LIST", "CUSTOMER_MATCH_USER_LIST", "BASIC_USER_LIST", "LOGICAL_USER_LIST", "SIMILAR_USER_LIST"]).optional(),
+});
+
+/**
+ * Audience List Response Schema
+ */
+export const audienceListResponseSchema = z.object({
+  audiences: z.array(
+    z.object({
+      audienceId: z.string().optional(),
+      name: z.string().optional(),
+      type: z.string().optional(),
+      status: z.enum(["ENABLED", "REMOVED", "HIDDEN"]).optional(),
+    })
+  ),
+});
+
+/**
+ * Audience Get Request Schema
+ */
+export const audienceGetRequestSchema = z.object({
+  customerId: customerIdSchema,
+  audienceId: z.string().min(1, "Audience ID is required"),
+});
+
+/**
+ * Audience Get Response Schema
+ */
+export const audienceGetResponseSchema = z.object({
+  audienceId: z.string().optional(),
+  name: z.string().optional(),
+  type: z.enum(["USER_LIST", "CUSTOMER_MATCH_USER_LIST", "BASIC_USER_LIST", "LOGICAL_USER_LIST", "SIMILAR_USER_LIST"]).optional(),
+  status: z.enum(["ENABLED", "REMOVED", "HIDDEN"]).optional(),
+  membershipStatus: z.enum(["OPEN", "CLOSED"]).optional(),
+  membershipLifeSpan: z.number().optional(),
+  description: z.string().optional(),
+});
+
+/**
+ * Audience Upsert Request Schema
+ */
+export const audienceUpsertRequestSchema = z.object({
+  customerId: customerIdSchema,
+  audienceId: z.string().optional(), // Required for update, optional for create
+  name: z.string().min(1, "Audience name is required"),
+  type: z.enum(["USER_LIST", "CUSTOMER_MATCH_USER_LIST", "BASIC_USER_LIST", "LOGICAL_USER_LIST", "SIMILAR_USER_LIST"]).optional(),
+  status: z.enum(["ENABLED", "REMOVED", "HIDDEN"]).optional(),
+  membershipStatus: z.enum(["OPEN", "CLOSED"]).optional(),
+  membershipLifeSpan: z.number().min(1).max(540).optional(),
+  description: z.string().optional(),
+});
+
+/**
+ * Audience Upsert Response Schema
+ */
+export const audienceUpsertResponseSchema = audienceGetResponseSchema;
+
+/**
+ * Audience Attach Request Schema
+ */
+export const audienceAttachRequestSchema = z.object({
+  customerId: customerIdSchema,
+  campaignId: z.string().min(1, "Campaign ID is required"),
+  audienceId: z.string().min(1, "Audience ID is required"),
+  bidModifier: z.number().optional(),
+});
+
+/**
+ * Audience Attach Response Schema
+ */
+export const audienceAttachResponseSchema = z.object({
+  campaignId: z.string().optional(),
+  audienceId: z.string().optional(),
+  attached: z.boolean().optional(),
+  bidModifier: z.number().optional(),
+});
+

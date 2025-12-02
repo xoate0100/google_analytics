@@ -93,12 +93,29 @@
    - ✅ **DO**: Use `mockRejectedValue()` for error cases
    - ❌ **DON'T**: Create promises with `new Promise()` that might not resolve
 
-7. **Verification Checklist**
+7. **Mock Response Structure Matching**
+   - ✅ **DO**: Ensure mock response structures exactly match what the implementation expects
+   - ✅ **DO**: Check implementation code to verify expected property names (e.g., `userList` vs `audience`)
+   - ❌ **DON'T**: Assume response structure - verify against actual implementation
+   - **Example**: If implementation expects `response.results[0].userList`, mock must return `{ results: [{ userList: {...} }] }`
+   - **Root Cause**: Mismatched structures cause `undefined` access, leading to errors that may not be properly caught, causing test hangs
+
+8. **Promise Resolution Guarantees**
+   - ✅ **DO**: Always ensure mocked promises resolve or reject (never leave promises pending)
+   - ✅ **DO**: Use `mockResolvedValue()` for success cases
+   - ✅ **DO**: Use `mockRejectedValue()` for error cases
+   - ❌ **DON'T**: Create promises that might not resolve (e.g., conditional resolution without guarantee)
+   - **Pattern**: Every `await` in test code must have a corresponding mock that resolves/rejects
+
+9. **Verification Checklist**
    - [ ] All async operations in tests resolve/reject immediately (no real delays)
    - [ ] Stream/event emitters fire callbacks synchronously in tests
    - [ ] Test timeouts are appropriate (default 5s, max 30s for integration)
    - [ ] Business logic validation still occurs (not mocked away)
    - [ ] Error handling paths are tested with mocked failures
+   - [ ] Mock response structures match implementation expectations (verify property names)
+   - [ ] All promises in test code have guaranteed resolution/rejection paths
+   - [ ] No conditional promise resolution without fallback
 
 ### Examples
 
@@ -133,6 +150,31 @@ it('should process keywords', async () => {
   
   // Test may timeout waiting for delay
   const result = await executeKeywordList(args, mockClient, registry, logger);
+});
+```
+
+**Common Pitfall - Response Structure Mismatch:**
+```typescript
+// ❌ WRONG: Mock returns 'audience' but implementation expects 'userList'
+it('should get audience', async () => {
+  const mockClient = {
+    search: vi.fn().mockResolvedValue({
+      results: [{ audience: { id: '123' } }], // Wrong property name!
+    }),
+  };
+  // Implementation expects: response.results[0].userList
+  // This causes undefined access and potential hang
+  const result = await executeAudienceGet(args, mockClient, registry, logger);
+});
+
+// ✅ CORRECT: Match implementation expectations
+it('should get audience', async () => {
+  const mockClient = {
+    search: vi.fn().mockResolvedValue({
+      results: [{ userList: { id: '123' } }], // Matches implementation
+    }),
+  };
+  const result = await executeAudienceGet(args, mockClient, registry, logger);
 });
 ```
 
