@@ -2213,7 +2213,773 @@ Delete a BigQuery link.
 
 ## GTM Tools
 
-GTM tools are planned for future sprints. See roadmap for implementation timeline.
+### Containers
+
+#### `gtm.container.list`
+
+List all GTM containers for an account.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456"
+}
+```
+
+**Returns:**
+```json
+{
+  "containers": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "name": "My Container",
+      "publicId": "GTM-XXXXX",
+      "domainName": ["example.com"],
+      "containerVersionId": "1"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all GTM containers for an account
+- **Required Args**: `parent` (account path)
+- **Safety Checks**: Account ID validation, GTM API capability check
+- **Canonical Example**: `gtm.container.list({ parent: "accounts/123456" })`
+
+---
+
+#### `gtm.container.get`
+
+Get details for a specific GTM container.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "name": "My Container",
+  "publicId": "GTM-XXXXX",
+  "domainName": ["example.com"],
+  "containerVersionId": "1"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a GTM container
+- **Required Args**: `path` (container path)
+- **Safety Checks**: Container path validation, GTM API capability check
+- **Canonical Example**: `gtm.container.get({ path: "accounts/123456/containers/987654" })`
+
+---
+
+#### `gtm.container.upsert`
+
+Create or update a GTM container.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456",
+  "name": "My Container",
+  "domainName": ["example.com"],
+  "containerId": "987654" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "name": "My Container",
+  "publicId": "GTM-XXXXX",
+  "domainName": ["example.com"]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a GTM container configuration
+- **Required Args**: `parent`, `name`, `domainName`
+- **Safety Checks**: Account ID validation, container name validation, GTM API capability check, pre/post validation
+- **Canonical Example**: `gtm.container.upsert({ parent: "accounts/123456", name: "My Container", domainName: ["example.com"] })`
+
+---
+
+#### `gtm.container.delete`
+
+Delete a GTM container.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "path": "accounts/123456/containers/987654"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a GTM container (use with caution)
+- **Required Args**: `path` (container path)
+- **Safety Checks**: Container path validation, GTM API capability check, rollback support
+- **Canonical Example**: `gtm.container.delete({ path: "accounts/123456/containers/987654" })`
+
+---
+
+### Workspaces
+
+#### `gtm.workspace.list`
+
+List all workspaces for a GTM container.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654"
+}
+```
+
+**Returns:**
+```json
+{
+  "workspaces": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "workspaceId": "111111",
+      "name": "Default Workspace",
+      "description": "Default workspace"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all workspaces in a container
+- **Required Args**: `parent` (container path)
+- **Safety Checks**: Container path validation, GTM API capability check
+- **Canonical Example**: `gtm.workspace.list({ parent: "accounts/123456/containers/987654" })`
+
+---
+
+#### `gtm.workspace.get`
+
+Get details for a specific workspace.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "name": "Default Workspace",
+  "description": "Default workspace"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a workspace
+- **Required Args**: `path` (workspace path)
+- **Safety Checks**: Workspace path validation, GTM API capability check
+- **Canonical Example**: `gtm.workspace.get({ path: "accounts/123456/containers/987654/workspaces/111111" })`
+
+---
+
+#### `gtm.workspace.create`
+
+Create a new workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654",
+  "name": "My Workspace",
+  "description": "Custom workspace"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "222222",
+  "name": "My Workspace",
+  "description": "Custom workspace"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create a new workspace in a container
+- **Required Args**: `parent`, `name`
+- **Safety Checks**: Container path validation, workspace name validation, GTM API capability check
+- **Canonical Example**: `gtm.workspace.create({ parent: "accounts/123456/containers/987654", name: "My Workspace" })`
+
+---
+
+#### `gtm.workspace.merge`
+
+Merge changes from a source workspace into a destination workspace.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111",
+  "sourceWorkspacePath": "accounts/123456/containers/987654/workspaces/222222"
+}
+```
+
+**Returns:**
+```json
+{
+  "syncStatus": {
+    "mergeConflict": false,
+    "syncStatus": "SYNCED"
+  }
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Merge changes from source workspace with conflict resolution support
+- **Required Args**: `path` (destination workspace), `sourceWorkspacePath`
+- **Safety Checks**: Workspace path validation, conflict resolution, GTM API capability check, rollback for failed merges
+- **Canonical Example**: `gtm.workspace.merge({ path: "accounts/123456/containers/987654/workspaces/111111", sourceWorkspacePath: "accounts/123456/containers/987654/workspaces/222222" })`
+
+---
+
+### Tags
+
+#### `gtm.tag.list`
+
+List all tags in a workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "tags": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "workspaceId": "111111",
+      "tagId": "333333",
+      "name": "GA4 Configuration",
+      "type": "GOOGLE_ANALYTICS_GA4_CONFIGURATION"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all tags in a workspace
+- **Required Args**: `parent` (workspace path)
+- **Safety Checks**: Workspace path validation, GTM API capability check
+- **Canonical Example**: `gtm.tag.list({ parent: "accounts/123456/containers/987654/workspaces/111111" })`
+
+---
+
+#### `gtm.tag.get`
+
+Get details for a specific tag.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/tags/333333"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "tagId": "333333",
+  "name": "GA4 Configuration",
+  "type": "GOOGLE_ANALYTICS_GA4_CONFIGURATION",
+  "parameter": []
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a tag
+- **Required Args**: `path` (tag path)
+- **Safety Checks**: Tag path validation, GTM API capability check
+- **Canonical Example**: `gtm.tag.get({ path: "accounts/123456/containers/987654/workspaces/111111/tags/333333" })`
+
+---
+
+#### `gtm.tag.upsert`
+
+Create or update a tag.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111",
+  "name": "GA4 Configuration",
+  "type": "GOOGLE_ANALYTICS_GA4_CONFIGURATION",
+  "parameter": [],
+  "tagId": "333333" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "tagId": "333333",
+  "name": "GA4 Configuration",
+  "type": "GOOGLE_ANALYTICS_GA4_CONFIGURATION"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a tag with firing rules, sequencing, and tag types
+- **Required Args**: `parent`, `name`, `type`
+- **Safety Checks**: Workspace path validation, tag type validation, GTM API capability check, idempotency via tag name + type
+- **Canonical Example**: `gtm.tag.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "GA4 Configuration", type: "GOOGLE_ANALYTICS_GA4_CONFIGURATION" })`
+
+---
+
+#### `gtm.tag.delete`
+
+Delete a tag.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/tags/333333"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "path": "accounts/123456/containers/987654/workspaces/111111/tags/333333"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a tag (use with caution)
+- **Required Args**: `path` (tag path)
+- **Safety Checks**: Tag path validation, GTM API capability check, rollback support
+- **Canonical Example**: `gtm.tag.delete({ path: "accounts/123456/containers/987654/workspaces/111111/tags/333333" })`
+
+---
+
+### Triggers
+
+#### `gtm.trigger.list`
+
+List all triggers in a workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "triggers": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "workspaceId": "111111",
+      "triggerId": "444444",
+      "name": "Page View",
+      "type": "PAGEVIEW"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all triggers in a workspace
+- **Required Args**: `parent` (workspace path)
+- **Safety Checks**: Workspace path validation, GTM API capability check
+- **Canonical Example**: `gtm.trigger.list({ parent: "accounts/123456/containers/987654/workspaces/111111" })`
+
+---
+
+#### `gtm.trigger.get`
+
+Get details for a specific trigger.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/triggers/444444"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "triggerId": "444444",
+  "name": "Page View",
+  "type": "PAGEVIEW",
+  "parameter": []
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a trigger
+- **Required Args**: `path` (trigger path)
+- **Safety Checks**: Trigger path validation, GTM API capability check
+- **Canonical Example**: `gtm.trigger.get({ path: "accounts/123456/containers/987654/workspaces/111111/triggers/444444" })`
+
+---
+
+#### `gtm.trigger.upsert`
+
+Create or update a trigger.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111",
+  "name": "Page View",
+  "type": "PAGEVIEW",
+  "parameter": [],
+  "triggerId": "444444" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "triggerId": "444444",
+  "name": "Page View",
+  "type": "PAGEVIEW"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a trigger with types (custom event, page view, click, form, timer, etc.) and condition/filter support
+- **Required Args**: `parent`, `name`, `type`
+- **Safety Checks**: Workspace path validation, trigger type validation, GTM API capability check
+- **Canonical Example**: `gtm.trigger.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "Page View", type: "PAGEVIEW" })`
+
+---
+
+#### `gtm.trigger.delete`
+
+Delete a trigger.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/triggers/444444"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "path": "accounts/123456/containers/987654/workspaces/111111/triggers/444444"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a trigger (use with caution)
+- **Required Args**: `path` (trigger path)
+- **Safety Checks**: Trigger path validation, GTM API capability check, rollback support
+- **Canonical Example**: `gtm.trigger.delete({ path: "accounts/123456/containers/987654/workspaces/111111/triggers/444444" })`
+
+---
+
+### Variables
+
+#### `gtm.variable.list`
+
+List all variables in a workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "variables": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "workspaceId": "111111",
+      "variableId": "555555",
+      "name": "Page URL",
+      "type": "v"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all variables in a workspace
+- **Required Args**: `parent` (workspace path)
+- **Safety Checks**: Workspace path validation, GTM API capability check
+- **Canonical Example**: `gtm.variable.list({ parent: "accounts/123456/containers/987654/workspaces/111111" })`
+
+---
+
+#### `gtm.variable.get`
+
+Get details for a specific variable.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/variables/555555"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "variableId": "555555",
+  "name": "Page URL",
+  "type": "v",
+  "parameter": []
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Get detailed information about a variable
+- **Required Args**: `path` (variable path)
+- **Safety Checks**: Variable path validation, GTM API capability check
+- **Canonical Example**: `gtm.variable.get({ path: "accounts/123456/containers/987654/workspaces/111111/variables/555555" })`
+
+---
+
+#### `gtm.variable.upsert`
+
+Create or update a variable.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111",
+  "name": "Page URL",
+  "type": "v",
+  "parameter": [],
+  "variableId": "555555" // optional, for updates
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "variableId": "555555",
+  "name": "Page URL",
+  "type": "v"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Create or update a variable with types (data layer, custom JS, URL, constant, lookup tables)
+- **Required Args**: `parent`, `name`, `type`
+- **Safety Checks**: Workspace path validation, variable type validation, GTM API capability check
+- **Canonical Example**: `gtm.variable.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "Page URL", type: "v" })`
+
+---
+
+#### `gtm.variable.delete`
+
+Delete a variable.
+
+**Parameters:**
+```json
+{
+  "path": "accounts/123456/containers/987654/workspaces/111111/variables/555555"
+}
+```
+
+**Returns:**
+```json
+{
+  "success": true,
+  "path": "accounts/123456/containers/987654/workspaces/111111/variables/555555"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Delete a variable (use with caution)
+- **Required Args**: `path` (variable path)
+- **Safety Checks**: Variable path validation, GTM API capability check, rollback support
+- **Canonical Example**: `gtm.variable.delete({ path: "accounts/123456/containers/987654/workspaces/111111/variables/555555" })`
+
+---
+
+#### `gtm.builtinVariable.list`
+
+List all built-in variables available in a workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111"
+}
+```
+
+**Returns:**
+```json
+{
+  "builtInVariables": [
+    {
+      "accountId": "123456",
+      "containerId": "987654",
+      "workspaceId": "111111",
+      "type": "PAGE_URL",
+      "name": "Page URL"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: List all built-in variables (system variables) available in a workspace
+- **Required Args**: `parent` (workspace path)
+- **Safety Checks**: Workspace path validation, GTM API capability check
+- **Canonical Example**: `gtm.builtinVariable.list({ parent: "accounts/123456/containers/987654/workspaces/111111" })`
+
+---
+
+#### `gtm.builtinVariable.enable`
+
+Enable a built-in variable in a workspace.
+
+**Parameters:**
+```json
+{
+  "parent": "accounts/123456/containers/987654/workspaces/111111",
+  "type": "PAGE_URL"
+}
+```
+
+**Returns:**
+```json
+{
+  "accountId": "123456",
+  "containerId": "987654",
+  "workspaceId": "111111",
+  "type": "PAGE_URL",
+  "name": "Page URL"
+}
+```
+
+**Status:** ✅ Implemented (Sprint 2)
+
+**For AI Agents:**
+- **Intent**: Enable a built-in variable (system variable) in a workspace
+- **Required Args**: `parent` (workspace path), `type` (built-in variable type)
+- **Safety Checks**: Workspace path validation, built-in variable type validation, GTM API capability check
+- **Canonical Example**: `gtm.builtinVariable.enable({ parent: "accounts/123456/containers/987654/workspaces/111111", type: "PAGE_URL" })`
+
+---
+
+### GTM Workflow Examples
+
+**Creating a tag and publishing:**
+
+1. Create a workspace: `gtm.workspace.create({ parent: "accounts/123456/containers/987654", name: "My Workspace" })`
+2. Create a tag: `gtm.tag.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "GA4 Configuration", type: "GOOGLE_ANALYTICS_GA4_CONFIGURATION" })`
+3. Create a trigger: `gtm.trigger.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "Page View", type: "PAGEVIEW" })`
+4. Merge workspace: `gtm.workspace.merge({ path: "accounts/123456/containers/987654/workspaces/111111", sourceWorkspacePath: "accounts/123456/containers/987654/workspaces/222222" })`
+5. (Publish step would be in a future sprint)
 
 ## Google Ads Tools
 
