@@ -1484,6 +1484,86 @@ export const googleAdsIntegrationDeleteResponseSchema = z.object({
 });
 
 /**
+ * BigQuery Link ID schema (format: properties/123456789/bigQueryLinks/987654321)
+ */
+const bigQueryLinkIdSchema = z
+  .string()
+  .regex(
+    /^properties\/\d+\/bigQueryLinks\/\d+$/,
+    "BigQuery link ID must be in format properties/123456789/bigQueryLinks/987654321"
+  );
+
+/**
+ * BigQuery Integration List Request Schema
+ */
+export const bigQueryIntegrationListRequestSchema = z.object({
+  parent: propertyIdSchema,
+  pageSize: z.number().int().positive().max(200).optional(),
+  pageToken: z.string().optional(),
+});
+
+/**
+ * BigQuery Integration List Response Schema
+ */
+export const bigQueryIntegrationListResponseSchema = z.object({
+  bigQueryLinks: z.array(
+    z.object({
+      name: z.string(),
+      project: z.string().optional(),
+      dataset: z.string().optional(),
+      createTime: z.string().optional(),
+    })
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+/**
+ * BigQuery Integration Get Request Schema
+ */
+export const bigQueryIntegrationGetRequestSchema = z.object({
+  name: bigQueryLinkIdSchema,
+});
+
+/**
+ * BigQuery Integration Get Response Schema
+ */
+export const bigQueryIntegrationGetResponseSchema = z.object({
+  name: z.string(),
+  project: z.string().optional(),
+  dataset: z.string().optional(),
+  createTime: z.string().optional(),
+});
+
+/**
+ * BigQuery Integration Create Request Schema
+ */
+export const bigQueryIntegrationCreateRequestSchema = z.object({
+  parent: propertyIdSchema,
+  project: z.string().min(1, "Project ID is required"),
+  dataset: z.string().optional(),
+});
+
+/**
+ * BigQuery Integration Create Response Schema
+ */
+export const bigQueryIntegrationCreateResponseSchema = bigQueryIntegrationGetResponseSchema;
+
+/**
+ * BigQuery Integration Delete Request Schema
+ */
+export const bigQueryIntegrationDeleteRequestSchema = z.object({
+  name: bigQueryLinkIdSchema,
+});
+
+/**
+ * BigQuery Integration Delete Response Schema
+ */
+export const bigQueryIntegrationDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  name: z.string(),
+});
+
+/**
  * Property Settings Get Request Schema
  */
 export const propertySettingsGetRequestSchema = z.object({

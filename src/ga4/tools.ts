@@ -98,6 +98,14 @@ import {
   googleAdsIntegrationUpdateResponseSchema,
   googleAdsIntegrationDeleteRequestSchema,
   googleAdsIntegrationDeleteResponseSchema,
+  bigQueryIntegrationListRequestSchema,
+  bigQueryIntegrationListResponseSchema,
+  bigQueryIntegrationGetRequestSchema,
+  bigQueryIntegrationGetResponseSchema,
+  bigQueryIntegrationCreateRequestSchema,
+  bigQueryIntegrationCreateResponseSchema,
+  bigQueryIntegrationDeleteRequestSchema,
+  bigQueryIntegrationDeleteResponseSchema,
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
@@ -210,6 +218,12 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   registerGoogleAdsIntegrationCreateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerGoogleAdsIntegrationUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerGoogleAdsIntegrationDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - BigQuery Integration
+  registerBigQueryIntegrationListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerBigQueryIntegrationGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerBigQueryIntegrationCreateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerBigQueryIntegrationDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
@@ -6251,6 +6265,546 @@ function registerGoogleAdsIntegrationDeleteTool(
           logger.error("ga4.integration.ads.delete failed", error);
         } else {
           logger.error("ga4.integration.ads.delete failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list BigQuery links
+ */
+async function executeBigQueryIntegrationListAPIRequest(
+  validatedRequest: z.infer<typeof bigQueryIntegrationListRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof bigQueryIntegrationListResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "integration.bigquery.list");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const params: Record<string, unknown> = {
+    parent: validatedRequest.parent,
+  };
+  if (validatedRequest.pageSize) {
+    params.pageSize = validatedRequest.pageSize;
+  }
+  if (validatedRequest.pageToken) {
+    params.pageToken = validatedRequest.pageToken;
+  }
+
+  const bigQueryLinks = (
+    adminClient.properties as unknown as {
+      bigQueryLinks?: {
+        list: (params: Record<string, unknown>) => Promise<{ data?: unknown }>;
+      };
+    }
+  ).bigQueryLinks;
+
+  if (!bigQueryLinks) {
+    throw createPreconditionError("not_found", "BigQuery links API not available", {});
+  }
+
+  const response = await bigQueryLinks.list(params);
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "No BigQuery links found", {});
+  }
+
+  // Transform bigqueryLinks to bigQueryLinks format
+  const linksData = responseData.data as { bigqueryLinks?: unknown[]; nextPageToken?: string };
+  return validateSchema(bigQueryIntegrationListResponseSchema, {
+    bigQueryLinks: linksData.bigqueryLinks || [],
+    nextPageToken: linksData.nextPageToken,
+  });
+}
+
+/**
+ * Execute BigQuery integration list operation
+ */
+async function executeBigQueryIntegrationList(
+  args: unknown,
+  ga4Client: GA4Client,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof bigQueryIntegrationListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.integration.bigquery.list",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { parent: string }).parent },
+  });
+
+  logger.info("Executing ga4.integration.bigquery.list", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(bigQueryIntegrationListRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeBigQueryIntegrationListAPIRequest(validatedRequest, ga4Client);
+
+  logger.info("ga4.integration.bigquery.list completed", {
+    opId: envelope.opId,
+    linkCount: validatedResponse.bigQueryLinks.length,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.integration.bigquery.list tool
+ */
+function registerBigQueryIntegrationListTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.integration.bigquery.list",
+    description: "List BigQuery links for a GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        pageSize: {
+          type: "number",
+          description: "Maximum number of links to return (1-200)",
+        },
+        pageToken: {
+          type: "string",
+          description: "Token for pagination",
+        },
+      },
+      required: ["parent"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBigQueryIntegrationList(args, ga4Client, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.integration.bigquery.list failed", error);
+        } else {
+          logger.error("ga4.integration.bigquery.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return BigQuery link if found
+ */
+async function checkBigQueryIntegrationCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof bigQueryIntegrationGetResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for BigQuery link", { cacheKey });
+    return validateSchema(bigQueryIntegrationGetResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get BigQuery link
+ */
+async function executeBigQueryIntegrationGetAPIRequest(
+  linkName: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof bigQueryIntegrationGetResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "integration.bigquery.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const bigQueryLinks = (
+    adminClient.properties as unknown as {
+      bigQueryLinks?: {
+        get: (params: { name: string }) => Promise<{ data?: unknown }>;
+      };
+    }
+  ).bigQueryLinks;
+
+  if (!bigQueryLinks) {
+    throw createPreconditionError("not_found", "BigQuery links API not available", {
+      link: linkName,
+    });
+  }
+
+  const response = await bigQueryLinks.get({
+    name: linkName,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "BigQuery link not found", {
+      link: linkName,
+    });
+  }
+
+  return validateSchema(bigQueryIntegrationGetResponseSchema, responseData.data);
+}
+
+/**
+ * Execute BigQuery integration get operation
+ */
+async function executeBigQueryIntegrationGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof bigQueryIntegrationGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.integration.bigquery.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/bigQueryLinks/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.integration.bigquery.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(bigQueryIntegrationGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:bigQueryLink:${validatedRequest.name}`;
+  const cached = await checkBigQueryIntegrationCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeBigQueryIntegrationGetAPIRequest(
+    validatedRequest.name,
+    ga4Client
+  );
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.integration.bigquery.get completed", {
+    opId: envelope.opId,
+    link: validatedRequest.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.integration.bigquery.get tool
+ */
+function registerBigQueryIntegrationGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.integration.bigquery.get",
+    description: "Get GA4 BigQuery link details by link ID",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "BigQuery link ID in format properties/123456789/bigQueryLinks/987654321",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBigQueryIntegrationGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.integration.bigquery.get failed", error);
+        } else {
+          logger.error("ga4.integration.bigquery.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to create BigQuery link
+ */
+async function executeBigQueryIntegrationCreateAPIRequest(
+  validatedRequest: z.infer<typeof bigQueryIntegrationCreateRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof bigQueryIntegrationCreateResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "integration.bigquery.create");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const linkData: Record<string, unknown> = {
+    project: validatedRequest.project,
+    parent: validatedRequest.parent,
+  };
+  if (validatedRequest.dataset) {
+    linkData.dataset = validatedRequest.dataset;
+  }
+
+  const bigQueryLinks = (
+    adminClient.properties as unknown as {
+      bigQueryLinks?: {
+        create: (params: { requestBody?: Record<string, unknown> }) => Promise<{ data?: unknown }>;
+      };
+    }
+  ).bigQueryLinks;
+
+  if (!bigQueryLinks) {
+    throw createPreconditionError("not_found", "BigQuery links API not available", {});
+  }
+
+  const response = await bigQueryLinks.create({
+    requestBody: linkData,
+  });
+
+  const responseData = response as { data?: unknown };
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "BigQuery link creation failed", {});
+  }
+
+  return validateSchema(bigQueryIntegrationCreateResponseSchema, responseData.data);
+}
+
+/**
+ * Execute BigQuery integration create operation with rollback
+ */
+async function executeBigQueryIntegrationCreate(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof bigQueryIntegrationCreateResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.integration.bigquery.create",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { parent: string }).parent,
+    },
+  });
+
+  logger.info("Executing ga4.integration.bigquery.create", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(bigQueryIntegrationCreateRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeBigQueryIntegrationCreateAPIRequest(validatedRequest, ga4Client);
+
+  // Post-check: verify link was created
+  const cacheKey = `ga4:bigQueryLink:${validatedResponse.name}`;
+  await cache.invalidate(cacheKey);
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.integration.bigquery.create completed", {
+    opId: envelope.opId,
+    link: validatedResponse.name,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.integration.bigquery.create tool
+ */
+function registerBigQueryIntegrationCreateTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.integration.bigquery.create",
+    description: "Create BigQuery link for GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        parent: {
+          type: "string",
+          description: "Property ID in format properties/123456789",
+        },
+        project: {
+          type: "string",
+          description: "BigQuery project ID",
+        },
+        dataset: {
+          type: "string",
+          description: "BigQuery dataset ID (optional, defaults to analytics_<property_id>)",
+        },
+      },
+      required: ["parent", "project"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBigQueryIntegrationCreate(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.integration.bigquery.create failed", error);
+        } else {
+          logger.error("ga4.integration.bigquery.create failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute BigQuery integration delete operation with rollback
+ */
+async function executeBigQueryIntegrationDelete(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof bigQueryIntegrationDeleteResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.integration.bigquery.delete",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: {
+      product: "ga4",
+      propertyId: (args as { name: string }).name.split("/bigQueryLinks/")[0] || "",
+    },
+  });
+
+  logger.info("Executing ga4.integration.bigquery.delete", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(bigQueryIntegrationDeleteRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  // Pre-check: verify link exists
+  await ga4Client.checkRateLimit("ga4", "integration.bigquery.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const bigQueryLinks = (
+    adminClient.properties as unknown as {
+      bigQueryLinks?: {
+        get: (params: { name: string }) => Promise<{ data?: unknown }>;
+        delete: (params: { name: string }) => Promise<unknown>;
+      };
+    }
+  ).bigQueryLinks;
+
+  if (!bigQueryLinks) {
+    throw createPreconditionError("not_found", "BigQuery links API not available", {
+      link: validatedRequest.name,
+    });
+  }
+
+  try {
+    await bigQueryLinks.get({ name: validatedRequest.name });
+  } catch {
+    throw createPreconditionError("not_found", "BigQuery link not found", {
+      link: validatedRequest.name,
+    });
+  }
+
+  // Delete link
+  await ga4Client.checkRateLimit("ga4", "integration.bigquery.delete");
+  try {
+    await bigQueryLinks.delete({
+      name: validatedRequest.name,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("BigQuery link delete failed", error);
+    } else {
+      logger.error("BigQuery link delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+
+  // Invalidate cache
+  const cacheKey = `ga4:bigQueryLink:${validatedRequest.name}`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.integration.bigquery.delete completed", {
+    opId: envelope.opId,
+    link: validatedRequest.name,
+  });
+
+  return {
+    success: true,
+    name: validatedRequest.name,
+  };
+}
+
+/**
+ * Register ga4.integration.bigquery.delete tool
+ */
+function registerBigQueryIntegrationDeleteTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.integration.bigquery.delete",
+    description: "Delete BigQuery link for GA4 property",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "BigQuery link ID in format properties/123456789/bigQueryLinks/987654321",
+        },
+      },
+      required: ["name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBigQueryIntegrationDelete(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.integration.bigquery.delete failed", error);
+        } else {
+          logger.error("ga4.integration.bigquery.delete failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
