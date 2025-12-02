@@ -495,3 +495,27 @@ export const propertySettingsUpdateRequestSchema = z.object({
   industryCategory: z.string().optional(),
 });
 
+/**
+ * Google Signals Get Request Schema
+ */
+export const googleSignalsGetRequestSchema = z.object({
+  property: propertyIdSchema,
+});
+
+/**
+ * Google Signals Response Schema
+ */
+export const googleSignalsResponseSchema = z.object({
+  name: z.string(),
+  state: z.enum(["GOOGLE_SIGNALS_STATE_UNSPECIFIED", "GOOGLE_SIGNALS_ENABLED", "GOOGLE_SIGNALS_DISABLED"]),
+  consent: z.enum(["GOOGLE_SIGNALS_CONSENT_UNSPECIFIED", "GOOGLE_SIGNALS_CONSENT_CONSENTED", "GOOGLE_SIGNALS_CONSENT_NOT_CONSENTED"]).optional(),
+});
+
+/**
+ * Google Signals Update Request Schema
+ */
+export const googleSignalsUpdateRequestSchema = z.object({
+  property: propertyIdSchema,
+  state: z.enum(["GOOGLE_SIGNALS_ENABLED", "GOOGLE_SIGNALS_DISABLED"]),
+});
+

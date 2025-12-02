@@ -23,6 +23,9 @@ import {
   propertySettingsGetRequestSchema,
   propertySettingsResponseSchema,
   propertySettingsUpdateRequestSchema,
+  googleSignalsGetRequestSchema,
+  googleSignalsResponseSchema,
+  googleSignalsUpdateRequestSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -64,6 +67,10 @@ export function registerGA4Tools(options: GA4ToolsOptions): void {
   // Admin API tools - Property Settings
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerPropertySettingsUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Google Signals
+  registerGoogleSignalsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerGoogleSignalsUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   logger.info("GA4 tools registered");
 }
@@ -985,6 +992,241 @@ function registerPropertySettingsUpdateTool(
           logger.error("ga4.property.settings.update failed", new Error(String(error)));
         }
         throw error;
+      }
+    },
+  });
+}
+
+/**
+ * Check cache and return Google Signals settings if found
+ */
+async function checkGoogleSignalsCache(
+  cacheKey: string,
+  cache: ICache,
+  logger: ILogger
+): Promise<z.infer<typeof googleSignalsResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for Google Signals settings", { cacheKey });
+    return validateSchema(googleSignalsResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
+ * Execute API request to get Google Signals settings
+ */
+async function executeGoogleSignalsGetAPIRequest(
+  property: string,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof googleSignalsResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "getGoogleSignalsSettings");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = (await (adminClient.properties as { getGoogleSignalsSettings?: (params: { name: string }) => Promise<{ data?: unknown }> }).getGoogleSignalsSettings?.({
+    name: `${property}/googleSignalsSettings`,
+  })) as { data?: unknown };
+  
+  if (!response) {
+    throw createPreconditionError("not_found", "Google Signals settings not found", {
+      property,
+    });
+  }
+
+  const responseData = response;
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Google Signals settings not found", {
+      property,
+    });
+  }
+
+  return validateSchema(googleSignalsResponseSchema, responseData.data);
+}
+
+/**
+ * Execute Google Signals get operation
+ */
+async function executeGoogleSignalsGet(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof googleSignalsResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.property.googleSignals.get",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.property.googleSignals.get", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(googleSignalsGetRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const cacheKey = `ga4:property:${validatedRequest.property}:googleSignals`;
+  const cached = await checkGoogleSignalsCache(cacheKey, cache, logger);
+  if (cached) {
+    return cached;
+  }
+
+  const validatedResponse = await executeGoogleSignalsGetAPIRequest(validatedRequest.property, ga4Client);
+
+  await cache.set(cacheKey, validatedResponse, 300000);
+
+  logger.info("ga4.property.googleSignals.get completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.property.googleSignals.get tool
+ */
+function registerGoogleSignalsGetTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.property.googleSignals.get",
+    description:
+      "Get Google Signals configuration for a GA4 property. Google Signals enables cross-device tracking.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeGoogleSignalsGet(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.property.googleSignals.get failed", error);
+        } else {
+          logger.error("ga4.property.googleSignals.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to update Google Signals settings
+ */
+async function executeGoogleSignalsUpdateAPIRequest(
+  property: string,
+  state: "GOOGLE_SIGNALS_ENABLED" | "GOOGLE_SIGNALS_DISABLED",
+  ga4Client: GA4Client
+): Promise<z.infer<typeof googleSignalsResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "updateGoogleSignalsSettings");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const response = (await (adminClient.properties as { updateGoogleSignalsSettings?: (params: { googleSignalsSettings: { name: string; state: string }; updateMask: string }) => Promise<{ data?: unknown }> }).updateGoogleSignalsSettings?.({
+    googleSignalsSettings: {
+      name: `${property}/googleSignalsSettings`,
+      state,
+    } as never,
+    updateMask: "state",
+  })) as { data?: unknown };
+  
+  if (!response) {
+    throw createPreconditionError("not_found", "Google Signals settings not found", {
+      property,
+    });
+  }
+
+  const responseData = response;
+  if (!responseData.data) {
+    throw createPreconditionError("not_found", "Google Signals settings not found", {
+      property,
+    });
+  }
+
+  return validateSchema(googleSignalsResponseSchema, responseData.data);
+}
+
+/**
+ * Execute Google Signals update operation
+ */
+async function executeGoogleSignalsUpdate(
+  args: unknown,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof googleSignalsResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ga4.property.googleSignals.update",
+    actor: "user",
+    request: { args: args as Record<string, unknown> },
+    target: { product: "ga4", propertyId: (args as { property: string }).property },
+  });
+
+  logger.info("Executing ga4.property.googleSignals.update", { opId: envelope.opId });
+
+  const validatedRequest = validateSchema(googleSignalsUpdateRequestSchema, args);
+
+  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
+  if (!hasCapability) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GA4 Admin API capability not available",
+      { product: "ga4" }
+    );
+  }
+
+  const validatedResponse = await executeGoogleSignalsUpdateAPIRequest(
+    validatedRequest.property,
+    validatedRequest.state,
+    ga4Client
+  );
+
+  const cacheKey = `ga4:property:${validatedRequest.property}:googleSignals`;
+  await cache.delete(cacheKey);
+
+  logger.info("ga4.property.googleSignals.update completed", {
+    opId: envelope.opId,
+    property: validatedRequest.property,
+    state: validatedRequest.state,
+  });
+
+  return validatedResponse;
+}
+
+/**
+ * Register ga4.property.googleSignals.update tool
+ */
+function registerGoogleSignalsUpdateTool(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ga4.property.googleSignals.update",
+    description:
+      "Update Google Signals configuration for a GA4 property. Enable or disable cross-device tracking.",
+    inputSchema: {} as Record<string, unknown>, // Schema validation happens in handler
+    handler: async (args: unknown) => {
+      try {
+        return await executeGoogleSignalsUpdate(args, ga4Client, cache, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ga4.property.googleSignals.update failed", error);
+        } else {
+          logger.error("ga4.property.googleSignals.update failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
       }
     },
   });
