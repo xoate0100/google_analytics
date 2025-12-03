@@ -178,9 +178,70 @@ it('should get audience', async () => {
 });
 ```
 
+### Hanging Test Prevention Pattern
+
+**Root Cause Analysis**: Tests hang when:
+1. Mock response structures don't match implementation expectations
+2. Code accesses `undefined` properties (e.g., `response.results[0].campaignBudget` when mock returns `budget`)
+3. This causes unhandled promise rejections or infinite loops
+4. Test framework waits indefinitely for resolution
+
+**Prevention Checklist** (MANDATORY before writing tests):
+
+1. **Verify Implementation Structure First**
+   ```typescript
+   // ✅ CORRECT: Check implementation before writing test
+   // Implementation expects: response.results[0].campaignBudget
+   // So mock MUST return: { results: [{ campaignBudget: {...} }] }
+   
+   // ❌ WRONG: Assuming structure without checking
+   // Mock returns: { results: [{ budget: {...} }] } // Wrong property name!
+   ```
+
+2. **Use Type Definitions as Source of Truth**
+   ```typescript
+   // ✅ CORRECT: Use implementation type definitions
+   const mockResponse: {
+     results?: Array<{
+       campaignBudget?: { id?: string; name?: string };
+     }>;
+   } = {
+     results: [{ campaignBudget: { id: "123", name: "Test" } }],
+   };
+   ```
+
+3. **Verify Mock Structure Matches Implementation**
+   ```typescript
+   // ✅ CORRECT: Explicitly verify structure
+   it('should list budgets', async () => {
+     // Implementation code: r.campaignBudget (line 4173 in tools.ts)
+     const mockGoogleAdsClient = {
+       search: vi.fn().mockResolvedValue({
+         results: [{ campaignBudget: { id: "123" } }], // Matches implementation
+       }),
+     };
+   });
+   ```
+
+4. **Common Property Name Mismatches**:
+   - `campaignBudget` vs `budget` ❌
+   - `userList` vs `audience` ❌
+   - `adGroupCriterion` vs `keyword` ❌
+   - `biddingStrategy` vs `strategy` ❌
+
+5. **Pre-Test Verification Pattern**:
+   ```typescript
+   // Before writing test, verify:
+   // 1. Search implementation for property access (e.g., grep for "campaignBudget")
+   // 2. Check what the implementation expects: response.results[0].campaignBudget
+   // 3. Ensure mock returns exactly that structure
+   // 4. Run test immediately to catch structure mismatches early
+   ```
+
 ### Enforcement
 
 - Pre-commit hooks should flag tests with real `setTimeout`/`setInterval` calls
 - CI should fail tests that exceed timeout thresholds
 - Code review should verify async mocking patterns
+- **NEW**: Code review must verify mock response structures match implementation (grep implementation for property names)
 

@@ -480,3 +480,126 @@ export const audienceAttachResponseSchema = z.object({
   bidModifier: z.number().optional(),
 });
 
+/**
+ * Budget List Request Schema
+ */
+export const budgetListRequestSchema = z.object({
+  customerId: customerIdSchema,
+});
+
+/**
+ * Budget List Response Schema
+ */
+export const budgetListResponseSchema = z.object({
+  budgets: z.array(
+    z.object({
+      budgetId: z.string().optional(),
+      name: z.string().optional(),
+      amount: z.number().optional(),
+      deliveryMethod: z.enum(["STANDARD", "ACCELERATED"]).optional(),
+      status: z.enum(["ENABLED", "REMOVED", "UNKNOWN"]).optional(),
+    })
+  ),
+});
+
+/**
+ * Budget Get Request Schema
+ */
+export const budgetGetRequestSchema = z.object({
+  customerId: customerIdSchema,
+  budgetId: z.string().min(1, "Budget ID is required"),
+});
+
+/**
+ * Budget Get Response Schema
+ */
+export const budgetGetResponseSchema = z.object({
+  budgetId: z.string().optional(),
+  name: z.string().optional(),
+  amount: z.number().optional(),
+  deliveryMethod: z.enum(["STANDARD", "ACCELERATED"]).optional(),
+  status: z.enum(["ENABLED", "REMOVED", "UNKNOWN"]).optional(),
+});
+
+/**
+ * Budget Upsert Request Schema
+ */
+export const budgetUpsertRequestSchema = z.object({
+  customerId: customerIdSchema,
+  budgetId: z.string().optional(), // Required for update, optional for create
+  name: z.string().min(1, "Budget name is required"),
+  amount: z.number().positive("Budget amount must be positive").optional(),
+  deliveryMethod: z.enum(["STANDARD", "ACCELERATED"]).optional(),
+});
+
+/**
+ * Budget Upsert Response Schema
+ */
+export const budgetUpsertResponseSchema = budgetGetResponseSchema;
+
+/**
+ * Bidding Strategy List Request Schema
+ */
+export const biddingStrategyListRequestSchema = z.object({
+  customerId: customerIdSchema,
+});
+
+/**
+ * Bidding Strategy List Response Schema
+ */
+export const biddingStrategyListResponseSchema = z.object({
+  strategies: z.array(
+    z.object({
+      strategyId: z.string().optional(),
+      name: z.string().optional(),
+      type: z.string().optional(),
+      status: z.enum(["ENABLED", "REMOVED", "UNKNOWN"]).optional(),
+    })
+  ),
+});
+
+/**
+ * Bidding Strategy Get Request Schema
+ */
+export const biddingStrategyGetRequestSchema = z.object({
+  customerId: customerIdSchema,
+  strategyId: z.string().min(1, "Strategy ID is required"),
+});
+
+/**
+ * Bidding Strategy Get Response Schema
+ */
+export const biddingStrategyGetResponseSchema = z.object({
+  strategyId: z.string().optional(),
+  name: z.string().optional(),
+  type: z.enum(["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS", "TARGET_SPEND", "TARGET_IMPRESSION_SHARE", "MANUAL_CPC", "ENHANCED_CPC"]).optional(),
+  status: z.enum(["ENABLED", "REMOVED", "UNKNOWN"]).optional(),
+  targetCpa: z.object({
+    targetCpaMicros: z.string().optional(),
+  }).optional(),
+  targetRoas: z.object({
+    targetRoas: z.number().optional(),
+  }).optional(),
+  targetSpend: z.object({
+    targetSpendMicros: z.string().optional(),
+  }).optional(),
+});
+
+/**
+ * Bidding Strategy Upsert Request Schema
+ */
+export const biddingStrategyUpsertRequestSchema = z.object({
+  customerId: customerIdSchema,
+  strategyId: z.string().optional(), // Required for update, optional for create
+  name: z.string().min(1, "Strategy name is required"),
+  type: z.enum(["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS", "TARGET_SPEND", "TARGET_IMPRESSION_SHARE", "MANUAL_CPC", "ENHANCED_CPC"]).optional(),
+  targetCpa: z.number().optional(),
+  targetRoas: z.number().optional(),
+  targetSpend: z.number().optional(),
+});
+
+/**
+ * Bidding Strategy Upsert Response Schema
+ */
+export const biddingStrategyUpsertResponseSchema = biddingStrategyGetResponseSchema;
+

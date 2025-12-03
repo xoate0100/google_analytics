@@ -55,6 +55,18 @@ import {
   audienceUpsertResponseSchema,
   audienceAttachRequestSchema,
   audienceAttachResponseSchema,
+  budgetListRequestSchema,
+  budgetListResponseSchema,
+  budgetGetRequestSchema,
+  budgetGetResponseSchema,
+  budgetUpsertRequestSchema,
+  budgetUpsertResponseSchema,
+  biddingStrategyListRequestSchema,
+  biddingStrategyListResponseSchema,
+  biddingStrategyGetRequestSchema,
+  biddingStrategyGetResponseSchema,
+  biddingStrategyUpsertRequestSchema,
+  biddingStrategyUpsertResponseSchema,
 } from "./schemas.js";
 import { validateSchema } from "../core/validation.js";
 import { createOperationEnvelope } from "../core/envelope.js";
@@ -527,6 +539,14 @@ export function registerAdsTools(
   registerAudienceGetTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
   registerAudienceUpsertTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
   registerAudienceAttachTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+
+  // Budget and bidding strategy tools
+  registerBudgetListTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerBudgetGetTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerBudgetUpsertTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerBiddingStrategyListTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerBiddingStrategyGetTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
+  registerBiddingStrategyUpsertTool(bootstrap, adsClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -4132,6 +4152,1072 @@ function registerAudienceAttachTool(
           logger.error("ads.audience.attach failed", error);
         } else {
           logger.error("ads.audience.attach failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list budgets
+ */
+async function executeBudgetListAPIRequest(
+  validatedRequest: z.infer<typeof budgetListRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof budgetListResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "budget.list");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaignBudget?: {
+          id?: string;
+          name?: string;
+          amountMicros?: string;
+          deliveryMethod?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  const query = "SELECT campaign_budget.id, campaign_budget.name, campaign_budget.amount_micros, campaign_budget.delivery_method, campaign_budget.status FROM campaign_budget";
+
+  const response = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      campaignBudget?: {
+        id?: string;
+        name?: string;
+        amountMicros?: string;
+        deliveryMethod?: string;
+        status?: string;
+      };
+    }>;
+  };
+
+  const budgets = (response.results || []).map((r) => {
+    const budget = r.campaignBudget;
+    const amountMicros = budget?.amountMicros ? parseInt(budget.amountMicros, 10) : undefined;
+    const amount = amountMicros ? amountMicros / 1000000 : undefined;
+    return {
+      budgetId: budget?.id,
+      name: budget?.name,
+      amount,
+      deliveryMethod: budget?.deliveryMethod as "STANDARD" | "ACCELERATED" | undefined,
+      status: budget?.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+    };
+  });
+
+  return { budgets };
+}
+
+/**
+ * Execute budget list
+ */
+export async function executeBudgetList(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof budgetListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.budget.list",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.budget.list", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(budgetListRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "budgets")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads budget management not available",
+      {
+        product: "ads",
+        capability: "budgets",
+      }
+    );
+  }
+
+  const result = await executeBudgetListAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.budget.list completed", {
+    opId: envelope.opId,
+    budgetCount: result.budgets.length,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.budget.list tool
+ */
+function registerBudgetListTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.budget.list",
+    description: "List Google Ads budgets",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+      },
+      required: ["customerId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBudgetList(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.budget.list failed", error);
+        } else {
+          logger.error("ads.budget.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to get budget
+ */
+async function executeBudgetGetAPIRequest(
+  validatedRequest: z.infer<typeof budgetGetRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof budgetGetResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "budget.get");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaignBudget?: {
+          id?: string;
+          name?: string;
+          amountMicros?: string;
+          deliveryMethod?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  const query = `SELECT campaign_budget.id, campaign_budget.name, campaign_budget.amount_micros, campaign_budget.delivery_method, campaign_budget.status FROM campaign_budget WHERE campaign_budget.id = ${validatedRequest.budgetId}`;
+
+  const response = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      campaignBudget?: {
+        id?: string;
+        name?: string;
+        amountMicros?: string;
+        deliveryMethod?: string;
+        status?: string;
+      };
+    }>;
+  };
+
+  const budget = response.results?.[0]?.campaignBudget;
+
+  if (!budget) {
+    throw new Error(`Budget ${validatedRequest.budgetId} not found`);
+  }
+
+  const amountMicros = budget.amountMicros ? parseInt(budget.amountMicros, 10) : undefined;
+  const amount = amountMicros ? amountMicros / 1000000 : undefined;
+
+  return {
+    budgetId: budget.id,
+    name: budget.name,
+    amount,
+    deliveryMethod: budget.deliveryMethod as "STANDARD" | "ACCELERATED" | undefined,
+    status: budget.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+  };
+}
+
+/**
+ * Execute budget get
+ */
+export async function executeBudgetGet(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof budgetGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.budget.get",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.budget.get", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(budgetGetRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "budgets")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads budget management not available",
+      {
+        product: "ads",
+        capability: "budgets",
+      }
+    );
+  }
+
+  const result = await executeBudgetGetAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.budget.get completed", {
+    opId: envelope.opId,
+    budgetId: result.budgetId,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.budget.get tool
+ */
+function registerBudgetGetTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.budget.get",
+    description: "Get Google Ads budget details",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        budgetId: {
+          type: "string",
+          description: "Budget ID",
+        },
+      },
+      required: ["customerId", "budgetId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBudgetGet(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.budget.get failed", error);
+        } else {
+          logger.error("ads.budget.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to upsert budget
+ */
+async function executeBudgetUpsertAPIRequest(
+  validatedRequest: z.infer<typeof budgetUpsertRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof budgetUpsertResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "budget.upsert");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaignBudget?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaignBudget?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          amountMicros?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  // Check if budget exists (for idempotency)
+  let existingBudget: { id?: string; resourceName?: string } | undefined;
+  if (validatedRequest.budgetId) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT campaign_budget.id, campaign_budget.resource_name FROM campaign_budget WHERE campaign_budget.id = ${validatedRequest.budgetId}`,
+    })) as {
+      results?: Array<{
+        campaignBudget?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    existingBudget = searchResponse.results?.[0]?.campaignBudget;
+  } else {
+    // Check by name for idempotency
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT campaign_budget.id, campaign_budget.resource_name FROM campaign_budget WHERE campaign_budget.name = '${validatedRequest.name.replace(/'/g, "''")}'`,
+    })) as {
+      results?: Array<{
+        campaignBudget?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    existingBudget = searchResponse.results?.[0]?.campaignBudget;
+  }
+
+  // Build mutation operation
+  const operation: Record<string, unknown> = {};
+  if (existingBudget) {
+    // Update existing budget
+    operation.update = {
+      resourceName: existingBudget.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/campaignBudgets/${existingBudget.id}`,
+      name: validatedRequest.name,
+    };
+    if (validatedRequest.amount !== undefined) {
+      (operation.update as Record<string, unknown>).amountMicros = Math.round(validatedRequest.amount * 1000000).toString();
+    }
+    if (validatedRequest.deliveryMethod) {
+      (operation.update as Record<string, unknown>).deliveryMethod = validatedRequest.deliveryMethod;
+    }
+  } else {
+    // Create new budget
+    operation.create = {
+      name: validatedRequest.name,
+      amountMicros: validatedRequest.amount ? Math.round(validatedRequest.amount * 1000000).toString() : "0",
+      deliveryMethod: validatedRequest.deliveryMethod || "STANDARD",
+    };
+  }
+
+  const response = (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      campaignBudget?: {
+        resourceName?: string;
+        id?: string;
+        name?: string;
+        amountMicros?: string;
+        status?: string;
+      };
+    }>;
+  };
+
+  const result = response.results?.[0]?.campaignBudget;
+  if (!result) {
+    throw new Error("Failed to create/update budget");
+  }
+
+  // Extract budget ID from resource name
+  const budgetId = result.id || result.resourceName?.split("/").pop();
+  const amountMicros = result.amountMicros ? parseInt(result.amountMicros, 10) : undefined;
+  const amount = amountMicros ? amountMicros / 1000000 : undefined;
+
+  return {
+    budgetId,
+    name: result.name,
+    amount,
+    deliveryMethod: validatedRequest.deliveryMethod || "STANDARD",
+    status: result.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+  };
+}
+
+/**
+ * Execute budget upsert
+ */
+export async function executeBudgetUpsert(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof budgetUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.budget.upsert",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.budget.upsert", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(budgetUpsertRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "budgets")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads budget management not available",
+      {
+        product: "ads",
+        capability: "budgets",
+      }
+    );
+  }
+
+  const result = await executeBudgetUpsertAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.budget.upsert completed", {
+    opId: envelope.opId,
+    budgetId: result.budgetId,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.budget.upsert tool
+ */
+function registerBudgetUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.budget.upsert",
+    description: "Create or update Google Ads budget",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        budgetId: {
+          type: "string",
+          description: "Budget ID for updates (optional for create, uses name for idempotency)",
+        },
+        name: {
+          type: "string",
+          description: "Budget name",
+        },
+        amount: {
+          type: "number",
+          description: "Budget amount in currency units (e.g., 100.0 for $100)",
+        },
+        deliveryMethod: {
+          type: "string",
+          enum: ["STANDARD", "ACCELERATED"],
+          description: "Budget delivery method",
+        },
+      },
+      required: ["customerId", "name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBudgetUpsert(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.budget.upsert failed", error);
+        } else {
+          logger.error("ads.budget.upsert failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to list bidding strategies
+ */
+async function executeBiddingStrategyListAPIRequest(
+  validatedRequest: z.infer<typeof biddingStrategyListRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof biddingStrategyListResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "biddingStrategy.list");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        biddingStrategy?: {
+          id?: string;
+          name?: string;
+          type?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  const query = "SELECT bidding_strategy.id, bidding_strategy.name, bidding_strategy.type, bidding_strategy.status FROM bidding_strategy";
+
+  const response = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      biddingStrategy?: {
+        id?: string;
+        name?: string;
+        type?: string;
+        status?: string;
+      };
+    }>;
+  };
+
+  const strategies = (response.results || []).map((r) => {
+    const strategy = r.biddingStrategy;
+    return {
+      strategyId: strategy?.id,
+      name: strategy?.name,
+      type: strategy?.type,
+      status: strategy?.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+    };
+  });
+
+  return { strategies };
+}
+
+/**
+ * Execute bidding strategy list
+ */
+export async function executeBiddingStrategyList(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof biddingStrategyListResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.biddingStrategy.list",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.biddingStrategy.list", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(biddingStrategyListRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "biddingStrategies")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads bidding strategy management not available",
+      {
+        product: "ads",
+        capability: "biddingStrategies",
+      }
+    );
+  }
+
+  const result = await executeBiddingStrategyListAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.biddingStrategy.list completed", {
+    opId: envelope.opId,
+    strategyCount: result.strategies.length,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.biddingStrategy.list tool
+ */
+function registerBiddingStrategyListTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.biddingStrategy.list",
+    description: "List Google Ads bidding strategies",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+      },
+      required: ["customerId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBiddingStrategyList(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.biddingStrategy.list failed", error);
+        } else {
+          logger.error("ads.biddingStrategy.list failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to get bidding strategy
+ */
+async function executeBiddingStrategyGetAPIRequest(
+  validatedRequest: z.infer<typeof biddingStrategyGetRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof biddingStrategyGetResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "biddingStrategy.get");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        biddingStrategy?: {
+          id?: string;
+          name?: string;
+          type?: string;
+          status?: string;
+          targetCpa?: {
+            targetCpaMicros?: string;
+          };
+          targetRoas?: {
+            targetRoas?: number;
+          };
+          targetSpend?: {
+            targetSpendMicros?: string;
+          };
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  const query = `SELECT bidding_strategy.id, bidding_strategy.name, bidding_strategy.type, bidding_strategy.status, bidding_strategy.target_cpa.target_cpa_micros, bidding_strategy.target_roas.target_roas, bidding_strategy.target_spend.target_spend_micros FROM bidding_strategy WHERE bidding_strategy.id = ${validatedRequest.strategyId}`;
+
+  const response = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      biddingStrategy?: {
+        id?: string;
+        name?: string;
+        type?: string;
+        status?: string;
+        targetCpa?: {
+          targetCpaMicros?: string;
+        };
+        targetRoas?: {
+          targetRoas?: number;
+        };
+        targetSpend?: {
+          targetSpendMicros?: string;
+        };
+      };
+    }>;
+  };
+
+  const strategy = response.results?.[0]?.biddingStrategy;
+
+  if (!strategy) {
+    throw new Error(`Bidding strategy ${validatedRequest.strategyId} not found`);
+  }
+
+  const targetCpaMicros = strategy.targetCpa?.targetCpaMicros ? parseInt(strategy.targetCpa.targetCpaMicros, 10) : undefined;
+  const targetCpa = targetCpaMicros ? targetCpaMicros / 1000000 : undefined;
+
+  const targetSpendMicros = strategy.targetSpend?.targetSpendMicros ? parseInt(strategy.targetSpend.targetSpendMicros, 10) : undefined;
+  const targetSpend = targetSpendMicros ? targetSpendMicros / 1000000 : undefined;
+
+  return {
+    strategyId: strategy.id,
+    name: strategy.name,
+    type: strategy.type as "MAXIMIZE_CONVERSIONS" | "MAXIMIZE_CONVERSION_VALUE" | "TARGET_CPA" | "TARGET_ROAS" | "TARGET_SPEND" | "TARGET_IMPRESSION_SHARE" | "MANUAL_CPC" | "ENHANCED_CPC" | undefined,
+    status: strategy.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+    targetCpa: targetCpa ? { targetCpaMicros: strategy.targetCpa?.targetCpaMicros } : undefined,
+    targetRoas: strategy.targetRoas,
+    targetSpend: targetSpend ? { targetSpendMicros: strategy.targetSpend?.targetSpendMicros } : undefined,
+  };
+}
+
+/**
+ * Execute bidding strategy get
+ */
+export async function executeBiddingStrategyGet(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof biddingStrategyGetResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.biddingStrategy.get",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.biddingStrategy.get", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(biddingStrategyGetRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "biddingStrategies")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads bidding strategy management not available",
+      {
+        product: "ads",
+        capability: "biddingStrategies",
+      }
+    );
+  }
+
+  const result = await executeBiddingStrategyGetAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.biddingStrategy.get completed", {
+    opId: envelope.opId,
+    strategyId: result.strategyId,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.biddingStrategy.get tool
+ */
+function registerBiddingStrategyGetTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.biddingStrategy.get",
+    description: "Get Google Ads bidding strategy details",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        strategyId: {
+          type: "string",
+          description: "Bidding strategy ID",
+        },
+      },
+      required: ["customerId", "strategyId"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBiddingStrategyGet(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.biddingStrategy.get failed", error);
+        } else {
+          logger.error("ads.biddingStrategy.get failed", new Error(String(error)));
+        }
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    },
+  });
+}
+
+/**
+ * Execute API request to upsert bidding strategy
+ */
+async function executeBiddingStrategyUpsertAPIRequest(
+  validatedRequest: z.infer<typeof biddingStrategyUpsertRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof biddingStrategyUpsertResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "biddingStrategy.upsert");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        biddingStrategy?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        biddingStrategy?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  };
+
+  // Normalize customer ID format
+  const customerId = validatedRequest.customerId.startsWith("customers/")
+    ? validatedRequest.customerId
+    : `customers/${validatedRequest.customerId}`;
+
+  // Check if strategy exists (for idempotency)
+  let existingStrategy: { id?: string; resourceName?: string } | undefined;
+  if (validatedRequest.strategyId) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT bidding_strategy.id, bidding_strategy.resource_name FROM bidding_strategy WHERE bidding_strategy.id = ${validatedRequest.strategyId}`,
+    })) as {
+      results?: Array<{
+        biddingStrategy?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    existingStrategy = searchResponse.results?.[0]?.biddingStrategy;
+  } else {
+    // Check by name for idempotency
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT bidding_strategy.id, bidding_strategy.resource_name FROM bidding_strategy WHERE bidding_strategy.name = '${validatedRequest.name.replace(/'/g, "''")}'`,
+    })) as {
+      results?: Array<{
+        biddingStrategy?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    existingStrategy = searchResponse.results?.[0]?.biddingStrategy;
+  }
+
+  // Build mutation operation
+  const operation: Record<string, unknown> = {};
+  if (existingStrategy) {
+    // Update existing strategy
+    operation.update = {
+      resourceName: existingStrategy.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/biddingStrategies/${existingStrategy.id}`,
+      name: validatedRequest.name,
+    };
+    if (validatedRequest.type) {
+      (operation.update as Record<string, unknown>).type = validatedRequest.type;
+    }
+    if (validatedRequest.targetCpa !== undefined) {
+      (operation.update as Record<string, unknown>).targetCpa = {
+        targetCpaMicros: Math.round(validatedRequest.targetCpa * 1000000).toString(),
+      };
+    }
+    if (validatedRequest.targetRoas !== undefined) {
+      (operation.update as Record<string, unknown>).targetRoas = {
+        targetRoas: validatedRequest.targetRoas,
+      };
+    }
+    if (validatedRequest.targetSpend !== undefined) {
+      (operation.update as Record<string, unknown>).targetSpend = {
+        targetSpendMicros: Math.round(validatedRequest.targetSpend * 1000000).toString(),
+      };
+    }
+  } else {
+    // Create new strategy
+    operation.create = {
+      name: validatedRequest.name,
+      type: validatedRequest.type || "MAXIMIZE_CONVERSIONS",
+    };
+    if (validatedRequest.targetCpa !== undefined) {
+      (operation.create as Record<string, unknown>).targetCpa = {
+        targetCpaMicros: Math.round(validatedRequest.targetCpa * 1000000).toString(),
+      };
+    }
+    if (validatedRequest.targetRoas !== undefined) {
+      (operation.create as Record<string, unknown>).targetRoas = {
+        targetRoas: validatedRequest.targetRoas,
+      };
+    }
+    if (validatedRequest.targetSpend !== undefined) {
+      (operation.create as Record<string, unknown>).targetSpend = {
+        targetSpendMicros: Math.round(validatedRequest.targetSpend * 1000000).toString(),
+      };
+    }
+  }
+
+  const response = (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      biddingStrategy?: {
+        resourceName?: string;
+        id?: string;
+        name?: string;
+        status?: string;
+      };
+    }>;
+  };
+
+  const result = response.results?.[0]?.biddingStrategy;
+  if (!result) {
+    throw new Error("Failed to create/update bidding strategy");
+  }
+
+  // Extract strategy ID from resource name
+  const strategyId = result.id || result.resourceName?.split("/").pop();
+
+  return {
+    strategyId,
+    name: result.name,
+    type: validatedRequest.type,
+    status: result.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+    targetCpa: validatedRequest.targetCpa !== undefined ? { targetCpaMicros: Math.round(validatedRequest.targetCpa * 1000000).toString() } : undefined,
+    targetRoas: validatedRequest.targetRoas !== undefined ? { targetRoas: validatedRequest.targetRoas } : undefined,
+    targetSpend: validatedRequest.targetSpend !== undefined ? { targetSpendMicros: Math.round(validatedRequest.targetSpend * 1000000).toString() } : undefined,
+  };
+}
+
+/**
+ * Execute bidding strategy upsert
+ */
+export async function executeBiddingStrategyUpsert(
+  args: unknown,
+  adsClient: AdsClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): Promise<z.infer<typeof biddingStrategyUpsertResponseSchema>> {
+  const envelope = createOperationEnvelope({
+    opName: "ads.biddingStrategy.upsert",
+    actor: "user",
+    target: { product: "ads" },
+    request: { args: args as Record<string, unknown> },
+  });
+
+  logger.info("Executing ads.biddingStrategy.upsert", {
+    opId: envelope.opId,
+  });
+
+  const validatedRequest = validateSchema(biddingStrategyUpsertRequestSchema, args);
+
+  if (!capabilitiesRegistry.hasCapability("ads", "biddingStrategies")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "Google Ads bidding strategy management not available",
+      {
+        product: "ads",
+        capability: "biddingStrategies",
+      }
+    );
+  }
+
+  const result = await executeBiddingStrategyUpsertAPIRequest(validatedRequest, adsClient);
+
+  logger.info("ads.biddingStrategy.upsert completed", {
+    opId: envelope.opId,
+    strategyId: result.strategyId,
+  });
+
+  return result;
+}
+
+/**
+ * Register ads.biddingStrategy.upsert tool
+ */
+function registerBiddingStrategyUpsertTool(
+  bootstrap: MCPServerBootstrap,
+  adsClient: AdsClient,
+  _cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  bootstrap.registerTool({
+    name: "ads.biddingStrategy.upsert",
+    description: "Create or update Google Ads bidding strategy",
+    inputSchema: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID (numeric or customers/1234567890 format)",
+        },
+        strategyId: {
+          type: "string",
+          description: "Strategy ID for updates (optional for create, uses name for idempotency)",
+        },
+        name: {
+          type: "string",
+          description: "Strategy name",
+        },
+        type: {
+          type: "string",
+          enum: ["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS", "TARGET_SPEND", "TARGET_IMPRESSION_SHARE", "MANUAL_CPC", "ENHANCED_CPC"],
+          description: "Bidding strategy type",
+        },
+        targetCpa: {
+          type: "number",
+          description: "Target CPA in currency units (for TARGET_CPA strategy)",
+        },
+        targetRoas: {
+          type: "number",
+          description: "Target ROAS (for TARGET_ROAS strategy)",
+        },
+        targetSpend: {
+          type: "number",
+          description: "Target spend in currency units (for TARGET_SPEND strategy)",
+        },
+      },
+      required: ["customerId", "name"],
+    },
+    handler: async (args: unknown) => {
+      try {
+        return await executeBiddingStrategyUpsert(args, adsClient, capabilitiesRegistry, logger);
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error("ads.biddingStrategy.upsert failed", error);
+        } else {
+          logger.error("ads.biddingStrategy.upsert failed", new Error(String(error)));
         }
         throw error instanceof Error ? error : new Error(String(error));
       }
