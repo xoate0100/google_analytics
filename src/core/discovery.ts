@@ -111,6 +111,190 @@ export async function discoverGA4Capabilities(
 }
 
 /**
+ * Helper: Handle endpoint verification error
+ */
+function handleEndpointError(
+  error: unknown,
+  endpointName: string,
+  logger: ILogger
+): { isAccessible: boolean; errorMessage: string } {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  if (errorMessage.includes("403") || errorMessage.includes("permission")) {
+    logger.debug(`GTM Tag Manager API endpoint exists but no permission: ${endpointName}`);
+    return { isAccessible: true, errorMessage: "" };
+  }
+  logger.error(`GTM Tag Manager API endpoint check failed: ${endpointName}`, error instanceof Error ? error : new Error(String(error)));
+  return { isAccessible: false, errorMessage: `${endpointName}: ${errorMessage}` };
+}
+
+/**
+ * Helper: Verify accounts endpoint
+ */
+async function verifyAccountsEndpoint(
+  tagManagerClient: {
+    accounts?: {
+      list?: () => Promise<unknown>;
+    };
+  },
+  logger: ILogger
+): Promise<{ accounts: unknown[]; errors: string[]; allAccessible: boolean }> {
+  const discoveredAccounts: unknown[] = [];
+  const errors: string[] = [];
+  let allAccessible = true;
+
+  try {
+    if (tagManagerClient.accounts && typeof tagManagerClient.accounts.list === "function") {
+      const accountsResponse = await tagManagerClient.accounts.list();
+      const accountsData = accountsResponse as { data?: { account?: unknown[] } };
+      if (accountsData.data?.account) {
+        discoveredAccounts.push(...accountsData.data.account);
+      }
+      logger.debug("GTM Tag Manager API endpoint verified: accounts.list");
+    } else {
+      allAccessible = false;
+      errors.push("accounts.list: endpoint not available");
+    }
+  } catch (error) {
+    const result = handleEndpointError(error, "accounts.list", logger);
+    if (!result.isAccessible) {
+      allAccessible = false;
+      errors.push(result.errorMessage);
+    }
+  }
+
+  return { accounts: discoveredAccounts, errors, allAccessible };
+}
+
+/**
+ * Helper: Verify containers endpoint
+ */
+async function verifyContainersEndpoint(
+  tagManagerClient: {
+    accounts?: {
+      containers?: {
+        list?: (params: { parent: string }) => Promise<unknown>;
+      };
+    };
+  },
+  discoveredAccounts: unknown[],
+  logger: ILogger
+): Promise<unknown[]> {
+  const discoveredContainers: unknown[] = [];
+  if (discoveredAccounts.length === 0) {
+    return discoveredContainers;
+  }
+
+  try {
+    const firstAccount = discoveredAccounts[0] as { accountId?: string };
+    if (
+      firstAccount.accountId &&
+      tagManagerClient.accounts?.containers &&
+      typeof tagManagerClient.accounts.containers.list === "function"
+    ) {
+      const containersResponse = await tagManagerClient.accounts.containers.list({
+        parent: `accounts/${firstAccount.accountId}`,
+      });
+      const containersData = containersResponse as { data?: { container?: unknown[] } };
+      if (containersData.data?.container) {
+        discoveredContainers.push(...containersData.data.container);
+      }
+      logger.debug("GTM Tag Manager API endpoint verified: containers.list");
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.warn("GTM Tag Manager API containers endpoint check failed", { error: errorMessage });
+  }
+
+  return discoveredContainers;
+}
+
+/**
+ * Helper: Verify workspaces endpoint with containers
+ */
+async function verifyWorkspacesWithContainers(
+  tagManagerClient: {
+    accounts?: {
+      containers?: {
+        workspaces?: {
+          list?: (params: { parent: string }) => Promise<unknown>;
+        };
+      };
+    };
+  },
+  firstContainer: { accountId?: string; containerId?: string },
+  logger: ILogger
+): Promise<void> {
+  if (
+    firstContainer.accountId &&
+    firstContainer.containerId &&
+    tagManagerClient.accounts?.containers?.workspaces &&
+    typeof tagManagerClient.accounts.containers.workspaces.list === "function"
+  ) {
+    await tagManagerClient.accounts.containers.workspaces.list({
+      parent: `accounts/${firstContainer.accountId}/containers/${firstContainer.containerId}`,
+    });
+    logger.debug("GTM Tag Manager API endpoint verified: workspaces.list");
+  }
+}
+
+/**
+ * Helper: Verify workspaces endpoint without containers
+ */
+function verifyWorkspacesWithoutContainers(
+  tagManagerClient: {
+    accounts?: {
+      containers?: {
+        workspaces?: {
+          list?: (params: { parent: string }) => Promise<unknown>;
+        };
+      };
+    };
+  },
+  logger: ILogger
+): { errors: string[]; allAccessible: boolean } {
+  const errors: string[] = [];
+  if (
+    !tagManagerClient.accounts?.containers?.workspaces ||
+    typeof tagManagerClient.accounts.containers.workspaces.list !== "function"
+  ) {
+    errors.push("workspaces.list: endpoint not available");
+    return { errors, allAccessible: false };
+  }
+  logger.debug("GTM Tag Manager API endpoint verified: workspaces.list (exists)");
+  return { errors, allAccessible: true };
+}
+
+/**
+ * Helper: Verify workspaces endpoint
+ */
+async function verifyWorkspacesEndpoint(
+  tagManagerClient: {
+    accounts?: {
+      containers?: {
+        workspaces?: {
+          list?: (params: { parent: string }) => Promise<unknown>;
+        };
+      };
+    };
+  },
+  discoveredContainers: unknown[],
+  logger: ILogger
+): Promise<{ errors: string[]; allAccessible: boolean }> {
+  if (discoveredContainers.length > 0) {
+    try {
+      const firstContainer = discoveredContainers[0] as { accountId?: string; containerId?: string };
+      await verifyWorkspacesWithContainers(tagManagerClient, firstContainer, logger);
+      return { errors: [], allAccessible: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.warn("GTM Tag Manager API workspaces endpoint check failed", { error: errorMessage });
+      return { errors: [], allAccessible: true };
+    }
+  }
+  return verifyWorkspacesWithoutContainers(tagManagerClient, logger);
+}
+
+/**
  * Discover GTM capabilities
  * Lists accounts/containers and verifies workspace access and permissions
  * @param options - Discovery options
@@ -122,107 +306,36 @@ export async function discoverGTMCapabilities(
 
   logger.info("Discovering GTM capabilities");
 
-  // Default capabilities
   const capabilities: ProductCapabilities = {
     accounts: [],
   };
 
-  // If GTM client is provided, verify Tag Manager API endpoints
-  if (gtmClient) {
-    try {
-      await gtmClient.checkRateLimit("gtm", "discovery");
-      const tagManagerClient = gtmClient.getTagManagerClient();
-
-      // Verify core Tag Manager API endpoints are accessible
-      let allEndpointsAccessible = true;
-      const errors: string[] = [];
-      const discoveredAccounts: unknown[] = [];
-
-      // Verify accounts endpoint
-      try {
-        if (tagManagerClient.accounts && typeof tagManagerClient.accounts.list === "function") {
-          const accountsResponse = await tagManagerClient.accounts.list();
-          const accountsData = accountsResponse as { data?: { account?: unknown[] } };
-          if (accountsData.data?.account) {
-            discoveredAccounts.push(...accountsData.data.account);
-          }
-          logger.debug("GTM Tag Manager API endpoint verified: accounts.list");
-        } else {
-          allEndpointsAccessible = false;
-          errors.push("accounts.list: endpoint not available");
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes("403") || errorMessage.includes("permission")) {
-          logger.debug("GTM Tag Manager API endpoint exists but no permission: accounts.list");
-        } else {
-          logger.error("GTM Tag Manager API endpoint check failed: accounts.list", error instanceof Error ? error : new Error(String(error)));
-          allEndpointsAccessible = false;
-          errors.push(`accounts.list: ${errorMessage}`);
-        }
-      }
-
-      // Verify containers endpoint (requires account)
-      const discoveredContainers: unknown[] = [];
-      if (discoveredAccounts.length > 0) {
-        try {
-          const firstAccount = discoveredAccounts[0] as { accountId?: string };
-          if (firstAccount.accountId && tagManagerClient.accounts.containers && typeof tagManagerClient.accounts.containers.list === "function") {
-            const containersResponse = await tagManagerClient.accounts.containers.list({
-              parent: `accounts/${firstAccount.accountId}`,
-            });
-            const containersData = containersResponse as { data?: { container?: unknown[] } };
-            if (containersData.data?.container) {
-              discoveredContainers.push(...containersData.data.container);
-            }
-            logger.debug("GTM Tag Manager API endpoint verified: containers.list");
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.warn("GTM Tag Manager API containers endpoint check failed", { error: errorMessage });
-        }
-      }
-
-      // Verify workspaces endpoint (requires container)
-      if (discoveredContainers.length > 0) {
-        try {
-          const firstContainer = discoveredContainers[0] as { accountId?: string; containerId?: string };
-          if (firstContainer.accountId && firstContainer.containerId && tagManagerClient.accounts.containers.workspaces && typeof tagManagerClient.accounts.containers.workspaces.list === "function") {
-            await tagManagerClient.accounts.containers.workspaces.list({
-              parent: `accounts/${firstContainer.accountId}/containers/${firstContainer.containerId}`,
-            });
-            logger.debug("GTM Tag Manager API endpoint verified: workspaces.list");
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.warn("GTM Tag Manager API workspaces endpoint check failed", { error: errorMessage });
-        }
-      } else {
-        // If no containers, just verify the endpoint exists
-        if (!tagManagerClient.accounts.containers.workspaces || typeof tagManagerClient.accounts.containers.workspaces.list !== "function") {
-          allEndpointsAccessible = false;
-          errors.push("workspaces.list: endpoint not available");
-        } else {
-          logger.debug("GTM Tag Manager API endpoint verified: workspaces.list (exists)");
-        }
-      }
-
-      if (allEndpointsAccessible && errors.length === 0) {
-        logger.info("GTM Tag Manager API endpoints verified and accessible");
-      } else if (errors.length > 0) {
-        logger.warn("Some GTM Tag Manager API endpoints may not be accessible", { errors });
-      }
-
-      // Update capabilities with discovered accounts
-      if (discoveredAccounts.length > 0) {
-        capabilities.accounts = discoveredAccounts;
-      }
-    } catch (error) {
-      logger.error("GTM Tag Manager API discovery failed", error instanceof Error ? error : new Error(String(error)));
-      // Keep default capabilities if discovery fails
-    }
-  } else {
+  if (!gtmClient) {
     logger.debug("GTM client not provided, skipping Tag Manager API verification");
+    registry.setProductCapabilities("gtm", capabilities);
+    return;
+  }
+
+  try {
+    await gtmClient.checkRateLimit("gtm", "discovery");
+    const tagManagerClient = gtmClient.getTagManagerClient();
+    const accountsResult = await verifyAccountsEndpoint(tagManagerClient, logger);
+    const discoveredContainers = await verifyContainersEndpoint(tagManagerClient, accountsResult.accounts, logger);
+    const workspacesResult = await verifyWorkspacesEndpoint(tagManagerClient, discoveredContainers, logger);
+    const allErrors = [...accountsResult.errors, ...workspacesResult.errors];
+    const allAccessible = accountsResult.allAccessible && workspacesResult.allAccessible;
+
+    if (allAccessible && allErrors.length === 0) {
+      logger.info("GTM Tag Manager API endpoints verified and accessible");
+    } else if (allErrors.length > 0) {
+      logger.warn("Some GTM Tag Manager API endpoints may not be accessible", { errors: allErrors });
+    }
+
+    if (accountsResult.accounts.length > 0) {
+      capabilities.accounts = accountsResult.accounts;
+    }
+  } catch (error) {
+    logger.error("GTM Tag Manager API discovery failed", error instanceof Error ? error : new Error(String(error)));
   }
 
   registry.setProductCapabilities("gtm", capabilities);
