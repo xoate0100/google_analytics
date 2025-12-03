@@ -27,7 +27,17 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', '*.config.ts', '*.config.js'],
+    ignores: [
+      'dist/',
+      'node_modules/',
+      'build/',
+      'coverage/',
+      '*.config.ts',
+      '*.config.js',
+      'test/fixtures/',
+      '.vscode/',
+      '.idea/',
+    ],
   },
   {
     files: ['test/**/*', '**/*.test.ts', '**/*.spec.ts'],

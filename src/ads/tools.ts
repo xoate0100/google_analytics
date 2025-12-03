@@ -73,6 +73,120 @@ import { createOperationEnvelope } from "../core/envelope.js";
 import { createPreconditionError } from "../core/errors.js";
 
 /**
+ * Helper: Normalize customer ID format
+ */
+function normalizeCustomerId(customerId: string): string {
+  return customerId.startsWith("customers/")
+    ? customerId
+    : `customers/${customerId}`;
+}
+
+/**
+ * Helper: Escape SQL string for GAQL queries
+ */
+function escapeSqlString(str: string): string {
+  return str.replace(/'/g, "''");
+}
+
+/**
+ * Helper: Extract resource ID from resource name
+ */
+function extractResourceId(resourceName: string | undefined): string | undefined {
+  return resourceName?.split("/").pop();
+}
+
+/**
+ * Helper: Check if campaign exists by ID or name
+ */
+async function findExistingCampaign(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaign?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  campaignId?: string,
+  name?: string
+): Promise<{ id?: string; resourceName?: string } | undefined> {
+  if (campaignId) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT campaign.id, campaign.resource_name FROM campaign WHERE campaign.id = ${campaignId}`,
+    })) as {
+      results?: Array<{
+        campaign?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.campaign;
+  }
+  if (name) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT campaign.id, campaign.resource_name FROM campaign WHERE campaign.name = '${escapeSqlString(name)}'`,
+    })) as {
+      results?: Array<{
+        campaign?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.campaign;
+  }
+  return undefined;
+}
+
+/**
+ * Helper: Build campaign mutation operation
+ */
+function buildCampaignMutationOperation(
+  existingCampaign: { id?: string; resourceName?: string } | undefined,
+  validatedRequest: z.infer<typeof campaignUpsertRequestSchema>,
+  customerId: string
+): Record<string, unknown> {
+  const operation: Record<string, unknown> = {};
+  if (existingCampaign) {
+    operation.update = {
+      resourceName:
+        existingCampaign.resourceName ||
+        `customers/${customerId.replace(/^customers\//, "")}/campaigns/${existingCampaign.id}`,
+      name: validatedRequest.name,
+      status: validatedRequest.status || "ENABLED",
+    };
+    if (validatedRequest.advertisingChannelType) {
+      (operation.update as Record<string, unknown>).advertisingChannelType =
+        validatedRequest.advertisingChannelType;
+    }
+    if (validatedRequest.budget) {
+      (operation.update as Record<string, unknown>).campaignBudget =
+        validatedRequest.budget;
+    }
+  } else {
+    operation.create = {
+      name: validatedRequest.name,
+      status: validatedRequest.status || "ENABLED",
+    };
+    if (validatedRequest.advertisingChannelType) {
+      (operation.create as Record<string, unknown>).advertisingChannelType =
+        validatedRequest.advertisingChannelType;
+    }
+    if (validatedRequest.budget) {
+      (operation.create as Record<string, unknown>).campaignBudget =
+        validatedRequest.budget;
+    }
+  }
+  return operation;
+}
+
+/**
  * Execute API request for GAQL query
  */
 async function executeGAQLQueryAPIRequest(
@@ -88,10 +202,7 @@ async function executeGAQLQueryAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Build query with optional limit
   let query = validatedRequest.query;
@@ -225,10 +336,7 @@ async function executeGAQLBatchAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const results = await Promise.allSettled(
     validatedRequest.queries.map(async (query) => {
@@ -368,10 +476,7 @@ async function executeGAQLStreamAPIRequest(
     };
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const stream = googleAdsClient.searchStream?.({
     customerId,
@@ -570,10 +675,7 @@ async function executeCampaignListAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Build GAQL query
   let query = "SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type FROM campaign";
@@ -713,10 +815,7 @@ async function executeCampaignGetAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const query = `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, campaign.campaign_budget, campaign.bidding_strategy_type FROM campaign WHERE campaign.id = ${validatedRequest.campaignId}`;
 
@@ -866,70 +965,18 @@ async function executeCampaignUpsertAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
-
-  // Check if campaign exists (for idempotency)
-  let existingCampaign: { id?: string; resourceName?: string } | undefined;
-  if (validatedRequest.campaignId) {
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT campaign.id, campaign.resource_name FROM campaign WHERE campaign.id = ${validatedRequest.campaignId}`,
-    })) as {
-      results?: Array<{
-        campaign?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingCampaign = searchResponse.results?.[0]?.campaign;
-  } else {
-    // Check by name for idempotency
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT campaign.id, campaign.resource_name FROM campaign WHERE campaign.name = '${validatedRequest.name.replace(/'/g, "''")}'`,
-    })) as {
-      results?: Array<{
-        campaign?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingCampaign = searchResponse.results?.[0]?.campaign;
-  }
-
-  // Build mutation operation
-  const operation: Record<string, unknown> = {};
-  if (existingCampaign) {
-    // Update existing campaign
-    operation.update = {
-      resourceName: existingCampaign.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/campaigns/${existingCampaign.id}`,
-      name: validatedRequest.name,
-      status: validatedRequest.status || "ENABLED",
-    };
-    if (validatedRequest.advertisingChannelType) {
-      (operation.update as Record<string, unknown>).advertisingChannelType = validatedRequest.advertisingChannelType;
-    }
-    if (validatedRequest.budget) {
-      (operation.update as Record<string, unknown>).campaignBudget = validatedRequest.budget;
-    }
-  } else {
-    // Create new campaign
-    operation.create = {
-      name: validatedRequest.name,
-      status: validatedRequest.status || "ENABLED",
-    };
-    if (validatedRequest.advertisingChannelType) {
-      (operation.create as Record<string, unknown>).advertisingChannelType = validatedRequest.advertisingChannelType;
-    }
-    if (validatedRequest.budget) {
-      (operation.create as Record<string, unknown>).campaignBudget = validatedRequest.budget;
-    }
-  }
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
+  const existingCampaign = await findExistingCampaign(
+    googleAdsClient,
+    customerId,
+    validatedRequest.campaignId,
+    validatedRequest.name
+  );
+  const operation = buildCampaignMutationOperation(
+    existingCampaign,
+    validatedRequest,
+    customerId
+  );
 
   const response = (await googleAdsClient.mutate?.({
     customerId,
@@ -950,8 +997,7 @@ async function executeCampaignUpsertAPIRequest(
     throw new Error("Failed to create/update campaign");
   }
 
-  // Extract campaign ID from resource name
-  const campaignId = result.id || result.resourceName?.split("/").pop();
+  const campaignId = result.id || extractResourceId(result.resourceName);
 
   return {
     campaignId,
@@ -1105,10 +1151,7 @@ async function executeCampaignPauseAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Get campaign resource name
   const searchResponse = (await googleAdsClient.search?.({
@@ -1268,10 +1311,7 @@ async function executeAdGroupListAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Build GAQL query
   let query = "SELECT ad_group.id, ad_group.name, ad_group.status, ad_group.type, ad_group.campaign FROM ad_group";
@@ -1415,10 +1455,7 @@ async function executeAdGroupGetAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const query = `SELECT ad_group.id, ad_group.name, ad_group.status, ad_group.type, ad_group.campaign FROM ad_group WHERE ad_group.id = ${validatedRequest.adGroupId}`;
 
@@ -1568,10 +1605,7 @@ async function executeAdGroupUpsertAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Check if ad group exists (for idempotency)
   let existingAdGroup: { id?: string; resourceName?: string } | undefined;
@@ -1795,10 +1829,7 @@ async function executeKeywordListAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Build GAQL query
   let query = "SELECT ad_group_criterion.criterion_id, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type, ad_group_criterion.cpc_bid_micros FROM ad_group_criterion WHERE ad_group_criterion.type = 'KEYWORD'";
@@ -1961,10 +1992,7 @@ async function executeKeywordUpsertAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const adGroupResourceName = `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/adGroups/${validatedRequest.adGroupId}`;
 
@@ -2201,10 +2229,7 @@ async function executeKeywordDeleteAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Get keyword resource name
   const searchResponse = (await googleAdsClient.search?.({
@@ -2362,10 +2387,7 @@ async function executeConversionListAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Build GAQL query
   let query = "SELECT conversion_action.id, conversion_action.name, conversion_action.type, conversion_action.category, conversion_action.status FROM conversion_action";
@@ -2512,10 +2534,7 @@ async function executeConversionGetAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const query = `SELECT conversion_action.id, conversion_action.name, conversion_action.type, conversion_action.category, conversion_action.status, conversion_action.counting_type, conversion_action.attribution_model, conversion_action.value_settings FROM conversion_action WHERE conversion_action.id = ${validatedRequest.conversionId}`;
 
@@ -2672,10 +2691,7 @@ async function executeConversionUpsertAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Check if conversion exists (for idempotency)
   let existingConversion: { id?: string; resourceName?: string } | undefined;
@@ -2931,10 +2947,7 @@ async function executeConversionDeleteAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Get conversion resource name
   const searchResponse = (await googleAdsClient.search?.({
@@ -3090,10 +3103,7 @@ async function executeConversionOfflineImportAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const conversions = validatedRequest.conversions.map((conv) => ({
     gclid: conv.gclid,
@@ -3273,10 +3283,7 @@ async function executeConversionEnhancedAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Get conversion resource name
   const searchResponse = (await googleAdsClient.search?.({
@@ -3441,10 +3448,7 @@ async function executeAudienceListAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Build GAQL query
   let query = "SELECT user_list.id, user_list.name, user_list.type, user_list.status FROM user_list";
@@ -3595,10 +3599,7 @@ async function executeAudienceGetAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const query = `SELECT user_list.id, user_list.name, user_list.type, user_list.status, user_list.membership_status, user_list.membership_life_span, user_list.description FROM user_list WHERE user_list.id = ${validatedRequest.audienceId}`;
 
@@ -3750,10 +3751,7 @@ async function executeAudienceUpsertAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Check if audience exists (for idempotency)
   let existingAudience: { id?: string; resourceName?: string } | undefined;
@@ -3996,10 +3994,7 @@ async function executeAudienceAttachAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Check if already attached
   const searchResponse = (await googleAdsClient.search?.({
@@ -4181,10 +4176,7 @@ async function executeBudgetListAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const query = "SELECT campaign_budget.id, campaign_budget.name, campaign_budget.amount_micros, campaign_budget.delivery_method, campaign_budget.status FROM campaign_budget";
 
@@ -4322,10 +4314,7 @@ async function executeBudgetGetAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const query = `SELECT campaign_budget.id, campaign_budget.name, campaign_budget.amount_micros, campaign_budget.delivery_method, campaign_budget.status FROM campaign_budget WHERE campaign_budget.id = ${validatedRequest.budgetId}`;
 
@@ -4477,10 +4466,7 @@ async function executeBudgetUpsertAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Check if budget exists (for idempotency)
   let existingBudget: { id?: string; resourceName?: string } | undefined;
@@ -4689,10 +4675,7 @@ async function executeBiddingStrategyListAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const query = "SELECT bidding_strategy.id, bidding_strategy.name, bidding_strategy.type, bidding_strategy.status FROM bidding_strategy";
 
@@ -4834,10 +4817,7 @@ async function executeBiddingStrategyGetAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const query = `SELECT bidding_strategy.id, bidding_strategy.name, bidding_strategy.type, bidding_strategy.status, bidding_strategy.target_cpa.target_cpa_micros, bidding_strategy.target_roas.target_roas, bidding_strategy.target_spend.target_spend_micros FROM bidding_strategy WHERE bidding_strategy.id = ${validatedRequest.strategyId}`;
 
@@ -5001,10 +4981,7 @@ async function executeBiddingStrategyUpsertAPIRequest(
     }>;
   };
 
-  // Normalize customer ID format
-  const customerId = validatedRequest.customerId.startsWith("customers/")
-    ? validatedRequest.customerId
-    : `customers/${validatedRequest.customerId}`;
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Check if strategy exists (for idempotency)
   let existingStrategy: { id?: string; resourceName?: string } | undefined;
