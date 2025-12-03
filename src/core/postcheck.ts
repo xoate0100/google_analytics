@@ -94,6 +94,75 @@ export async function executeRollback(rollback: Rollback): Promise<void> {
 }
 
 /**
+ * Build GA4 property path from envelope
+ */
+function buildGA4PropertyPath(envelope: OperationEnvelope): string | null {
+  if (envelope.target.propertyId) {
+    return `properties/${envelope.target.propertyId}`;
+  }
+  if (envelope.result?.resourceId) {
+    return `properties/${envelope.result.resourceId}`;
+  }
+  return null;
+}
+
+/**
+ * Execute GA4 property delete rollback
+ */
+async function executeGA4PropertyDeleteRollback(
+  propertyPath: string,
+  prevState: { displayName?: string; timeZone?: string },
+  accountId: string | undefined,
+  adminClient: ReturnType<import("../ga4/client.js").GA4Client["getAnalyticsAdminClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  if (prevState.displayName && prevState.timeZone && accountId) {
+    await adminClient.properties.create({
+      requestBody: {
+        displayName: prevState.displayName,
+        timeZone: prevState.timeZone,
+        parent: `accounts/${accountId}`,
+      },
+    });
+    logger.info("GA4 property rollback: recreated property", {
+      opId,
+      property: propertyPath,
+    });
+  }
+}
+
+/**
+ * Execute GA4 property update rollback
+ */
+async function executeGA4PropertyUpdateRollback(
+  propertyPath: string,
+  prevState: { displayName?: string; timeZone?: string },
+  adminClient: ReturnType<import("../ga4/client.js").GA4Client["getAnalyticsAdminClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  const updateMask: string[] = [];
+  if (prevState.displayName) updateMask.push("display_name");
+  if (prevState.timeZone) updateMask.push("time_zone");
+
+  if (updateMask.length > 0 && prevState.displayName && prevState.timeZone) {
+    await adminClient.properties.patch({
+      name: propertyPath,
+      updateMask: updateMask.join(","),
+      requestBody: {
+        displayName: prevState.displayName,
+        timeZone: prevState.timeZone,
+      },
+    });
+    logger.info("GA4 property rollback: restored previous state", {
+      opId,
+      property: propertyPath,
+    });
+  }
+}
+
+/**
  * Create GA4 property rollback action
  * Restores property to previous state if operation fails
  */
@@ -103,11 +172,7 @@ export function createGA4PropertyRollback(
   ga4Client: import("../ga4/client.js").GA4Client,
   logger: import("./types.js").ILogger
 ): Rollback {
-  const propertyPath = envelope.target.propertyId
-    ? `properties/${envelope.target.propertyId}`
-    : envelope.result?.resourceId
-      ? `properties/${envelope.result.resourceId}`
-      : null;
+  const propertyPath = buildGA4PropertyPath(envelope);
 
   if (!propertyPath) {
     return {
@@ -122,45 +187,19 @@ export function createGA4PropertyRollback(
       try {
         await ga4Client.checkRateLimit("ga4", "rollback");
         const adminClient = ga4Client.getAnalyticsAdminClient();
+        const prevState = previousState as { displayName?: string; timeZone?: string };
 
-        const prevState = previousState as { name?: string; displayName?: string; timeZone?: string };
-
-        // Determine rollback type based on operation
         if (envelope.opName.includes("delete")) {
-          // Rollback delete: recreate property
-          if (prevState.displayName && prevState.timeZone && envelope.target.accountId) {
-            await adminClient.properties.create({
-              requestBody: {
-                displayName: prevState.displayName,
-                timeZone: prevState.timeZone,
-                parent: `accounts/${envelope.target.accountId}`,
-              },
-            });
-            logger.info("GA4 property rollback: recreated property", {
-              opId: envelope.opId,
-              property: propertyPath,
-            });
-          }
+          await executeGA4PropertyDeleteRollback(
+            propertyPath,
+            prevState,
+            envelope.target.accountId,
+            adminClient,
+            logger,
+            envelope.opId
+          );
         } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
-          // Rollback update: restore previous state
-          const updateMask: string[] = [];
-          if (prevState.displayName) updateMask.push("display_name");
-          if (prevState.timeZone) updateMask.push("time_zone");
-
-          if (updateMask.length > 0 && prevState.displayName && prevState.timeZone) {
-            await adminClient.properties.patch({
-              name: propertyPath,
-              updateMask: updateMask.join(","),
-              requestBody: {
-                displayName: prevState.displayName,
-                timeZone: prevState.timeZone,
-              },
-            });
-            logger.info("GA4 property rollback: restored previous state", {
-              opId: envelope.opId,
-              property: propertyPath,
-            });
-          }
+          await executeGA4PropertyUpdateRollback(propertyPath, prevState, adminClient, logger, envelope.opId);
         }
       } catch (error) {
         logger.error("GA4 property rollback failed", error instanceof Error ? error : new Error(String(error)), {
@@ -175,15 +214,9 @@ export function createGA4PropertyRollback(
 }
 
 /**
- * Create GA4 data stream rollback action
- * Restores data stream to previous state if operation fails
+ * Build GA4 data stream path from envelope
  */
-export function createGA4DataStreamRollback(
-  envelope: OperationEnvelope,
-  previousState: unknown,
-  ga4Client: import("../ga4/client.js").GA4Client,
-  logger: import("./types.js").ILogger
-): Rollback {
+function buildGA4DataStreamPath(envelope: OperationEnvelope): { propertyPath: string; dataStreamId: string } | null {
   const propertyPath = envelope.target.propertyId
     ? `properties/${envelope.target.propertyId}`
     : envelope.result?.resourceId
@@ -193,6 +226,80 @@ export function createGA4DataStreamRollback(
   const dataStreamId = envelope.result?.resourceId?.split("/dataStreams/")[1] || null;
 
   if (!propertyPath || !dataStreamId) {
+    return null;
+  }
+
+  return { propertyPath, dataStreamId };
+}
+
+/**
+ * Execute GA4 data stream delete rollback
+ */
+async function executeGA4DataStreamDeleteRollback(
+  propertyPath: string,
+  dataStreamId: string,
+  prevState: { displayName?: string; type?: string },
+  adminClient: ReturnType<import("../ga4/client.js").GA4Client["getAnalyticsAdminClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  if (prevState.displayName && prevState.type) {
+    await (adminClient.properties.dataStreams as unknown as { create?: (params: unknown) => Promise<unknown> }).create?.({
+      parent: propertyPath,
+      requestBody: {
+        displayName: prevState.displayName,
+        type: prevState.type,
+      },
+    });
+    logger.info("GA4 data stream rollback: recreated data stream", {
+      opId,
+      dataStream: `${propertyPath}/dataStreams/${dataStreamId}`,
+    });
+  }
+}
+
+/**
+ * Execute GA4 data stream update rollback
+ */
+async function executeGA4DataStreamUpdateRollback(
+  propertyPath: string,
+  dataStreamId: string,
+  prevState: { displayName?: string },
+  adminClient: ReturnType<import("../ga4/client.js").GA4Client["getAnalyticsAdminClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  const updateMask: string[] = [];
+  if (prevState.displayName) updateMask.push("display_name");
+
+  if (updateMask.length > 0) {
+    await (adminClient.properties.dataStreams as unknown as { patch?: (params: unknown) => Promise<unknown> }).patch?.({
+      name: `${propertyPath}/dataStreams/${dataStreamId}`,
+      updateMask: updateMask.join(","),
+      requestBody: {
+        displayName: prevState.displayName,
+      },
+    });
+    logger.info("GA4 data stream rollback: restored previous state", {
+      opId,
+      dataStream: `${propertyPath}/dataStreams/${dataStreamId}`,
+    });
+  }
+}
+
+/**
+ * Create GA4 data stream rollback action
+ * Restores data stream to previous state if operation fails
+ */
+export function createGA4DataStreamRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  ga4Client: import("../ga4/client.js").GA4Client,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const pathInfo = buildGA4DataStreamPath(envelope);
+
+  if (!pathInfo) {
     return {
       needed: false,
       action: null,
@@ -205,48 +312,31 @@ export function createGA4DataStreamRollback(
       try {
         await ga4Client.checkRateLimit("ga4", "rollback");
         const adminClient = ga4Client.getAnalyticsAdminClient();
+        const prevState = previousState as { displayName?: string; type?: string };
 
-        const prevState = previousState as { name?: string; displayName?: string; type?: string };
-
-        // Determine rollback type based on operation
         if (envelope.opName.includes("delete")) {
-          // Rollback delete: recreate data stream
-          if (prevState.displayName && prevState.type) {
-            await (adminClient.properties.dataStreams as unknown as { create?: (params: unknown) => Promise<unknown> }).create?.({
-              parent: propertyPath,
-              requestBody: {
-                displayName: prevState.displayName,
-                type: prevState.type,
-              },
-            });
-            logger.info("GA4 data stream rollback: recreated data stream", {
-              opId: envelope.opId,
-              dataStream: `${propertyPath}/dataStreams/${dataStreamId}`,
-            });
-          }
+          await executeGA4DataStreamDeleteRollback(
+            pathInfo.propertyPath,
+            pathInfo.dataStreamId,
+            prevState,
+            adminClient,
+            logger,
+            envelope.opId
+          );
         } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
-          // Rollback update: restore previous state
-          const updateMask: string[] = [];
-          if (prevState.displayName) updateMask.push("display_name");
-
-          if (updateMask.length > 0) {
-            await (adminClient.properties.dataStreams as unknown as { patch?: (params: unknown) => Promise<unknown> }).patch?.({
-              name: `${propertyPath}/dataStreams/${dataStreamId}`,
-              updateMask: updateMask.join(","),
-              requestBody: {
-                displayName: prevState.displayName,
-              },
-            });
-            logger.info("GA4 data stream rollback: restored previous state", {
-              opId: envelope.opId,
-              dataStream: `${propertyPath}/dataStreams/${dataStreamId}`,
-            });
-          }
+          await executeGA4DataStreamUpdateRollback(
+            pathInfo.propertyPath,
+            pathInfo.dataStreamId,
+            prevState,
+            adminClient,
+            logger,
+            envelope.opId
+          );
         }
       } catch (error) {
         logger.error("GA4 data stream rollback failed", error instanceof Error ? error : new Error(String(error)), {
           opId: envelope.opId,
-          dataStream: `${propertyPath}/dataStreams/${dataStreamId}`,
+          dataStream: `${pathInfo.propertyPath}/dataStreams/${pathInfo.dataStreamId}`,
         });
         throw error;
       }
@@ -345,6 +435,79 @@ export function createGA4ConversionRollback(
 }
 
 /**
+ * Build GTM workspace path from envelope
+ */
+function buildGTMWorkspacePath(envelope: OperationEnvelope): string | null {
+  if (envelope.target.containerId && envelope.target.accountId) {
+    const workspaceId = (envelope.target as { workspaceId?: string }).workspaceId || "default";
+    return `accounts/${envelope.target.accountId}/containers/${envelope.target.containerId}/workspaces/${workspaceId}`;
+  }
+  return null;
+}
+
+/**
+ * Build GTM resource data from previous state
+ */
+function buildGTMResourceData(prevState: { name?: string; type?: string; parameter?: unknown[] }): Record<string, unknown> {
+  const data: Record<string, unknown> = {
+    name: prevState.name,
+    type: prevState.type,
+  };
+  if (prevState.parameter) {
+    data.parameter = prevState.parameter;
+  }
+  return data;
+}
+
+/**
+ * Execute GTM tag delete rollback
+ */
+async function executeGTMTagDeleteRollback(
+  workspacePath: string,
+  tagId: string,
+  prevState: { name?: string; type?: string; parameter?: unknown[] },
+  tagManagerClient: ReturnType<import("../gtm/client.js").GTMClient["getTagManagerClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  if (prevState.name && prevState.type) {
+    const tagData = buildGTMResourceData(prevState);
+    await tagManagerClient.accounts.containers.workspaces.tags.create({
+      parent: workspacePath,
+      requestBody: tagData,
+    });
+    logger.info("GTM tag rollback: recreated tag", {
+      opId,
+      tag: `${workspacePath}/tags/${tagId}`,
+    });
+  }
+}
+
+/**
+ * Execute GTM tag update rollback
+ */
+async function executeGTMTagUpdateRollback(
+  workspacePath: string,
+  tagId: string,
+  prevState: { name?: string; type?: string; parameter?: unknown[] },
+  tagManagerClient: ReturnType<import("../gtm/client.js").GTMClient["getTagManagerClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  if (prevState.name && prevState.type) {
+    const tagData = buildGTMResourceData(prevState);
+    await tagManagerClient.accounts.containers.workspaces.tags.update({
+      path: `${workspacePath}/tags/${tagId}`,
+      requestBody: tagData,
+    });
+    logger.info("GTM tag rollback: restored previous state", {
+      opId,
+      tag: `${workspacePath}/tags/${tagId}`,
+    });
+  }
+}
+
+/**
  * Create GTM tag rollback action
  * Reverts tag to previous version if operation fails
  */
@@ -354,10 +517,7 @@ export function createGTMTagRollback(
   gtmClient: import("../gtm/client.js").GTMClient,
   logger: import("./types.js").ILogger
 ): Rollback {
-  const workspacePath = envelope.target.containerId && envelope.target.accountId
-    ? `accounts/${envelope.target.accountId}/containers/${envelope.target.containerId}/workspaces/${(envelope.target as { workspaceId?: string }).workspaceId || "default"}`
-    : null;
-
+  const workspacePath = buildGTMWorkspacePath(envelope);
   const tagId = envelope.result?.resourceId || null;
 
   if (!workspacePath || !tagId) {
@@ -373,48 +533,12 @@ export function createGTMTagRollback(
       try {
         await gtmClient.checkRateLimit("gtm", "rollback");
         const tagManagerClient = gtmClient.getTagManagerClient();
-
         const prevState = previousState as { name?: string; type?: string; parameter?: unknown[] };
 
-        // Determine rollback type based on operation
         if (envelope.opName.includes("delete")) {
-          // Rollback delete: recreate tag
-          if (prevState.name && prevState.type) {
-            const tagData: Record<string, unknown> = {
-              name: prevState.name,
-              type: prevState.type,
-            };
-            if (prevState.parameter) {
-              tagData.parameter = prevState.parameter;
-            }
-            await tagManagerClient.accounts.containers.workspaces.tags.create({
-              parent: workspacePath,
-              requestBody: tagData,
-            });
-            logger.info("GTM tag rollback: recreated tag", {
-              opId: envelope.opId,
-              tag: `${workspacePath}/tags/${tagId}`,
-            });
-          }
+          await executeGTMTagDeleteRollback(workspacePath, tagId, prevState, tagManagerClient, logger, envelope.opId);
         } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
-          // Rollback update: restore previous state
-          if (prevState.name && prevState.type) {
-            const tagData: Record<string, unknown> = {
-              name: prevState.name,
-              type: prevState.type,
-            };
-            if (prevState.parameter) {
-              tagData.parameter = prevState.parameter;
-            }
-            await tagManagerClient.accounts.containers.workspaces.tags.update({
-              path: `${workspacePath}/tags/${tagId}`,
-              requestBody: tagData,
-            });
-            logger.info("GTM tag rollback: restored previous state", {
-              opId: envelope.opId,
-              tag: `${workspacePath}/tags/${tagId}`,
-            });
-          }
+          await executeGTMTagUpdateRollback(workspacePath, tagId, prevState, tagManagerClient, logger, envelope.opId);
         }
       } catch (error) {
         logger.error("GTM tag rollback failed", error instanceof Error ? error : new Error(String(error)), {
@@ -429,6 +553,54 @@ export function createGTMTagRollback(
 }
 
 /**
+ * Execute GTM trigger delete rollback
+ */
+async function executeGTMTriggerDeleteRollback(
+  workspacePath: string,
+  triggerId: string,
+  prevState: { name?: string; type?: string; parameter?: unknown[] },
+  tagManagerClient: ReturnType<import("../gtm/client.js").GTMClient["getTagManagerClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  if (prevState.name && prevState.type) {
+    const triggerData = buildGTMResourceData(prevState);
+    await tagManagerClient.accounts.containers.workspaces.triggers.create({
+      parent: workspacePath,
+      requestBody: triggerData,
+    });
+    logger.info("GTM trigger rollback: recreated trigger", {
+      opId,
+      trigger: `${workspacePath}/triggers/${triggerId}`,
+    });
+  }
+}
+
+/**
+ * Execute GTM trigger update rollback
+ */
+async function executeGTMTriggerUpdateRollback(
+  workspacePath: string,
+  triggerId: string,
+  prevState: { name?: string; type?: string; parameter?: unknown[] },
+  tagManagerClient: ReturnType<import("../gtm/client.js").GTMClient["getTagManagerClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  if (prevState.name && prevState.type) {
+    const triggerData = buildGTMResourceData(prevState);
+    await tagManagerClient.accounts.containers.workspaces.triggers.update({
+      path: `${workspacePath}/triggers/${triggerId}`,
+      requestBody: triggerData,
+    });
+    logger.info("GTM trigger rollback: restored previous state", {
+      opId,
+      trigger: `${workspacePath}/triggers/${triggerId}`,
+    });
+  }
+}
+
+/**
  * Create GTM trigger rollback action
  * Reverts trigger to previous version if operation fails
  */
@@ -438,10 +610,7 @@ export function createGTMTriggerRollback(
   gtmClient: import("../gtm/client.js").GTMClient,
   logger: import("./types.js").ILogger
 ): Rollback {
-  const workspacePath = envelope.target.containerId && envelope.target.accountId
-    ? `accounts/${envelope.target.accountId}/containers/${envelope.target.containerId}/workspaces/${(envelope.target as { workspaceId?: string }).workspaceId || "default"}`
-    : null;
-
+  const workspacePath = buildGTMWorkspacePath(envelope);
   const triggerId = envelope.result?.resourceId || null;
 
   if (!workspacePath || !triggerId) {
@@ -457,48 +626,12 @@ export function createGTMTriggerRollback(
       try {
         await gtmClient.checkRateLimit("gtm", "rollback");
         const tagManagerClient = gtmClient.getTagManagerClient();
-
         const prevState = previousState as { name?: string; type?: string; parameter?: unknown[] };
 
-        // Determine rollback type based on operation
         if (envelope.opName.includes("delete")) {
-          // Rollback delete: recreate trigger
-          if (prevState.name && prevState.type) {
-            const triggerData: Record<string, unknown> = {
-              name: prevState.name,
-              type: prevState.type,
-            };
-            if (prevState.parameter) {
-              triggerData.parameter = prevState.parameter;
-            }
-            await tagManagerClient.accounts.containers.workspaces.triggers.create({
-              parent: workspacePath,
-              requestBody: triggerData,
-            });
-            logger.info("GTM trigger rollback: recreated trigger", {
-              opId: envelope.opId,
-              trigger: `${workspacePath}/triggers/${triggerId}`,
-            });
-          }
+          await executeGTMTriggerDeleteRollback(workspacePath, triggerId, prevState, tagManagerClient, logger, envelope.opId);
         } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
-          // Rollback update: restore previous state
-          if (prevState.name && prevState.type) {
-            const triggerData: Record<string, unknown> = {
-              name: prevState.name,
-              type: prevState.type,
-            };
-            if (prevState.parameter) {
-              triggerData.parameter = prevState.parameter;
-            }
-            await tagManagerClient.accounts.containers.workspaces.triggers.update({
-              path: `${workspacePath}/triggers/${triggerId}`,
-              requestBody: triggerData,
-            });
-            logger.info("GTM trigger rollback: restored previous state", {
-              opId: envelope.opId,
-              trigger: `${workspacePath}/triggers/${triggerId}`,
-            });
-          }
+          await executeGTMTriggerUpdateRollback(workspacePath, triggerId, prevState, tagManagerClient, logger, envelope.opId);
         }
       } catch (error) {
         logger.error("GTM trigger rollback failed", error instanceof Error ? error : new Error(String(error)), {
@@ -513,6 +646,54 @@ export function createGTMTriggerRollback(
 }
 
 /**
+ * Execute GTM variable delete rollback
+ */
+async function executeGTMVariableDeleteRollback(
+  workspacePath: string,
+  variableId: string,
+  prevState: { name?: string; type?: string; parameter?: unknown[] },
+  tagManagerClient: ReturnType<import("../gtm/client.js").GTMClient["getTagManagerClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  if (prevState.name && prevState.type) {
+    const variableData = buildGTMResourceData(prevState);
+    await tagManagerClient.accounts.containers.workspaces.variables.create({
+      parent: workspacePath,
+      requestBody: variableData,
+    });
+    logger.info("GTM variable rollback: recreated variable", {
+      opId,
+      variable: `${workspacePath}/variables/${variableId}`,
+    });
+  }
+}
+
+/**
+ * Execute GTM variable update rollback
+ */
+async function executeGTMVariableUpdateRollback(
+  workspacePath: string,
+  variableId: string,
+  prevState: { name?: string; type?: string; parameter?: unknown[] },
+  tagManagerClient: ReturnType<import("../gtm/client.js").GTMClient["getTagManagerClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  if (prevState.name && prevState.type) {
+    const variableData = buildGTMResourceData(prevState);
+    await tagManagerClient.accounts.containers.workspaces.variables.update({
+      path: `${workspacePath}/variables/${variableId}`,
+      requestBody: variableData,
+    });
+    logger.info("GTM variable rollback: restored previous state", {
+      opId,
+      variable: `${workspacePath}/variables/${variableId}`,
+    });
+  }
+}
+
+/**
  * Create GTM variable rollback action
  * Reverts variable to previous version if operation fails
  */
@@ -522,10 +703,7 @@ export function createGTMVariableRollback(
   gtmClient: import("../gtm/client.js").GTMClient,
   logger: import("./types.js").ILogger
 ): Rollback {
-  const workspacePath = envelope.target.containerId && envelope.target.accountId
-    ? `accounts/${envelope.target.accountId}/containers/${envelope.target.containerId}/workspaces/${(envelope.target as { workspaceId?: string }).workspaceId || "default"}`
-    : null;
-
+  const workspacePath = buildGTMWorkspacePath(envelope);
   const variableId = envelope.result?.resourceId || null;
 
   if (!workspacePath || !variableId) {
@@ -541,48 +719,12 @@ export function createGTMVariableRollback(
       try {
         await gtmClient.checkRateLimit("gtm", "rollback");
         const tagManagerClient = gtmClient.getTagManagerClient();
-
         const prevState = previousState as { name?: string; type?: string; parameter?: unknown[] };
 
-        // Determine rollback type based on operation
         if (envelope.opName.includes("delete")) {
-          // Rollback delete: recreate variable
-          if (prevState.name && prevState.type) {
-            const variableData: Record<string, unknown> = {
-              name: prevState.name,
-              type: prevState.type,
-            };
-            if (prevState.parameter) {
-              variableData.parameter = prevState.parameter;
-            }
-            await tagManagerClient.accounts.containers.workspaces.variables.create({
-              parent: workspacePath,
-              requestBody: variableData,
-            });
-            logger.info("GTM variable rollback: recreated variable", {
-              opId: envelope.opId,
-              variable: `${workspacePath}/variables/${variableId}`,
-            });
-          }
+          await executeGTMVariableDeleteRollback(workspacePath, variableId, prevState, tagManagerClient, logger, envelope.opId);
         } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
-          // Rollback update: restore previous state
-          if (prevState.name && prevState.type) {
-            const variableData: Record<string, unknown> = {
-              name: prevState.name,
-              type: prevState.type,
-            };
-            if (prevState.parameter) {
-              variableData.parameter = prevState.parameter;
-            }
-            await tagManagerClient.accounts.containers.workspaces.variables.update({
-              path: `${workspacePath}/variables/${variableId}`,
-              requestBody: variableData,
-            });
-            logger.info("GTM variable rollback: restored previous state", {
-              opId: envelope.opId,
-              variable: `${workspacePath}/variables/${variableId}`,
-            });
-          }
+          await executeGTMVariableUpdateRollback(workspacePath, variableId, prevState, tagManagerClient, logger, envelope.opId);
         }
       } catch (error) {
         logger.error("GTM variable rollback failed", error instanceof Error ? error : new Error(String(error)), {

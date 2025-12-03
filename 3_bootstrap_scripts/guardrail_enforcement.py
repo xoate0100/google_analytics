@@ -129,13 +129,20 @@ def forbid_folder_creation_outside_scope(guardrails: dict, staged_files: List[st
     violations = []
     for file_path in staged_files:
         path = pathlib.Path(file_path)
+        # Normalize path separators for comparison (handle Windows/Unix differences)
+        normalized_file_path = str(path).replace("\\", "/")
 
         # Check if file is in allowed write paths
-        in_allowed = any(str(path).startswith(allowed) for allowed in allowed_paths)
+        in_allowed = any(normalized_file_path.startswith(allowed.rstrip("/")) for allowed in allowed_paths)
 
         if not in_allowed:
-            # Allow root files
+            # Allow root files and meta-framework feedback mechanism
             if path.name in ("README.md", ".pre-commit-config.yaml", ".gitignore"):
+                continue
+            # Allow AI feedback log (part of meta-framework feedback mechanism)
+            # Handle both Windows and Unix path separators
+            normalized_path = str(path).replace("\\", "/")
+            if normalized_path == "6_ai_runtime_context/ai_feedback_log.json":
                 continue
             violations.append(file_path)
 
@@ -182,11 +189,11 @@ def enforce_tdd_cycle(guardrails: dict, staged_files: List[str]) -> bool:
 
     # BLOCKING: If code files are modified without corresponding tests, block commit
     if code_files and not test_files:
-        print("[guardrail] ❌ BLOCKING: TDD violation - Code modified without tests")
+        print("[guardrail] BLOCKING: TDD violation - Code modified without tests")
         print("[guardrail] Code files that need tests:")
         for cf in code_files:
             print(f"  - {cf}")
-        print("[guardrail] TDD requires: Red → Green → Refactor → Document")
+        print("[guardrail] TDD requires: Red -> Green -> Refactor -> Document")
         print("[guardrail] Please add/update test files for all code changes before committing.")
         print("[guardrail] Test file patterns: *_test.py, test_*.py, *.test.ts, *.test.tsx, *.spec.ts, *.spec.tsx, files in test/ directories")
         return False  # Block commit

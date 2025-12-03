@@ -1,0 +1,124 @@
+[architecture] BLOCKING: Architecture violations detected:
+  - src\ads\tools.ts:258 SRP violation: Function 'searchResponse' is 164 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:422 SRP violation: Function 'response' is 443 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:865 SRP violation: Function 'response' is 129 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:994 SRP violation: Function 'response' is 150 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:1144 SRP violation: Function 'response' is 162 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:1326 SRP violation: Function 'response' is 137 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:1463 SRP violation: Function 'response' is 129 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:1592 SRP violation: Function 'response' is 141 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:1787 SRP violation: Function 'response' is 159 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:1946 SRP violation: Function 'response' is 175 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:2121 SRP violation: Function 'response' is 158 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:2301 SRP violation: Function 'response' is 133 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:2434 SRP violation: Function 'response' is 135 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:2569 SRP violation: Function 'response' is 147 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:2730 SRP violation: Function 'searchResponse' is 59 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:2789 SRP violation: Function 'response' is 164 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:2973 SRP violation: Function 'response' is 135 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:3108 SRP violation: Function 'response' is 167 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:3295 SRP violation: Function 'response' is 142 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:3437 SRP violation: Function 'response' is 137 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:3574 SRP violation: Function 'response' is 143 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:3781 SRP violation: Function 'response' is 161 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:3978 SRP violation: Function 'response' is 137 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:4115 SRP violation: Function 'response' is 125 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:4240 SRP violation: Function 'response' is 142 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:4433 SRP violation: Function 'response' is 141 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:4574 SRP violation: Function 'response' is 132 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:4706 SRP violation: Function 'response' is 149 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:4869 SRP violation: Function 'searchResponse' is 63 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:4932 SRP violation: Function 'response' is 121 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\transformers\adgroup-transformer.ts:37 SRP violation: Function 'adGroups' is 125 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\transformers\audience-transformer.ts:44 SRP violation: Function 'audiences' is 126 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\transformers\bidding-strategy-transformer.ts:46 SRP violation: Function 'strategies' is 118 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\transformers\budget-transformer.ts:47 SRP violation: Function 'budgets' is 89 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\transformers\campaign-transformer.ts:29 SRP violation: Function 'campaigns' is 188 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\transformers\conversion-transformer.ts:41 SRP violation: Function 'conversions' is 184 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\transformers\gaql-transformer.ts:40 SRP violation: Function 'response' is 118 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\transformers\keyword-transformer.ts:45 SRP violation: Function 'keywords' is 79 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:2120 SRP violation: Function 'response' is 150 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:2270 SRP violation: Function 'response' is 1223 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:3493 SRP violation: Function 'eventCreateRules' is 137 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:3630 SRP violation: Function 'eventCreateRules' is 139 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:3769 SRP violation: Function 'eventCreateRules' is 81 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:3850 SRP violation: Function 'eventCreateRules' is 911 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:4761 SRP violation: Function 'audiences' is 132 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:4893 SRP violation: Function 'audiences' is 143 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:5036 SRP violation: Function 'audiences' is 162 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:5198 SRP violation: Function 'audiences' is 424 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:5622 SRP violation: Function 'googleAdsLinks' is 132 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:5754 SRP violation: Function 'googleAdsLinks' is 138 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:5892 SRP violation: Function 'googleAdsLinks' is 136 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:6028 SRP violation: Function 'googleAdsLinks' is 156 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:6184 SRP violation: Function 'googleAdsLinks' is 111 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:6295 SRP violation: Function 'bigQueryLinks' is 137 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:6432 SRP violation: Function 'bigQueryLinks' is 138 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:6570 SRP violation: Function 'bigQueryLinks' is 154 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:6724 SRP violation: Function 'bigQueryLinks' is 303 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:7027 SRP violation: Function 'response' is 108 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:7135 SRP violation: Function 'response' is 127 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:7262 SRP violation: Function 'response' is 110 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:7372 SRP violation: Function 'response' is 124 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:7609 SRP violation: Function 'response' is 107 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:7716 SRP violation: Function 'response' is 180 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:7896 SRP violation: Function 'response' is 188 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:3887 SRP violation: Function 'response' is 197 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:4084 SRP violation: Function 'response' is 115 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:4199 SRP violation: Function 'response' is 102 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:4309 SRP violation: Function 'response' is 107 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:4428 SRP violation: Function 'response' is 122 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:4550 SRP violation: Function 'response' is 100 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:4671 SRP violation: Function 'response' is 149 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:4820 SRP violation: Function 'response' is 115 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:4979 SRP violation: Function 'response' is 122 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:5134 SRP violation: Function 'response' is 94 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\client.ts:16 ISP violation: Interface 'AdsClientOptions' has 25 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:277 ISP violation: Interface 'FindKeywordOptions' has 2022 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ads\tools.ts:2067 ISP violation: Type 'KeywordUpsertClient' has 1209 properties (>10). Split into smaller, focused types. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\backoff.ts:9 ISP violation: Interface 'BackoffOptions' has 16 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\cache.ts:3 ISP violation: Interface 'with' has 55 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\cache.ts:11 ISP violation: Interface 'CacheEntry' has 55 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\cache.ts:34 ISP violation: Interface 'LRUCacheOptions' has 50 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\cache.ts:48 ISP violation: Interface 'CacheResultWithETag' has 47 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\circuit-breaker.ts:18 ISP violation: Interface 'CircuitBreakerOptions' has 42 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\circuit-breaker.ts:27 ISP violation: Interface 'CircuitStateData' has 39 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\discovery.ts:15 ISP violation: Interface 'DiscoveryOptions' has 115 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\envelope.ts:65 ISP violation: Interface 'CreateEnvelopeOptions' has 48 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\limiter.ts:15 ISP violation: Interface 'ProductLimits' has 45 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\limiter.ts:23 ISP violation: Interface 'TokenBucketLimiterOptions' has 43 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\limiter.ts:32 ISP violation: Interface 'TokenBucket' has 40 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\logger.ts:12 ISP violation: Interface 'PinoLoggerOptions' has 33 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\oauth.ts:13 ISP violation: Interface 'DeviceFlowResult' has 36 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\oauth.ts:25 ISP violation: Interface 'TokenInfo' has 30 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\oauth.ts:35 ISP violation: Interface 'OAuthClientOptions' has 26 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\postcheck.ts:15 ISP violation: Interface 'StateMatchResult' has 233 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\postcheck.ts:32 ISP violation: Interface 'PostcheckOptions' has 229 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\precheck.ts:16 ISP violation: Interface 'PrecheckOptions' has 16 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\token-storage.ts:15 ISP violation: Interface 'StoredCredentials' has 40 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\token-storage.ts:25 ISP violation: Interface 'EncryptedCredentialsFile' has 36 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\token-storage.ts:37 ISP violation: Interface 'TokenStorageOptions' has 32 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:26 ISP violation: Interface 'OperationTarget' has 64 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:38 ISP violation: Interface 'Precheck' has 60 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:48 ISP violation: Interface 'Attempt' has 57 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:60 ISP violation: Interface 'OperationResultStatus' has 52 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:71 ISP violation: Interface 'Postcheck' has 48 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:81 ISP violation: Interface 'Rollback' has 45 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:91 ISP violation: Interface 'OperationEnvelope' has 42 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:115 ISP violation: Interface 'ILogger' has 26 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:127 ISP violation: Interface 'ICache' has 21 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:138 ISP violation: Interface 'RateLimiterState' has 16 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\core\types.ts:147 ISP violation: Interface 'RateLimitResult' has 13 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\client.ts:16 ISP violation: Interface 'GA4ClientOptions' has 20 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\measurement.ts:13 ISP violation: Interface 'MeasurementProtocolClientOptions' has 48 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\measurement.ts:23 ISP violation: Interface 'MeasurementEvent' has 44 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\measurement.ts:31 ISP violation: Interface 'MeasurementRequest' has 42 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\measurement.ts:43 ISP violation: Interface 'ValidationResponse' has 36 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\ga4\tools.ts:135 ISP violation: Interface 'GA4ToolsOptions' has 2810 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\client.ts:15 ISP violation: Interface 'GTMClientOptions' has 16 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\gtm\tools.ts:103 ISP violation: Interface 'GTMToolsOptions' has 1969 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\server\bootstrap.ts:13 ISP violation: Interface 'ToolDefinition' has 37 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\server\bootstrap.ts:23 ISP violation: Interface 'ServerBootstrapOptions' has 33 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+  - src\server\tools.ts:14 ISP violation: Interface 'CoreToolsOptions' has 107 methods/properties (>10). Split into smaller, focused interfaces. See 1_global_standards/SOLID_PRINCIPLES.md
+
+[architecture] Fix violations before committing. See 1_global_standards/SOLID_PRINCIPLES.md for guidance.

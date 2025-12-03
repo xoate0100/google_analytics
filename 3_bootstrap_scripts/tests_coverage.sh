@@ -63,6 +63,41 @@ if [ -d "backend" ]; then
   fi
 fi
 
+# TypeScript project (src/ directory with vitest)
+if [ -f "package.json" ] && [ -d "src" ]; then
+  # Check if vitest is configured
+  if grep -q "vitest" package.json; then
+    echo "[coverage] Running TypeScript project tests with vitest..."
+    # Run tests with coverage - capture output to check if tests passed
+    TEST_OUTPUT=$(pnpm test:coverage 2>&1 || npm run test:coverage 2>&1 || npx vitest run --coverage 2>&1 || echo "")
+    TEST_EXIT_CODE=$?
+
+    # Check if tests passed (look for "passed" in output)
+    if echo "$TEST_OUTPUT" | grep -q "Test Files.*passed\|Tests.*passed"; then
+      # Tests passed - check coverage threshold
+      if [ -f "coverage/coverage-summary.json" ]; then
+        COVERAGE=$(python3 -c "import json; print(json.load(open('coverage/coverage-summary.json'))['total']['lines']['pct'])" 2>/dev/null || echo "0")
+        # Use shared threshold for TypeScript project (or default 90%)
+        THRESHOLD=${SHARED_THRESHOLD:-90}
+        if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l 2>/dev/null || echo "0") )); then
+          echo "[coverage] TypeScript project coverage $COVERAGE% below threshold $THRESHOLD%"
+          if [ "$BLOCK_ON_COVERAGE" = "true" ]; then
+            STATUS=1
+          fi
+        else
+          echo "[coverage] TypeScript project coverage: $COVERAGE% (threshold: $THRESHOLD%)"
+        fi
+      else
+        echo "[coverage] TypeScript project tests passed (coverage report not found, threshold: ${SHARED_THRESHOLD:-90}%)"
+      fi
+    else
+      # Tests failed - this is a real failure
+      echo "[coverage] TypeScript project tests failed"
+      STATUS=1
+    fi
+  fi
+fi
+
 # Frontend (jest/vitest suggested)
 if [ -f "frontend/package.json" ]; then
   if (cd frontend && npm ci --silent && npm test --silent -- --coverage); then

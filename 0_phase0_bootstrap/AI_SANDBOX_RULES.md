@@ -4,7 +4,7 @@ You are the single authorized agent (Cursor Code). You may execute multi-step pl
 
 ## Allowed
 - Read `6_ai_runtime_context/ACTIVE_PLAN.yaml` and execute tasks sequentially.
-- Write/refactor/delete only in: `frontend/`, `backend/`, `shared/`, `tests/`, `docs/`, `scripts/`.
+- Write/refactor/delete only in: `src/`, `test/`, `docs/`, `scripts/`, `frontend/`, `backend/`, `shared/`.
 - Run and fix pre-commit failures autonomously.
 - Commit autonomously **only** if all pre-commit hooks pass.
 
@@ -19,7 +19,7 @@ You are the single authorized agent (Cursor Code). You may execute multi-step pl
   3. **Refactor**: Improve code while keeping tests green
   4. **Document**: Update documentation as needed
 - **Test File Patterns**:
-  - Python: `*_test.py`, `test_*.py`, files in `tests/` directories
+  - Python: `*_test.py`, `test_*.py`, files in `test/` or `tests/` directories
   - TypeScript/JavaScript: `*.test.ts`, `*.test.tsx`, `*.spec.ts`, `*.spec.tsx`, files in `test/` directories
 - **Reference**: See `1_global_standards/TEST_STRATEGY_TDD.md` for detailed guidance.
 

@@ -145,104 +145,310 @@ export interface GA4ToolsOptions {
  * Register all GA4 tools
  * @param options - Tool registration options
  */
-export function registerGA4Tools(options: GA4ToolsOptions): void {
-  const { bootstrap, ga4Client, cache, capabilitiesRegistry, logger } = options;
-
-  logger.info("Registering GA4 tools");
-
-  // Data API tools
+/**
+ * Register Data API tools
+ */
+function registerDataAPITools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerReportRunTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerReportBatchTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerReportPivotTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerRealtimeSnapshotTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Measurement Protocol tools
-  if (options.measurementClient) {
-    registerMeasurementSendTool(bootstrap, options.measurementClient, logger);
-    registerMeasurementValidateTool(bootstrap, options.measurementClient, logger);
-  }
+/**
+ * Register Measurement Protocol tools
+ */
+function registerMeasurementProtocolTools(
+  bootstrap: MCPServerBootstrap,
+  measurementClient: MeasurementProtocolClient,
+  logger: ILogger
+): void {
+  registerMeasurementSendTool(bootstrap, measurementClient, logger);
+  registerMeasurementValidateTool(bootstrap, measurementClient, logger);
+}
 
-  // Admin API tools - Properties
+/**
+ * Register Property management tools
+ */
+function registerPropertyTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerPropertyListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerPropertyGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerPropertyUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerPropertyDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Data Streams
+/**
+ * Register Data Stream tools
+ */
+function registerDataStreamTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerDataStreamListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataStreamGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataStreamUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataStreamDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEnhancedMeasurementGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEnhancedMeasurementUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Custom Dimensions
+/**
+ * Register Custom Dimension tools
+ */
+function registerCustomDimensionTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerCustomDimensionListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerCustomDimensionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerCustomDimensionUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerCustomDimensionDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Custom Metrics
+/**
+ * Register Custom Metric tools
+ */
+function registerCustomMetricTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerCustomMetricListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerCustomMetricGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerCustomMetricUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerCustomMetricDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Events
+/**
+ * Register Event tools
+ */
+function registerEventTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerEventListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEventGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEventUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEventParameterListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEventParameterUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerEventParameterDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Conversions
+/**
+ * Register Conversion tools
+ */
+function registerConversionTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerConversionListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerConversionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerConversionUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerConversionDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Audiences
+/**
+ * Register Audience tools
+ */
+function registerAudienceTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerAudienceListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerAudienceGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerAudienceUpsertTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerAudienceDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Attribution
+/**
+ * Register Attribution tools
+ */
+function registerAttributionTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerAttributionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerAttributionUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Google Ads Integration
+/**
+ * Register Google Ads Integration tools
+ */
+function registerGoogleAdsIntegrationTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerGoogleAdsIntegrationListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerGoogleAdsIntegrationGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerGoogleAdsIntegrationCreateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerGoogleAdsIntegrationUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerGoogleAdsIntegrationDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - BigQuery Integration
+/**
+ * Register BigQuery Integration tools
+ */
+function registerBigQueryIntegrationTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerBigQueryIntegrationListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerBigQueryIntegrationGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerBigQueryIntegrationCreateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerBigQueryIntegrationDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Property Settings
+/**
+ * Register Property Settings tools
+ */
+function registerPropertySettingsTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerPropertySettingsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerPropertySettingsUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Google Signals
+/**
+ * Register Google Signals tools
+ */
+function registerGoogleSignalsTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerGoogleSignalsGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerGoogleSignalsUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Data Retention
+/**
+ * Register Data Retention tools
+ */
+function registerDataRetentionTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerDataRetentionGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataRetentionUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
 
-  // Admin API tools - Data Filters
+/**
+ * Register Data Filter tools
+ */
+function registerDataFilterTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerDataFilterListTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataFilterGetTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataFilterCreateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataFilterUpdateTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
   registerDataFilterDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
+
+export function registerGA4Tools(options: GA4ToolsOptions): void {
+  const { bootstrap, ga4Client, cache, capabilitiesRegistry, logger } = options;
+
+  logger.info("Registering GA4 tools");
+
+  // Data API tools
+  registerDataAPITools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Measurement Protocol tools
+  if (options.measurementClient) {
+    registerMeasurementProtocolTools(bootstrap, options.measurementClient, logger);
+  }
+
+  // Admin API tools - Properties
+  registerPropertyTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Data Streams
+  registerDataStreamTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Custom Dimensions
+  registerCustomDimensionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Custom Metrics
+  registerCustomMetricTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Events
+  registerEventTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Conversions
+  registerConversionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Audiences
+  registerAudienceTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Attribution
+  registerAttributionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Google Ads Integration
+  registerGoogleAdsIntegrationTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - BigQuery Integration
+  registerBigQueryIntegrationTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Property Settings
+  registerPropertySettingsTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Google Signals
+  registerGoogleSignalsTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Data Retention
+  registerDataRetentionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+
+  // Admin API tools - Data Filters
+  registerDataFilterTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   logger.info("GA4 tools registered");
 }
@@ -2228,16 +2434,11 @@ function registerEnhancedMeasurementGetTool(
 }
 
 /**
- * Execute API request to update enhanced measurement settings
+ * Build enhanced measurement settings data object
  */
-async function executeEnhancedMeasurementUpdateAPIRequest(
-  streamName: string,
-  settings: z.infer<typeof enhancedMeasurementUpdateRequestSchema>,
-  ga4Client: GA4Client
-): Promise<z.infer<typeof enhancedMeasurementUpdateResponseSchema>> {
-  await ga4Client.checkRateLimit("ga4", "updateEnhancedMeasurementSettings");
-  const adminClient = ga4Client.getAnalyticsAdminClient();
-
+function buildEnhancedMeasurementSettingsData(
+  settings: z.infer<typeof enhancedMeasurementUpdateRequestSchema>
+): Record<string, unknown> {
   const settingsData: Record<string, unknown> = {};
   if (settings.streamEnabled !== undefined) {
     settingsData.streamEnabled = settings.streamEnabled;
@@ -2266,6 +2467,21 @@ async function executeEnhancedMeasurementUpdateAPIRequest(
   if (settings.pageViewsEnabled !== undefined) {
     settingsData.pageViewsEnabled = settings.pageViewsEnabled;
   }
+  return settingsData;
+}
+
+/**
+ * Execute API request to update enhanced measurement settings
+ */
+async function executeEnhancedMeasurementUpdateAPIRequest(
+  streamName: string,
+  settings: z.infer<typeof enhancedMeasurementUpdateRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof enhancedMeasurementUpdateResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "updateEnhancedMeasurementSettings");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+
+  const settingsData = buildEnhancedMeasurementSettingsData(settings);
 
   const response = (await (
     adminClient.properties.dataStreams as {
@@ -5160,6 +5376,70 @@ function registerAudienceUpsertTool(
 }
 
 /**
+ * Check if audience exists and get audiences API client
+ */
+async function checkAudienceExists(
+  audienceName: string,
+  ga4Client: GA4Client
+): Promise<{
+  get: (params: { name: string }) => Promise<{ data?: unknown }>;
+  archive: (params: { name: string }) => Promise<unknown>;
+}> {
+  await ga4Client.checkRateLimit("ga4", "audience.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const audiences = (
+    adminClient.properties as {
+      audiences?: {
+        get: (params: { name: string }) => Promise<{ data?: unknown }>;
+        archive: (params: { name: string }) => Promise<unknown>;
+      };
+    }
+  ).audiences;
+
+  if (!audiences) {
+    throw createPreconditionError("not_found", "Audiences API not available", {
+      audience: audienceName,
+    });
+  }
+
+  try {
+    await audiences.get({ name: audienceName });
+  } catch {
+    throw createPreconditionError("not_found", "Audience not found", {
+      audience: audienceName,
+    });
+  }
+
+  return audiences;
+}
+
+/**
+ * Archive audience (GA4 uses archive, not delete)
+ */
+async function archiveAudience(
+  audienceName: string,
+  audiences: {
+    archive: (params: { name: string }) => Promise<unknown>;
+  },
+  ga4Client: GA4Client,
+  logger: ILogger
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "audience.archive");
+  try {
+    await audiences.archive({
+      name: audienceName,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Audience archive failed", error);
+    } else {
+      logger.error("Audience archive failed", new Error(String(error)));
+    }
+    throw error;
+  }
+}
+
+/**
  * Execute audience delete operation (archive)
  */
 async function executeAudienceDelete(
@@ -5192,48 +5472,9 @@ async function executeAudienceDelete(
     );
   }
 
-  // Pre-check: verify audience exists
-  await ga4Client.checkRateLimit("ga4", "audience.get");
-  const adminClient = ga4Client.getAnalyticsAdminClient();
-  const audiences = (
-    adminClient.properties as {
-      audiences?: {
-        get: (params: { name: string }) => Promise<{ data?: unknown }>;
-        archive: (params: { name: string }) => Promise<unknown>;
-      };
-    }
-  ).audiences;
+  const audiences = await checkAudienceExists(validatedRequest.name, ga4Client);
+  await archiveAudience(validatedRequest.name, audiences, ga4Client, logger);
 
-  if (!audiences) {
-    throw createPreconditionError("not_found", "Audiences API not available", {
-      audience: validatedRequest.name,
-    });
-  }
-
-  try {
-    await audiences.get({ name: validatedRequest.name });
-  } catch {
-    throw createPreconditionError("not_found", "Audience not found", {
-      audience: validatedRequest.name,
-    });
-  }
-
-  // Archive audience (GA4 uses archive, not delete)
-  await ga4Client.checkRateLimit("ga4", "audience.archive");
-  try {
-    await audiences.archive({
-      name: validatedRequest.name,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Audience archive failed", error);
-    } else {
-      logger.error("Audience archive failed", new Error(String(error)));
-    }
-    throw error;
-  }
-
-  // Invalidate cache
   const cacheKey = `ga4:audience:${validatedRequest.name}`;
   await cache.delete(cacheKey);
 
@@ -6686,6 +6927,69 @@ function registerBigQueryIntegrationCreateTool(
 }
 
 /**
+ * Check if BigQuery link exists and get BigQuery links API client
+ */
+async function checkBigQueryLinkExists(
+  linkName: string,
+  ga4Client: GA4Client
+): Promise<{
+  delete: (params: { name: string }) => Promise<unknown>;
+}> {
+  await ga4Client.checkRateLimit("ga4", "integration.bigquery.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const bigQueryLinks = (
+    adminClient.properties as unknown as {
+      bigQueryLinks?: {
+        get: (params: { name: string }) => Promise<{ data?: unknown }>;
+        delete: (params: { name: string }) => Promise<unknown>;
+      };
+    }
+  ).bigQueryLinks;
+
+  if (!bigQueryLinks) {
+    throw createPreconditionError("not_found", "BigQuery links API not available", {
+      link: linkName,
+    });
+  }
+
+  try {
+    await bigQueryLinks.get({ name: linkName });
+  } catch {
+    throw createPreconditionError("not_found", "BigQuery link not found", {
+      link: linkName,
+    });
+  }
+
+  return bigQueryLinks;
+}
+
+/**
+ * Delete BigQuery link
+ */
+async function deleteBigQueryLink(
+  linkName: string,
+  bigQueryLinks: {
+    delete: (params: { name: string }) => Promise<unknown>;
+  },
+  ga4Client: GA4Client,
+  logger: ILogger
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "integration.bigquery.delete");
+  try {
+    await bigQueryLinks.delete({
+      name: linkName,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("BigQuery link delete failed", error);
+    } else {
+      logger.error("BigQuery link delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+}
+
+/**
  * Execute BigQuery integration delete operation with rollback
  */
 async function executeBigQueryIntegrationDelete(
@@ -6718,48 +7022,9 @@ async function executeBigQueryIntegrationDelete(
     );
   }
 
-  // Pre-check: verify link exists
-  await ga4Client.checkRateLimit("ga4", "integration.bigquery.get");
-  const adminClient = ga4Client.getAnalyticsAdminClient();
-  const bigQueryLinks = (
-    adminClient.properties as unknown as {
-      bigQueryLinks?: {
-        get: (params: { name: string }) => Promise<{ data?: unknown }>;
-        delete: (params: { name: string }) => Promise<unknown>;
-      };
-    }
-  ).bigQueryLinks;
+  const bigQueryLinks = await checkBigQueryLinkExists(validatedRequest.name, ga4Client);
+  await deleteBigQueryLink(validatedRequest.name, bigQueryLinks, ga4Client, logger);
 
-  if (!bigQueryLinks) {
-    throw createPreconditionError("not_found", "BigQuery links API not available", {
-      link: validatedRequest.name,
-    });
-  }
-
-  try {
-    await bigQueryLinks.get({ name: validatedRequest.name });
-  } catch {
-    throw createPreconditionError("not_found", "BigQuery link not found", {
-      link: validatedRequest.name,
-    });
-  }
-
-  // Delete link
-  await ga4Client.checkRateLimit("ga4", "integration.bigquery.delete");
-  try {
-    await bigQueryLinks.delete({
-      name: validatedRequest.name,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("BigQuery link delete failed", error);
-    } else {
-      logger.error("BigQuery link delete failed", new Error(String(error)));
-    }
-    throw error;
-  }
-
-  // Invalidate cache
   const cacheKey = `ga4:bigQueryLink:${validatedRequest.name}`;
   await cache.delete(cacheKey);
 

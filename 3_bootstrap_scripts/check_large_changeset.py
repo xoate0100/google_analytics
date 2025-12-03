@@ -60,7 +60,7 @@ def main():
     count, modified, untracked = get_files_since_last_commit()
 
     if count > WARN_THRESHOLD:
-        print(f"[large-changeset] ⚠️  WARNING: {count} files changed since last commit (threshold: {WARN_THRESHOLD})")
+        print(f"[large-changeset] WARNING: {count} files changed since last commit (threshold: {WARN_THRESHOLD})")
         print(f"[large-changeset] Consider committing incrementally to avoid large uncommitted changesets.")
         print(f"[large-changeset] Modified files: {len(modified)}")
         print(f"[large-changeset] Untracked files: {len(untracked)}")

@@ -85,6 +85,8 @@ repos:
         name: Commit Message Validator
         entry: 3_bootstrap_scripts/commit_validator.sh
         language: system
+        pass_filenames: false
+        always_run: true
 
       - id: large-changeset-warning
         name: Large Changeset Warning

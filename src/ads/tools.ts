@@ -9,6 +9,42 @@ import type { AdsClient } from "./client.js";
 import type { ILogger, ICache } from "../core/types.js";
 import type { ICapabilitiesRegistry } from "../core/types.js";
 import {
+  buildGAQLQueryWithLimit,
+  transformGAQLQueryResponse,
+  processGAQLBatchQuery,
+  transformGAQLBatchSettledResults,
+} from "./transformers/gaql-transformer.js";
+import {
+  transformCampaignListResponse,
+  transformCampaignGetResponse,
+  transformCampaignUpsertResponse,
+  transformCampaignPauseResponse,
+} from "./transformers/campaign-transformer.js";
+import {
+  transformAdGroupListResponse,
+  transformAdGroupGetResponse,
+  transformAdGroupUpsertResponse,
+} from "./transformers/adgroup-transformer.js";
+import {
+  transformKeywordListResponse,
+  transformKeywordUpsertResponse,
+  transformKeywordDeleteResponse,
+} from "./transformers/keyword-transformer.js";
+import {
+  transformConversionListResponse,
+  transformConversionGetResponse,
+  transformConversionUpsertResponse,
+  transformConversionDeleteResponse,
+  transformConversionOfflineImportResponse,
+  transformConversionEnhancedResponse,
+} from "./transformers/conversion-transformer.js";
+import {
+  transformAudienceListResponse,
+  transformAudienceGetResponse,
+  transformAudienceUpsertResponse,
+  transformAudienceAttachResponse,
+} from "./transformers/audience-transformer.js";
+import {
   gaqlQueryRequestSchema,
   gaqlQueryResponseSchema,
   gaqlBatchRequestSchema,
@@ -88,12 +124,6 @@ function escapeSqlString(str: string): string {
   return str.replace(/'/g, "''");
 }
 
-/**
- * Helper: Extract resource ID from resource name
- */
-function extractResourceId(resourceName: string | undefined): string | undefined {
-  return resourceName?.split("/").pop();
-}
 
 /**
  * Helper: Check if campaign exists by ID or name
@@ -153,6 +183,88 @@ function buildAdGroupResourceName(customerId: string, adGroupId: string): string
 }
 
 /**
+ * Helper: Find existing keyword by ID
+ */
+async function findExistingKeywordById(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        adGroupCriterion?: {
+          criterion?: {
+            id?: string;
+            resourceName?: string;
+          };
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  keywordId: string
+): Promise<{ id?: string; resourceName?: string } | undefined> {
+  const searchResponse = (await googleAdsClient.search?.({
+    customerId,
+    query: `SELECT ad_group_criterion.criterion_id, ad_group_criterion.resource_name FROM ad_group_criterion WHERE ad_group_criterion.criterion_id = ${keywordId}`,
+  })) as {
+    results?: Array<{
+      adGroupCriterion?: {
+        criterion?: {
+          id?: string;
+          resourceName?: string;
+        };
+      };
+    }>;
+  };
+  return searchResponse.results?.[0]?.adGroupCriterion?.criterion;
+}
+
+/**
+ * Helper: Find existing keyword by text and match type
+ */
+async function findExistingKeywordByText(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        adGroupCriterion?: {
+          criterion?: {
+            id?: string;
+            resourceName?: string;
+          };
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  text: string,
+  matchType: string,
+  adGroupResourceName: string
+): Promise<{ id?: string; resourceName?: string } | undefined> {
+  const searchResponse = (await googleAdsClient.search?.({
+    customerId,
+    query: `SELECT ad_group_criterion.criterion_id, ad_group_criterion.resource_name FROM ad_group_criterion WHERE ad_group_criterion.keyword.text = '${escapeSqlString(text)}' AND ad_group_criterion.keyword.match_type = '${matchType}' AND ad_group_criterion.ad_group = '${adGroupResourceName}'`,
+  })) as {
+    results?: Array<{
+      adGroupCriterion?: {
+        criterion?: {
+          id?: string;
+          resourceName?: string;
+        };
+      };
+    }>;
+  };
+  return searchResponse.results?.[0]?.adGroupCriterion?.criterion;
+}
+
+/**
+ * Helper: Find existing keyword search options
+ */
+interface FindKeywordOptions {
+  keywordId?: string | undefined;
+  text?: string | undefined;
+  matchType?: string | undefined;
+  adGroupResourceName?: string | undefined;
+}
+
+/**
  * Helper: Find existing keyword by ID or text+matchType
  */
 async function findExistingKeyword(
@@ -169,45 +281,20 @@ async function findExistingKeyword(
     }>;
   },
   customerId: string,
-  keywordId?: string,
-  text?: string,
-  matchType?: string,
-  adGroupResourceName?: string
+  options: FindKeywordOptions
 ): Promise<{ id?: string; resourceName?: string } | undefined> {
-  if (keywordId) {
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT ad_group_criterion.criterion_id, ad_group_criterion.resource_name FROM ad_group_criterion WHERE ad_group_criterion.criterion_id = ${keywordId}`,
-    })) as {
-      results?: Array<{
-        adGroupCriterion?: {
-          criterion?: {
-            id?: string;
-            resourceName?: string;
-          };
-        };
-      }>;
-    };
-    return searchResponse.results?.[0]?.adGroupCriterion?.criterion;
+  if (options.keywordId) {
+    return findExistingKeywordById(googleAdsClient, customerId, options.keywordId);
   }
-
-  if (text && matchType && adGroupResourceName) {
-    const searchResponse = (await googleAdsClient.search?.({
+  if (options.text && options.matchType && options.adGroupResourceName) {
+    return findExistingKeywordByText(
+      googleAdsClient,
       customerId,
-      query: `SELECT ad_group_criterion.criterion_id, ad_group_criterion.resource_name FROM ad_group_criterion WHERE ad_group_criterion.keyword.text = '${escapeSqlString(text)}' AND ad_group_criterion.keyword.match_type = '${matchType}' AND ad_group_criterion.ad_group = '${adGroupResourceName}'`,
-    })) as {
-      results?: Array<{
-        adGroupCriterion?: {
-          criterion?: {
-            id?: string;
-            resourceName?: string;
-          };
-        };
-      }>;
-    };
-    return searchResponse.results?.[0]?.adGroupCriterion?.criterion;
+      options.text,
+      options.matchType,
+      options.adGroupResourceName
+    );
   }
-
   return undefined;
 }
 
@@ -313,10 +400,7 @@ async function executeGAQLQueryAPIRequest(
   const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   // Build query with optional limit
-  let query = validatedRequest.query;
-  if (validatedRequest.limit && !query.toUpperCase().includes("LIMIT")) {
-    query = `${query} LIMIT ${validatedRequest.limit}`;
-  }
+  const query = buildGAQLQueryWithLimit(validatedRequest.query, validatedRequest.limit);
 
   const response = (await googleAdsClient.search?.({
     customerId,
@@ -328,11 +412,7 @@ async function executeGAQLQueryAPIRequest(
     requestId?: string;
   };
 
-  return {
-    results: (response.results || []) as z.infer<typeof gaqlQueryResponseSchema>["results"],
-    fieldMask: response.fieldMask,
-    requestId: response.requestId,
-  };
+  return transformGAQLQueryResponse(response);
 }
 
 /**
@@ -447,39 +527,13 @@ async function executeGAQLBatchAPIRequest(
   const customerId = normalizeCustomerId(validatedRequest.customerId);
 
   const results = await Promise.allSettled(
-    validatedRequest.queries.map(async (query) => {
-      try {
-        const response = (await googleAdsClient.search?.({
-          customerId,
-          query,
-        })) as {
-          results?: unknown[];
-          fieldMask?: string;
-          requestId?: string;
-        };
-
-        return {
-          query,
-          result: {
-            results: (response.results || []) as z.infer<typeof gaqlQueryResponseSchema>["results"],
-            fieldMask: response.fieldMask,
-            requestId: response.requestId,
-          },
-        };
-      } catch (error) {
-        return {
-          query,
-          result: {
-            results: [],
-          },
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
-    })
+    validatedRequest.queries.map((query) =>
+      processGAQLBatchQuery(googleAdsClient, customerId, query)
+    )
   );
 
   return {
-    results: results.map((r) => (r.status === "fulfilled" ? r.value : { query: "", result: { results: [] }, error: String(r.reason) })),
+    results: transformGAQLBatchSettledResults(results),
   };
 }
 
@@ -805,14 +859,7 @@ async function executeCampaignListAPIRequest(
     }>;
   };
 
-  const campaigns = (response.results || []).map((r) => ({
-    campaignId: r.campaign?.id,
-    name: r.campaign?.name,
-    status: r.campaign?.status as "ENABLED" | "PAUSED" | "REMOVED" | undefined,
-    advertisingChannelType: r.campaign?.advertisingChannelType,
-  }));
-
-  return { campaigns };
+  return transformCampaignListResponse(response);
 }
 
 /**
@@ -943,20 +990,11 @@ async function executeCampaignGetAPIRequest(
     }>;
   };
 
-  const campaign = response.results?.[0]?.campaign;
-
-  if (!campaign) {
+  const result = transformCampaignGetResponse(response);
+  if (!result.campaignId) {
     throw new Error(`Campaign ${validatedRequest.campaignId} not found`);
   }
-
-  return {
-    campaignId: campaign.id,
-    name: campaign.name,
-    status: campaign.status as "ENABLED" | "PAUSED" | "REMOVED" | undefined,
-    advertisingChannelType: campaign.advertisingChannelType,
-    budget: campaign.budget,
-    biddingStrategy: campaign.biddingStrategy,
-  };
+  return result;
 }
 
 /**
@@ -1100,21 +1138,7 @@ async function executeCampaignUpsertAPIRequest(
     }>;
   };
 
-  const result = response.results?.[0]?.campaign;
-  if (!result) {
-    throw new Error("Failed to create/update campaign");
-  }
-
-  const campaignId = result.id || extractResourceId(result.resourceName);
-
-  return {
-    campaignId,
-    name: result.name,
-    status: result.status as "ENABLED" | "PAUSED" | "REMOVED" | undefined,
-    advertisingChannelType: validatedRequest.advertisingChannelType,
-    budget: validatedRequest.budget,
-    biddingStrategy: validatedRequest.biddingStrategy,
-  };
+  return transformCampaignUpsertResponse(response, validatedRequest);
 }
 
 /**
@@ -1301,15 +1325,7 @@ async function executeCampaignPauseAPIRequest(
     }>;
   };
 
-  const result = response.results?.[0]?.campaign;
-  if (!result) {
-    throw new Error("Failed to pause campaign");
-  }
-
-  return {
-    campaignId: result.id || validatedRequest.campaignId,
-    status: "PAUSED" as const,
-  };
+  return transformCampaignPauseResponse(response, validatedRequest.campaignId);
 }
 
 /**
@@ -1442,18 +1458,7 @@ async function executeAdGroupListAPIRequest(
     }>;
   };
 
-  const adGroups = (response.results || []).map((r) => {
-    const campaignId = r.adGroup?.campaign?.split("/").pop();
-    return {
-      adGroupId: r.adGroup?.id,
-      name: r.adGroup?.name,
-      status: r.adGroup?.status as "ENABLED" | "PAUSED" | "REMOVED" | undefined,
-      type: r.adGroup?.type,
-      campaignId,
-    };
-  });
-
-  return { adGroups };
+  return transformAdGroupListResponse(response);
 }
 
 /**
@@ -1582,21 +1587,11 @@ async function executeAdGroupGetAPIRequest(
     }>;
   };
 
-  const adGroup = response.results?.[0]?.adGroup;
-
-  if (!adGroup) {
+  const result = transformAdGroupGetResponse(response);
+  if (!result.adGroupId) {
     throw new Error(`Ad Group ${validatedRequest.adGroupId} not found`);
   }
-
-  const campaignId = adGroup.campaign?.split("/").pop();
-
-  return {
-    adGroupId: adGroup.id,
-    name: adGroup.name,
-    status: adGroup.status as "ENABLED" | "PAUSED" | "REMOVED" | undefined,
-    type: adGroup.type,
-    campaignId,
-  };
+  return result;
 }
 
 /**
@@ -1786,21 +1781,7 @@ async function executeAdGroupUpsertAPIRequest(
     }>;
   };
 
-  const result = response.results?.[0]?.adGroup;
-  if (!result) {
-    throw new Error("Failed to create/update ad group");
-  }
-
-  // Extract ad group ID from resource name
-  const adGroupId = result.id || result.resourceName?.split("/").pop();
-
-  return {
-    adGroupId,
-    name: result.name,
-    status: result.status as "ENABLED" | "PAUSED" | "REMOVED" | undefined,
-    type: validatedRequest.type,
-    campaignId: validatedRequest.campaignId,
-  };
+  return transformAdGroupUpsertResponse(response, validatedRequest);
 }
 
 /**
@@ -1965,19 +1946,7 @@ async function executeKeywordListAPIRequest(
     }>;
   };
 
-  const keywords = (response.results || []).map((r) => {
-    const cpcBidMicros = r.adGroupCriterion?.cpcBid?.micros;
-    const cpcBid = cpcBidMicros ? parseFloat(cpcBidMicros) / 1000000 : undefined;
-    return {
-      keywordId: r.adGroupCriterion?.criterion?.id,
-      text: r.adGroupCriterion?.criterion?.keyword?.text,
-      matchType: r.adGroupCriterion?.criterion?.keyword?.matchType as "EXACT" | "PHRASE" | "BROAD" | undefined,
-      cpcBid,
-      negative: false,
-    };
-  });
-
-  return { keywords };
+  return transformKeywordListResponse(response);
 }
 
 /**
@@ -2076,31 +2045,6 @@ function convertCpcBidToMicros(cpcBid?: number): string | undefined {
 }
 
 /**
- * Helper: Extract keyword response data
- */
-function extractKeywordResponse(
-  result: {
-    resourceName?: string;
-    criterion?: {
-      id?: string;
-      keyword?: {
-        text?: string;
-        matchType?: string;
-      };
-    };
-  },
-  validatedRequest: z.infer<typeof keywordUpsertRequestSchema>
-): z.infer<typeof keywordUpsertResponseSchema> {
-  const keywordId = result.criterion?.id || extractResourceId(result.resourceName);
-  return {
-    keywordId,
-    text: result.criterion?.keyword?.text || validatedRequest.text,
-    matchType: result.criterion?.keyword?.matchType as "EXACT" | "PHRASE" | "BROAD" | undefined || validatedRequest.matchType,
-    cpcBid: validatedRequest.cpcBid,
-  };
-}
-
-/**
  * Helper: Get keyword upsert Google Ads client
  */
 type KeywordUpsertClient = {
@@ -2142,14 +2086,12 @@ async function executeKeywordUpsertAPIRequest(
   const googleAdsClient = getKeywordUpsertClient(adsClient);
   const customerId = normalizeCustomerId(validatedRequest.customerId);
   const adGroupResourceName = buildAdGroupResourceName(customerId, validatedRequest.adGroupId);
-  const existingKeyword = await findExistingKeyword(
-    googleAdsClient,
-    customerId,
-    validatedRequest.keywordId,
-    validatedRequest.text,
-    validatedRequest.matchType,
-    adGroupResourceName
-  );
+  const existingKeyword = await findExistingKeyword(googleAdsClient, customerId, {
+    keywordId: validatedRequest.keywordId,
+    text: validatedRequest.text,
+    matchType: validatedRequest.matchType,
+    adGroupResourceName,
+  });
   const cpcBidMicros = convertCpcBidToMicros(validatedRequest.cpcBid);
   const operation = buildKeywordMutationOperation(
     existingKeyword,
@@ -2177,12 +2119,11 @@ async function executeKeywordUpsertAPIRequest(
     }>;
   };
 
-  const result = response.results?.[0]?.adGroupCriterion;
-  if (!result) {
-    throw new Error("Failed to create/update keyword");
-  }
-
-  return extractKeywordResponse(result, validatedRequest);
+  return transformKeywordUpsertResponse(response, {
+    text: validatedRequest.text,
+    matchType: validatedRequest.matchType,
+    ...(validatedRequest.cpcBid !== undefined && { cpcBid: validatedRequest.cpcBid }),
+  });
 }
 
 /**
@@ -2359,15 +2300,7 @@ async function executeKeywordDeleteAPIRequest(
     }>;
   };
 
-  const result = response.results?.[0]?.adGroupCriterion;
-  if (!result) {
-    throw new Error("Failed to delete keyword");
-  }
-
-  return {
-    keywordId: validatedRequest.keywordId,
-    deleted: true,
-  };
+  return transformKeywordDeleteResponse(response, validatedRequest.keywordId);
 }
 
 /**
@@ -2500,15 +2433,7 @@ async function executeConversionListAPIRequest(
     }>;
   };
 
-  const conversions = (response.results || []).map((r) => ({
-    conversionId: r.conversionAction?.id,
-    name: r.conversionAction?.name,
-    type: r.conversionAction?.type,
-    category: r.conversionAction?.category,
-    status: r.conversionAction?.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
-  }));
-
-  return { conversions };
+  return transformConversionListResponse(response);
 }
 
 /**
@@ -2649,22 +2574,11 @@ async function executeConversionGetAPIRequest(
     }>;
   };
 
-  const conversion = response.results?.[0]?.conversionAction;
-
-  if (!conversion) {
+  const result = transformConversionGetResponse(response);
+  if (!result.conversionId) {
     throw new Error(`Conversion ${validatedRequest.conversionId} not found`);
   }
-
-  return {
-    conversionId: conversion.id,
-    name: conversion.name,
-    type: conversion.type as "WEBPAGE" | "APP" | "PHONE_CALL" | "IMPORT" | "GOOGLE_ANALYTICS" | undefined,
-    category: conversion.category as z.infer<typeof conversionGetResponseSchema>["category"],
-    status: conversion.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
-    countingType: conversion.countingType as "ONE_PER_CLICK" | "MANY_PER_CLICK" | undefined,
-    attributionModel: conversion.attributionModel as "DATA_DRIVEN" | "LAST_CLICK" | "FIRST_CLICK" | "LINEAR" | "TIME_DECAY" | "POSITION_BASED" | undefined,
-    valueSettings: conversion.valueSettings,
-  };
+  return result;
 }
 
 /**
@@ -2873,24 +2787,46 @@ async function executeConversionUpsertAPIRequest(
     }>;
   };
 
-  const result = response.results?.[0]?.conversionAction;
-  if (!result) {
-    throw new Error("Failed to create/update conversion action");
+  // Build request object with only defined properties (exactOptionalPropertyTypes)
+  const requestData: {
+    type?: string;
+    category?: string;
+    countingType?: string;
+    attributionModel?: string;
+    valueSettings?: {
+      defaultValue?: number;
+      alwaysUseDefaultValue?: boolean;
+    };
+  } = {};
+  if (validatedRequest.type !== undefined && validatedRequest.type !== null) {
+    requestData.type = validatedRequest.type;
+  }
+  if (validatedRequest.category !== undefined && validatedRequest.category !== null) {
+    requestData.category = validatedRequest.category;
+  }
+  if (validatedRequest.countingType !== undefined && validatedRequest.countingType !== null) {
+    requestData.countingType = validatedRequest.countingType;
+  }
+  if (validatedRequest.attributionModel !== undefined && validatedRequest.attributionModel !== null) {
+    requestData.attributionModel = validatedRequest.attributionModel;
+  }
+  if (validatedRequest.valueSettings !== undefined && validatedRequest.valueSettings !== null) {
+    const valueSettings: {
+      defaultValue?: number;
+      alwaysUseDefaultValue?: boolean;
+    } = {};
+    if (validatedRequest.valueSettings.defaultValue !== undefined && validatedRequest.valueSettings.defaultValue !== null) {
+      valueSettings.defaultValue = validatedRequest.valueSettings.defaultValue;
+    }
+    if (validatedRequest.valueSettings.alwaysUseDefaultValue !== undefined && validatedRequest.valueSettings.alwaysUseDefaultValue !== null) {
+      valueSettings.alwaysUseDefaultValue = validatedRequest.valueSettings.alwaysUseDefaultValue;
+    }
+    if (Object.keys(valueSettings).length > 0) {
+      requestData.valueSettings = valueSettings;
+    }
   }
 
-  // Extract conversion ID from resource name
-  const conversionId = result.id || result.resourceName?.split("/").pop();
-
-  return {
-    conversionId,
-    name: result.name,
-    status: result.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
-    type: validatedRequest.type,
-    category: validatedRequest.category,
-    countingType: validatedRequest.countingType,
-    attributionModel: validatedRequest.attributionModel,
-    valueSettings: validatedRequest.valueSettings,
-  };
+  return transformConversionUpsertResponse(response, requestData);
 }
 
 /**
@@ -3075,15 +3011,7 @@ async function executeConversionDeleteAPIRequest(
     }>;
   };
 
-  const result = response.results?.[0]?.conversionAction;
-  if (!result) {
-    throw new Error("Failed to delete conversion action");
-  }
-
-  return {
-    conversionId: validatedRequest.conversionId,
-    deleted: true,
-  };
+  return transformConversionDeleteResponse(response, validatedRequest.conversionId);
 }
 
 /**
@@ -3220,13 +3148,7 @@ async function executeConversionOfflineImportAPIRequest(
     };
   };
 
-  const imported = response.results?.length || 0;
-  const errors = response.partialFailureError?.errors?.map((e) => e.message || "Unknown error") || [];
-
-  return {
-    imported,
-    errors: errors.length > 0 ? errors : undefined,
-  };
+  return transformConversionOfflineImportResponse(response);
 }
 
 /**
@@ -3416,15 +3338,7 @@ async function executeConversionEnhancedAPIRequest(
     }>;
   };
 
-  const result = response.results?.[0]?.conversionAction;
-  if (!result) {
-    throw new Error("Failed to configure enhanced conversions");
-  }
-
-  return {
-    conversionId: result.id || validatedRequest.conversionId,
-    enabled: result.enhancedConversionsForLeadsEnabled || validatedRequest.enabled,
-  };
+  return transformConversionEnhancedResponse(response, validatedRequest.conversionId, validatedRequest.enabled);
 }
 
 /**
@@ -3566,17 +3480,7 @@ async function executeAudienceListAPIRequest(
     }>;
   };
 
-  const audiences = (response.results || []).map((r) => {
-    const audience = r.audience || r.userList;
-    return {
-      audienceId: audience?.id,
-      name: audience?.name,
-      type: audience?.type,
-      status: audience?.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
-    };
-  });
-
-  return { audiences };
+  return transformAudienceListResponse(response);
 }
 
 /**
@@ -3710,21 +3614,11 @@ async function executeAudienceGetAPIRequest(
     }>;
   };
 
-  const audience = response.results?.[0]?.userList;
-
-  if (!audience) {
+  const result = transformAudienceGetResponse(response);
+  if (!result.audienceId) {
     throw new Error(`Audience ${validatedRequest.audienceId} not found`);
   }
-
-  return {
-    audienceId: audience.id,
-    name: audience.name,
-    type: audience.type as "USER_LIST" | "CUSTOMER_MATCH_USER_LIST" | "BASIC_USER_LIST" | "LOGICAL_USER_LIST" | "SIMILAR_USER_LIST" | undefined,
-    status: audience.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
-    membershipStatus: audience.membershipStatus as "OPEN" | "CLOSED" | undefined,
-    membershipLifeSpan: audience.membershipLifeSpan,
-    description: audience.description,
-  };
+  return result;
 }
 
 /**
@@ -3924,23 +3818,12 @@ async function executeAudienceUpsertAPIRequest(
     }>;
   };
 
-  const result = response.results?.[0]?.userList;
-  if (!result) {
-    throw new Error("Failed to create/update audience");
-  }
-
-  // Extract audience ID from resource name
-  const audienceId = result.id || result.resourceName?.split("/").pop();
-
-  return {
-    audienceId,
-    name: result.name,
-    status: result.status as "ENABLED" | "REMOVED" | "HIDDEN" | undefined,
-    type: validatedRequest.type,
-    membershipStatus: validatedRequest.membershipStatus,
-    membershipLifeSpan: validatedRequest.membershipLifeSpan,
-    description: validatedRequest.description,
-  };
+  return transformAudienceUpsertResponse(response, {
+    ...(validatedRequest.type !== undefined && { type: validatedRequest.type }),
+    ...(validatedRequest.membershipStatus !== undefined && { membershipStatus: validatedRequest.membershipStatus }),
+    ...(validatedRequest.membershipLifeSpan !== undefined && { membershipLifeSpan: validatedRequest.membershipLifeSpan }),
+    ...(validatedRequest.description !== undefined && { description: validatedRequest.description }),
+  });
 }
 
 /**
@@ -4137,17 +4020,11 @@ async function executeAudienceAttachAPIRequest(
     }>;
   };
 
-  const result = response.results?.[0]?.campaignAudience;
-  if (!result) {
-    throw new Error("Failed to attach audience to campaign");
-  }
-
-  return {
+  return transformAudienceAttachResponse(response, {
     campaignId: validatedRequest.campaignId,
     audienceId: validatedRequest.audienceId,
-    attached: true,
-    bidModifier: result.bidModifier || validatedRequest.bidModifier,
-  };
+    ...(validatedRequest.bidModifier !== undefined && { bidModifier: validatedRequest.bidModifier }),
+  });
 }
 
 /**

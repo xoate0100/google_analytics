@@ -112,71 +112,196 @@ export interface GTMToolsOptions {
  * Register all GTM tools
  * @param options - Tool registration options
  */
-export function registerGTMTools(options: GTMToolsOptions): void {
-  const { bootstrap, gtmClient, cache, capabilitiesRegistry, logger } = options;
-
-  // Container tools
+/**
+ * Register container tools
+ */
+function registerContainerTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerContainerListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerContainerGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerContainerUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerContainerDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
 
-  // Workspace tools
+/**
+ * Register workspace tools
+ */
+function registerWorkspaceTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerWorkspaceListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerWorkspaceGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerWorkspaceCreateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerWorkspaceMergeTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
 
-  // Tag tools
+/**
+ * Register tag tools
+ */
+function registerTagTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerTagListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTagGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTagUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTagDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
 
-  // Trigger tools
+/**
+ * Register trigger tools
+ */
+function registerTriggerTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerTriggerListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTriggerGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTriggerUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTriggerDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
 
-  // Variable tools
+/**
+ * Register variable tools
+ */
+function registerVariableTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerVariableListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerVariableGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerVariableUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerVariableDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerBuiltinVariableListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerBuiltinVariableEnableTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
 
-  // Data layer tools
+/**
+ * Register data layer tools
+ */
+function registerDataLayerTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerDataLayerValidateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerDataLayerSchemaGenerateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerDataLayerMonitorTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerDataLayerEventsListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
 
-  // Folder tools
+/**
+ * Register folder tools
+ */
+function registerFolderTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerFolderListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerFolderGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerFolderUpsertTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerFolderDeleteTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
 
-  // Version tools
+/**
+ * Register version tools
+ */
+function registerVersionTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerVersionListTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerVersionGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerVersionCreateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerVersionRestoreTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
 
-  // Publish and preview tools
+/**
+ * Register publish and preview tools
+ */
+function registerPublishPreviewTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerWorkspacePublishTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerPreviewCreateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerPreviewGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
 
-  // Consent mode tools
+/**
+ * Register consent mode tools
+ */
+function registerConsentModeTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerConsentConfigureTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerConsentGetTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
 
-  // Tag sequencing and priority tools
+/**
+ * Register tag sequencing and priority tools
+ */
+function registerTagSequencingTools(
+  bootstrap: MCPServerBootstrap,
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
   registerTagSequenceUpdateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
   registerTagPriorityUpdateTool(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+}
+
+/**
+ * Register all GTM tools
+ */
+export function registerGTMTools(options: GTMToolsOptions): void {
+  const { bootstrap, gtmClient, cache, capabilitiesRegistry, logger } = options;
+
+  registerContainerTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerWorkspaceTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerTagTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerTriggerTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerVariableTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerDataLayerTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerFolderTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerVersionTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerPublishPreviewTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerConsentModeTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
+  registerTagSequencingTools(bootstrap, gtmClient, cache, capabilitiesRegistry, logger);
 }
 
 /**
@@ -245,6 +370,48 @@ async function executeContainerList(
 }
 
 /**
+ * Get container list tool input schema
+ */
+function getContainerListToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Account ID in format accounts/123456",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create container list tool handler
+ */
+function createContainerListToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof containerListResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeContainerList(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.container.list failed", error);
+      } else {
+        logger.error("gtm.container.list failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.container.list tool
  */
 function registerContainerListTool(
@@ -257,28 +424,8 @@ function registerContainerListTool(
   bootstrap.registerTool({
     name: "gtm.container.list",
     description: "List GTM containers for an account",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Account ID in format accounts/123456",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeContainerList(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.container.list failed", error);
-        } else {
-          logger.error("gtm.container.list failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getContainerListToolSchema(),
+    handler: createContainerListToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -373,6 +520,49 @@ async function executeContainerGet(
 }
 
 /**
+ * Get container get tool input schema
+ */
+function getContainerGetToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Container path in format accounts/123456/containers/987654",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create container get tool handler
+ */
+function createContainerGetToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof containerGetResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeContainerGet(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.container.get failed", error);
+      } else {
+        logger.error("gtm.container.get failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.container.get tool
  */
 function registerContainerGetTool(
@@ -385,28 +575,8 @@ function registerContainerGetTool(
   bootstrap.registerTool({
     name: "gtm.container.get",
     description: "Get GTM container details by container path",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Container path in format accounts/123456/containers/987654",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeContainerGet(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.container.get failed", error);
-        } else {
-          logger.error("gtm.container.get failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getContainerGetToolSchema(),
+    handler: createContainerGetToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -511,6 +681,79 @@ async function executeContainerUpsert(
 }
 
 /**
+ * Get container upsert tool input schema
+ */
+function getContainerUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Account ID in format accounts/123456",
+      },
+      name: {
+        type: "string",
+        description: "Container name",
+      },
+      domainName: {
+        type: "array",
+        items: {
+          type: "string",
+        },
+        description: "List of domain names",
+      },
+      timeZoneCountryId: {
+        type: "string",
+        description: "Time zone country ID",
+      },
+      timeZoneId: {
+        type: "string",
+        description: "Time zone ID",
+      },
+      usageContext: {
+        type: "array",
+        items: {
+          type: "string",
+        },
+        description: "Usage context (WEB, ANDROID, IOS)",
+      },
+      containerId: {
+        type: "string",
+        description: "Container ID for updates (optional)",
+      },
+    },
+    required: ["parent", "name"],
+  };
+}
+
+/**
+ * Create container upsert tool handler
+ */
+function createContainerUpsertToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof containerUpsertResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeContainerUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.container.upsert failed", error);
+      } else {
+        logger.error("gtm.container.upsert failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.container.upsert tool
  */
 function registerContainerUpsertTool(
@@ -523,58 +766,8 @@ function registerContainerUpsertTool(
   bootstrap.registerTool({
     name: "gtm.container.upsert",
     description: "Create or update GTM container",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Account ID in format accounts/123456",
-        },
-        name: {
-          type: "string",
-          description: "Container name",
-        },
-        domainName: {
-          type: "array",
-          items: {
-            type: "string",
-          },
-          description: "List of domain names",
-        },
-        timeZoneCountryId: {
-          type: "string",
-          description: "Time zone country ID",
-        },
-        timeZoneId: {
-          type: "string",
-          description: "Time zone ID",
-        },
-        usageContext: {
-          type: "array",
-          items: {
-            type: "string",
-          },
-          description: "Usage context (WEB, ANDROID, IOS)",
-        },
-        containerId: {
-          type: "string",
-          description: "Container ID for updates (optional)",
-        },
-      },
-      required: ["parent", "name"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeContainerUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.container.upsert failed", error);
-        } else {
-          logger.error("gtm.container.upsert failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getContainerUpsertToolSchema(),
+    handler: createContainerUpsertToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -653,6 +846,49 @@ async function executeContainerDelete(
 }
 
 /**
+ * Get container delete tool input schema
+ */
+function getContainerDeleteToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Container path in format accounts/123456/containers/987654",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create container delete tool handler
+ */
+function createContainerDeleteToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof containerDeleteResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeContainerDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.container.delete failed", error);
+      } else {
+        logger.error("gtm.container.delete failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.container.delete tool
  */
 function registerContainerDeleteTool(
@@ -665,28 +901,8 @@ function registerContainerDeleteTool(
   bootstrap.registerTool({
     name: "gtm.container.delete",
     description: "Delete GTM container",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Container path in format accounts/123456/containers/987654",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeContainerDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.container.delete failed", error);
-        } else {
-          logger.error("gtm.container.delete failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getContainerDeleteToolSchema(),
+    handler: createContainerDeleteToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -759,6 +975,48 @@ async function executeWorkspaceList(
 }
 
 /**
+ * Get workspace list tool input schema
+ */
+function getWorkspaceListToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Container path in format accounts/123456/containers/987654",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create workspace list tool handler
+ */
+function createWorkspaceListToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof workspaceListResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeWorkspaceList(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.workspace.list failed", error);
+      } else {
+        logger.error("gtm.workspace.list failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.workspace.list tool
  */
 function registerWorkspaceListTool(
@@ -771,28 +1029,8 @@ function registerWorkspaceListTool(
   bootstrap.registerTool({
     name: "gtm.workspace.list",
     description: "List GTM workspaces for a container",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Container path in format accounts/123456/containers/987654",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeWorkspaceList(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.workspace.list failed", error);
-        } else {
-          logger.error("gtm.workspace.list failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getWorkspaceListToolSchema(),
+    handler: createWorkspaceListToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -887,6 +1125,49 @@ async function executeWorkspaceGet(
 }
 
 /**
+ * Get workspace get tool input schema
+ */
+function getWorkspaceGetToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create workspace get tool handler
+ */
+function createWorkspaceGetToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof workspaceGetResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeWorkspaceGet(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.workspace.get failed", error);
+      } else {
+        logger.error("gtm.workspace.get failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.workspace.get tool
  */
 function registerWorkspaceGetTool(
@@ -899,28 +1180,8 @@ function registerWorkspaceGetTool(
   bootstrap.registerTool({
     name: "gtm.workspace.get",
     description: "Get GTM workspace details by workspace path",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeWorkspaceGet(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.workspace.get failed", error);
-        } else {
-          logger.error("gtm.workspace.get failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getWorkspaceGetToolSchema(),
+    handler: createWorkspaceGetToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -1004,6 +1265,57 @@ async function executeWorkspaceCreate(
 }
 
 /**
+ * Get workspace create tool input schema
+ */
+function getWorkspaceCreateToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Container path in format accounts/123456/containers/987654",
+      },
+      name: {
+        type: "string",
+        description: "Workspace name",
+      },
+      description: {
+        type: "string",
+        description: "Workspace description",
+      },
+    },
+    required: ["parent", "name"],
+  };
+}
+
+/**
+ * Create workspace create tool handler
+ */
+function createWorkspaceCreateToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof workspaceCreateResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeWorkspaceCreate(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.workspace.create failed", error);
+      } else {
+        logger.error("gtm.workspace.create failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.workspace.create tool
  */
 function registerWorkspaceCreateTool(
@@ -1016,36 +1328,8 @@ function registerWorkspaceCreateTool(
   bootstrap.registerTool({
     name: "gtm.workspace.create",
     description: "Create GTM workspace",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Container path in format accounts/123456/containers/987654",
-        },
-        name: {
-          type: "string",
-          description: "Workspace name",
-        },
-        description: {
-          type: "string",
-          description: "Workspace description",
-        },
-      },
-      required: ["parent", "name"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeWorkspaceCreate(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.workspace.create failed", error);
-        } else {
-          logger.error("gtm.workspace.create failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getWorkspaceCreateToolSchema(),
+    handler: createWorkspaceCreateToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -1154,6 +1438,53 @@ async function executeWorkspaceMerge(
 }
 
 /**
+ * Get workspace merge tool input schema
+ */
+function getWorkspaceMergeToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Target workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+      sourceWorkspacePath: {
+        type: "string",
+        description: "Source workspace path in format accounts/123456/containers/987654/workspaces/222222",
+      },
+    },
+    required: ["path", "sourceWorkspacePath"],
+  };
+}
+
+/**
+ * Create workspace merge tool handler
+ */
+function createWorkspaceMergeToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof workspaceMergeResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeWorkspaceMerge(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.workspace.merge failed", error);
+      } else {
+        logger.error("gtm.workspace.merge failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.workspace.merge tool
  */
 function registerWorkspaceMergeTool(
@@ -1166,32 +1497,8 @@ function registerWorkspaceMergeTool(
   bootstrap.registerTool({
     name: "gtm.workspace.merge",
     description: "Merge source workspace into target workspace with conflict resolution",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Target workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-        sourceWorkspacePath: {
-          type: "string",
-          description: "Source workspace path in format accounts/123456/containers/987654/workspaces/222222",
-        },
-      },
-      required: ["path", "sourceWorkspacePath"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeWorkspaceMerge(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.workspace.merge failed", error);
-        } else {
-          logger.error("gtm.workspace.merge failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getWorkspaceMergeToolSchema(),
+    handler: createWorkspaceMergeToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -1264,6 +1571,48 @@ async function executeTagList(
 }
 
 /**
+ * Get tag list tool input schema
+ */
+function getTagListToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create tag list tool handler
+ */
+function createTagListToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof tagListResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeTagList(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.tag.list failed", error);
+      } else {
+        logger.error("gtm.tag.list failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.tag.list tool
  */
 function registerTagListTool(
@@ -1276,28 +1625,8 @@ function registerTagListTool(
   bootstrap.registerTool({
     name: "gtm.tag.list",
     description: "List GTM tags for a workspace",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeTagList(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.tag.list failed", error);
-        } else {
-          logger.error("gtm.tag.list failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getTagListToolSchema(),
+    handler: createTagListToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -1392,6 +1721,49 @@ async function executeTagGet(
 }
 
 /**
+ * Get tag get tool input schema
+ */
+function getTagGetToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/222222",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create tag get tool handler
+ */
+function createTagGetToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof tagGetResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeTagGet(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.tag.get failed", error);
+      } else {
+        logger.error("gtm.tag.get failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.tag.get tool
  */
 function registerTagGetTool(
@@ -1404,28 +1776,8 @@ function registerTagGetTool(
   bootstrap.registerTool({
     name: "gtm.tag.get",
     description: "Get GTM tag details by tag path",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/222222",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeTagGet(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.tag.get failed", error);
-        } else {
-          logger.error("gtm.tag.get failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getTagGetToolSchema(),
+    handler: createTagGetToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -1530,6 +1882,83 @@ async function executeTagUpsert(
 }
 
 /**
+ * Get tag upsert tool input schema
+ */
+function getTagUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+      name: {
+        type: "string",
+        description: "Tag name",
+      },
+      type: {
+        type: "string",
+        description: "Tag type (e.g., GOOGLE_ANALYTICS_GA4_CONFIGURATION)",
+      },
+      parameter: {
+        type: "array",
+        description: "Tag parameters",
+      },
+      firingTriggerId: {
+        type: "array",
+        items: {
+          type: "string",
+        },
+        description: "Firing trigger IDs",
+      },
+      blockingTriggerId: {
+        type: "array",
+        items: {
+          type: "string",
+        },
+        description: "Blocking trigger IDs",
+      },
+      tagFiringOption: {
+        type: "string",
+        description: "Tag firing option",
+      },
+      tagId: {
+        type: "string",
+        description: "Tag ID for updates (optional)",
+      },
+    },
+    required: ["parent", "name", "type"],
+  };
+}
+
+/**
+ * Create tag upsert tool handler
+ */
+function createTagUpsertToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof tagUpsertResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeTagUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.tag.upsert failed", error);
+      } else {
+        logger.error("gtm.tag.upsert failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.tag.upsert tool
  */
 function registerTagUpsertTool(
@@ -1542,62 +1971,8 @@ function registerTagUpsertTool(
   bootstrap.registerTool({
     name: "gtm.tag.upsert",
     description: "Create or update GTM tag with firing rules and sequencing",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-        name: {
-          type: "string",
-          description: "Tag name",
-        },
-        type: {
-          type: "string",
-          description: "Tag type (e.g., GOOGLE_ANALYTICS_GA4_CONFIGURATION)",
-        },
-        parameter: {
-          type: "array",
-          description: "Tag parameters",
-        },
-        firingTriggerId: {
-          type: "array",
-          items: {
-            type: "string",
-          },
-          description: "Firing trigger IDs",
-        },
-        blockingTriggerId: {
-          type: "array",
-          items: {
-            type: "string",
-          },
-          description: "Blocking trigger IDs",
-        },
-        tagFiringOption: {
-          type: "string",
-          description: "Tag firing option",
-        },
-        tagId: {
-          type: "string",
-          description: "Tag ID for updates (optional)",
-        },
-      },
-      required: ["parent", "name", "type"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeTagUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.tag.upsert failed", error);
-        } else {
-          logger.error("gtm.tag.upsert failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getTagUpsertToolSchema(),
+    handler: createTagUpsertToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -1676,6 +2051,49 @@ async function executeTagDelete(
 }
 
 /**
+ * Get tag delete tool input schema
+ */
+function getTagDeleteToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/222222",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create tag delete tool handler
+ */
+function createTagDeleteToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof tagDeleteResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeTagDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.tag.delete failed", error);
+      } else {
+        logger.error("gtm.tag.delete failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.tag.delete tool
  */
 function registerTagDeleteTool(
@@ -1688,28 +2106,8 @@ function registerTagDeleteTool(
   bootstrap.registerTool({
     name: "gtm.tag.delete",
     description: "Delete GTM tag",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/222222",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeTagDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.tag.delete failed", error);
-        } else {
-          logger.error("gtm.tag.delete failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getTagDeleteToolSchema(),
+    handler: createTagDeleteToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -1782,6 +2180,48 @@ async function executeTriggerList(
 }
 
 /**
+ * Get trigger list tool input schema
+ */
+function getTriggerListToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create trigger list tool handler
+ */
+function createTriggerListToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof triggerListResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeTriggerList(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.trigger.list failed", error);
+      } else {
+        logger.error("gtm.trigger.list failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.trigger.list tool
  */
 function registerTriggerListTool(
@@ -1794,28 +2234,8 @@ function registerTriggerListTool(
   bootstrap.registerTool({
     name: "gtm.trigger.list",
     description: "List GTM triggers for a workspace",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeTriggerList(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.trigger.list failed", error);
-        } else {
-          logger.error("gtm.trigger.list failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getTriggerListToolSchema(),
+    handler: createTriggerListToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -1910,6 +2330,49 @@ async function executeTriggerGet(
 }
 
 /**
+ * Get trigger get tool input schema
+ */
+function getTriggerGetToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Trigger path in format accounts/123456/containers/987654/workspaces/111111/triggers/333333",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create trigger get tool handler
+ */
+function createTriggerGetToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof triggerGetResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeTriggerGet(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.trigger.get failed", error);
+      } else {
+        logger.error("gtm.trigger.get failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.trigger.get tool
  */
 function registerTriggerGetTool(
@@ -1922,28 +2385,8 @@ function registerTriggerGetTool(
   bootstrap.registerTool({
     name: "gtm.trigger.get",
     description: "Get GTM trigger details by trigger path",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Trigger path in format accounts/123456/containers/987654/workspaces/111111/triggers/333333",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeTriggerGet(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.trigger.get failed", error);
-        } else {
-          logger.error("gtm.trigger.get failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getTriggerGetToolSchema(),
+    handler: createTriggerGetToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -2045,6 +2488,73 @@ async function executeTriggerUpsert(
 }
 
 /**
+ * Get trigger upsert tool input schema
+ */
+function getTriggerUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+      name: {
+        type: "string",
+        description: "Trigger name",
+      },
+      type: {
+        type: "string",
+        description: "Trigger type (e.g., PAGEVIEW, CLICK, CUSTOM_EVENT, TIMER, FORM)",
+      },
+      parameter: {
+        type: "array",
+        description: "Trigger parameters",
+      },
+      customEventFilter: {
+        type: "array",
+        description: "Custom event filters",
+      },
+      autoEventFilter: {
+        type: "array",
+        description: "Auto event filters",
+      },
+      triggerId: {
+        type: "string",
+        description: "Trigger ID for updates (optional)",
+      },
+    },
+    required: ["parent", "name", "type"],
+  };
+}
+
+/**
+ * Create trigger upsert tool handler
+ */
+function createTriggerUpsertToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof triggerUpsertResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeTriggerUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.trigger.upsert failed", error);
+      } else {
+        logger.error("gtm.trigger.upsert failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.trigger.upsert tool
  */
 function registerTriggerUpsertTool(
@@ -2057,52 +2567,8 @@ function registerTriggerUpsertTool(
   bootstrap.registerTool({
     name: "gtm.trigger.upsert",
     description: "Create or update GTM trigger with condition and filter support",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-        name: {
-          type: "string",
-          description: "Trigger name",
-        },
-        type: {
-          type: "string",
-          description: "Trigger type (e.g., PAGEVIEW, CLICK, CUSTOM_EVENT, TIMER, FORM)",
-        },
-        parameter: {
-          type: "array",
-          description: "Trigger parameters",
-        },
-        customEventFilter: {
-          type: "array",
-          description: "Custom event filters",
-        },
-        autoEventFilter: {
-          type: "array",
-          description: "Auto event filters",
-        },
-        triggerId: {
-          type: "string",
-          description: "Trigger ID for updates (optional)",
-        },
-      },
-      required: ["parent", "name", "type"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeTriggerUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.trigger.upsert failed", error);
-        } else {
-          logger.error("gtm.trigger.upsert failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getTriggerUpsertToolSchema(),
+    handler: createTriggerUpsertToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -2183,6 +2649,49 @@ async function executeTriggerDelete(
 }
 
 /**
+ * Get trigger delete tool input schema
+ */
+function getTriggerDeleteToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Trigger path in format accounts/123456/containers/987654/workspaces/111111/triggers/333333",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create trigger delete tool handler
+ */
+function createTriggerDeleteToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof triggerDeleteResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeTriggerDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.trigger.delete failed", error);
+      } else {
+        logger.error("gtm.trigger.delete failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.trigger.delete tool
  */
 function registerTriggerDeleteTool(
@@ -2195,28 +2704,8 @@ function registerTriggerDeleteTool(
   bootstrap.registerTool({
     name: "gtm.trigger.delete",
     description: "Delete GTM trigger",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Trigger path in format accounts/123456/containers/987654/workspaces/111111/triggers/333333",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeTriggerDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.trigger.delete failed", error);
-        } else {
-          logger.error("gtm.trigger.delete failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getTriggerDeleteToolSchema(),
+    handler: createTriggerDeleteToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -2289,6 +2778,48 @@ async function executeVariableList(
 }
 
 /**
+ * Get variable list tool input schema
+ */
+function getVariableListToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create variable list tool handler
+ */
+function createVariableListToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof variableListResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeVariableList(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.variable.list failed", error);
+      } else {
+        logger.error("gtm.variable.list failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.variable.list tool
  */
 function registerVariableListTool(
@@ -2301,28 +2832,8 @@ function registerVariableListTool(
   bootstrap.registerTool({
     name: "gtm.variable.list",
     description: "List GTM variables for a workspace",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeVariableList(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.variable.list failed", error);
-        } else {
-          logger.error("gtm.variable.list failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getVariableListToolSchema(),
+    handler: createVariableListToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -2417,6 +2928,49 @@ async function executeVariableGet(
 }
 
 /**
+ * Get variable get tool input schema
+ */
+function getVariableGetToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Variable path in format accounts/123456/containers/987654/workspaces/111111/variables/444444",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create variable get tool handler
+ */
+function createVariableGetToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof variableGetResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeVariableGet(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.variable.get failed", error);
+      } else {
+        logger.error("gtm.variable.get failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.variable.get tool
  */
 function registerVariableGetTool(
@@ -2429,28 +2983,8 @@ function registerVariableGetTool(
   bootstrap.registerTool({
     name: "gtm.variable.get",
     description: "Get GTM variable details by variable path",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Variable path in format accounts/123456/containers/987654/workspaces/111111/variables/444444",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeVariableGet(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.variable.get failed", error);
-        } else {
-          logger.error("gtm.variable.get failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getVariableGetToolSchema(),
+    handler: createVariableGetToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -2549,6 +3083,69 @@ async function executeVariableUpsert(
 }
 
 /**
+ * Get variable upsert tool input schema
+ */
+function getVariableUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+      name: {
+        type: "string",
+        description: "Variable name",
+      },
+      type: {
+        type: "string",
+        description: "Variable type (e.g., v, cjs, u, c, lookupTable)",
+      },
+      parameter: {
+        type: "array",
+        description: "Variable parameters",
+      },
+      formatValue: {
+        type: "object",
+        description: "Format value configuration",
+      },
+      variableId: {
+        type: "string",
+        description: "Variable ID for updates (optional)",
+      },
+    },
+    required: ["parent", "name", "type"],
+  };
+}
+
+/**
+ * Create variable upsert tool handler
+ */
+function createVariableUpsertToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof variableUpsertResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeVariableUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.variable.upsert failed", error);
+      } else {
+        logger.error("gtm.variable.upsert failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.variable.upsert tool
  */
 function registerVariableUpsertTool(
@@ -2561,48 +3158,8 @@ function registerVariableUpsertTool(
   bootstrap.registerTool({
     name: "gtm.variable.upsert",
     description: "Create or update GTM variable (data layer, custom JS, URL, constant, lookup tables)",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-        name: {
-          type: "string",
-          description: "Variable name",
-        },
-        type: {
-          type: "string",
-          description: "Variable type (e.g., v, cjs, u, c, lookupTable)",
-        },
-        parameter: {
-          type: "array",
-          description: "Variable parameters",
-        },
-        formatValue: {
-          type: "object",
-          description: "Format value configuration",
-        },
-        variableId: {
-          type: "string",
-          description: "Variable ID for updates (optional)",
-        },
-      },
-      required: ["parent", "name", "type"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeVariableUpsert(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.variable.upsert failed", error);
-        } else {
-          logger.error("gtm.variable.upsert failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getVariableUpsertToolSchema(),
+    handler: createVariableUpsertToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -2683,6 +3240,49 @@ async function executeVariableDelete(
 }
 
 /**
+ * Get variable delete tool input schema
+ */
+function getVariableDeleteToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Variable path in format accounts/123456/containers/987654/workspaces/111111/variables/444444",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create variable delete tool handler
+ */
+function createVariableDeleteToolHandler(
+  gtmClient: GTMClient,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof variableDeleteResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeVariableDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.variable.delete failed", error);
+      } else {
+        logger.error("gtm.variable.delete failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.variable.delete tool
  */
 function registerVariableDeleteTool(
@@ -2695,28 +3295,8 @@ function registerVariableDeleteTool(
   bootstrap.registerTool({
     name: "gtm.variable.delete",
     description: "Delete GTM variable",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Variable path in format accounts/123456/containers/987654/workspaces/111111/variables/444444",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeVariableDelete(args, gtmClient, cache, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.variable.delete failed", error);
-        } else {
-          logger.error("gtm.variable.delete failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getVariableDeleteToolSchema(),
+    handler: createVariableDeleteToolHandler(gtmClient, cache, capabilitiesRegistry, logger),
   });
 }
 
@@ -2789,6 +3369,48 @@ async function executeBuiltinVariableList(
 }
 
 /**
+ * Get builtin variable list tool input schema
+ */
+function getBuiltinVariableListToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create builtin variable list tool handler
+ */
+function createBuiltinVariableListToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof builtinVariableListResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeBuiltinVariableList(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.builtinVariable.list failed", error);
+      } else {
+        logger.error("gtm.builtinVariable.list failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.builtinVariable.list tool
  */
 function registerBuiltinVariableListTool(
@@ -2801,28 +3423,8 @@ function registerBuiltinVariableListTool(
   bootstrap.registerTool({
     name: "gtm.builtinVariable.list",
     description: "List GTM built-in variables for a workspace",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeBuiltinVariableList(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.builtinVariable.list failed", error);
-        } else {
-          logger.error("gtm.builtinVariable.list failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getBuiltinVariableListToolSchema(),
+    handler: createBuiltinVariableListToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -2886,6 +3488,52 @@ async function executeBuiltinVariableEnable(
 }
 
 /**
+ * Get builtin variable enable tool input schema
+ */
+function getBuiltinVariableEnableToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+      type: {
+        type: "string",
+        description: "Built-in variable type (e.g., PAGE_URL, PAGE_HOSTNAME, CLICK_ELEMENT)",
+      },
+    },
+    required: ["path", "type"],
+  };
+}
+
+/**
+ * Create builtin variable enable tool handler
+ */
+function createBuiltinVariableEnableToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof builtinVariableEnableResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeBuiltinVariableEnable(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.builtinVariable.enable failed", error);
+      } else {
+        logger.error("gtm.builtinVariable.enable failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.builtinVariable.enable tool
  */
 function registerBuiltinVariableEnableTool(
@@ -2898,32 +3546,8 @@ function registerBuiltinVariableEnableTool(
   bootstrap.registerTool({
     name: "gtm.builtinVariable.enable",
     description: "Enable GTM built-in variable",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-        type: {
-          type: "string",
-          description: "Built-in variable type (e.g., PAGE_URL, PAGE_HOSTNAME, CLICK_ELEMENT)",
-        },
-      },
-      required: ["path", "type"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeBuiltinVariableEnable(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.builtinVariable.enable failed", error);
-        } else {
-          logger.error("gtm.builtinVariable.enable failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getBuiltinVariableEnableToolSchema(),
+    handler: createBuiltinVariableEnableToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -3032,6 +3656,56 @@ export async function executeDataLayerValidate(
 }
 
 /**
+ * Get data layer validate tool input schema
+ */
+function getDataLayerValidateToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+      dataLayer: {
+        type: "object",
+        description: "Data layer object to validate",
+      },
+      schema: {
+        type: "object",
+        description: "Optional explicit schema (if not provided, generated from GTM variables)",
+      },
+    },
+    required: ["parent", "dataLayer"],
+  };
+}
+
+/**
+ * Create data layer validate tool handler
+ */
+function createDataLayerValidateToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof datalayerValidateResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeDataLayerValidate(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.datalayer.validate failed", error);
+      } else {
+        logger.error("gtm.datalayer.validate failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.datalayer.validate tool
  */
 function registerDataLayerValidateTool(
@@ -3044,36 +3718,8 @@ function registerDataLayerValidateTool(
   bootstrap.registerTool({
     name: "gtm.datalayer.validate",
     description: "Validate data layer structure against schema generated from GTM variables",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-        dataLayer: {
-          type: "object",
-          description: "Data layer object to validate",
-        },
-        schema: {
-          type: "object",
-          description: "Optional explicit schema (if not provided, generated from GTM variables)",
-        },
-      },
-      required: ["parent", "dataLayer"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeDataLayerValidate(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.datalayer.validate failed", error);
-        } else {
-          logger.error("gtm.datalayer.validate failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getDataLayerValidateToolSchema(),
+    handler: createDataLayerValidateToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -3179,6 +3825,52 @@ export async function executeDataLayerSchemaGenerate(
 }
 
 /**
+ * Get data layer schema generate tool input schema
+ */
+function getDataLayerSchemaGenerateToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+      includeBuiltIn: {
+        type: "boolean",
+        description: "Include built-in variables in schema (default: false)",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create data layer schema generate tool handler
+ */
+function createDataLayerSchemaGenerateToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof datalayerSchemaGenerateResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeDataLayerSchemaGenerate(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.datalayer.schema.generate failed", error);
+      } else {
+        logger.error("gtm.datalayer.schema.generate failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.datalayer.schema.generate tool
  */
 function registerDataLayerSchemaGenerateTool(
@@ -3191,32 +3883,8 @@ function registerDataLayerSchemaGenerateTool(
   bootstrap.registerTool({
     name: "gtm.datalayer.schema.generate",
     description: "Generate data layer schema from GTM variable definitions",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-        includeBuiltIn: {
-          type: "boolean",
-          description: "Include built-in variables in schema (default: false)",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeDataLayerSchemaGenerate(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.datalayer.schema.generate failed", error);
-        } else {
-          logger.error("gtm.datalayer.schema.generate failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getDataLayerSchemaGenerateToolSchema(),
+    handler: createDataLayerSchemaGenerateToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -3272,6 +3940,52 @@ export async function executeDataLayerMonitor(
 }
 
 /**
+ * Get data layer monitor tool input schema
+ */
+function getDataLayerMonitorToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+      eventName: {
+        type: "string",
+        description: "Optional event name to monitor (if not provided, monitors all events)",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create data layer monitor tool handler
+ */
+function createDataLayerMonitorToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof datalayerMonitorResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeDataLayerMonitor(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.datalayer.monitor failed", error);
+      } else {
+        logger.error("gtm.datalayer.monitor failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.datalayer.monitor tool
  */
 function registerDataLayerMonitorTool(
@@ -3284,32 +3998,8 @@ function registerDataLayerMonitorTool(
   bootstrap.registerTool({
     name: "gtm.datalayer.monitor",
     description: "Monitor data layer events in real-time and alert on schema violations",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-        eventName: {
-          type: "string",
-          description: "Optional event name to monitor (if not provided, monitors all events)",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeDataLayerMonitor(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.datalayer.monitor failed", error);
-        } else {
-          logger.error("gtm.datalayer.monitor failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getDataLayerMonitorToolSchema(),
+    handler: createDataLayerMonitorToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -3423,6 +4113,48 @@ export async function executeDataLayerEventsList(
 }
 
 /**
+ * Get data layer events list tool input schema
+ */
+function getDataLayerEventsListToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create data layer events list tool handler
+ */
+function createDataLayerEventsListToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof datalayerEventsListResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeDataLayerEventsList(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.datalayer.events.list failed", error);
+      } else {
+        logger.error("gtm.datalayer.events.list failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.datalayer.events.list tool
  */
 function registerDataLayerEventsListTool(
@@ -3435,28 +4167,8 @@ function registerDataLayerEventsListTool(
   bootstrap.registerTool({
     name: "gtm.datalayer.events.list",
     description: "List all data layer events from GTM custom event triggers",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeDataLayerEventsList(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.datalayer.events.list failed", error);
-        } else {
-          logger.error("gtm.datalayer.events.list failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getDataLayerEventsListToolSchema(),
+    handler: createDataLayerEventsListToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -3522,6 +4234,48 @@ export async function executeFolderList(
 }
 
 /**
+ * Get folder list tool input schema
+ */
+function getFolderListToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create folder list tool handler
+ */
+function createFolderListToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof folderListResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeFolderList(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.folder.list failed", error);
+      } else {
+        logger.error("gtm.folder.list failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.folder.list tool
  */
 function registerFolderListTool(
@@ -3534,28 +4288,8 @@ function registerFolderListTool(
   bootstrap.registerTool({
     name: "gtm.folder.list",
     description: "List folders in GTM workspace",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeFolderList(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.folder.list failed", error);
-        } else {
-          logger.error("gtm.folder.list failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getFolderListToolSchema(),
+    handler: createFolderListToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -3618,6 +4352,48 @@ export async function executeFolderGet(
 }
 
 /**
+ * Get folder get tool input schema
+ */
+function getFolderGetToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Folder path in format accounts/123456/containers/987654/workspaces/111111/folders/1",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create folder get tool handler
+ */
+function createFolderGetToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof folderGetResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeFolderGet(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.folder.get failed", error);
+      } else {
+        logger.error("gtm.folder.get failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.folder.get tool
  */
 function registerFolderGetTool(
@@ -3630,28 +4406,8 @@ function registerFolderGetTool(
   bootstrap.registerTool({
     name: "gtm.folder.get",
     description: "Get folder by path",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Folder path in format accounts/123456/containers/987654/workspaces/111111/folders/1",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeFolderGet(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.folder.get failed", error);
-        } else {
-          logger.error("gtm.folder.get failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getFolderGetToolSchema(),
+    handler: createFolderGetToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -3732,6 +4488,56 @@ export async function executeFolderUpsert(
 }
 
 /**
+ * Get folder upsert tool input schema
+ */
+function getFolderUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+      folderId: {
+        type: "string",
+        description: "Folder ID (if provided, updates existing folder)",
+      },
+      name: {
+        type: "string",
+        description: "Folder name",
+      },
+    },
+    required: ["parent", "name"],
+  };
+}
+
+/**
+ * Create folder upsert tool handler
+ */
+function createFolderUpsertToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof folderUpsertResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeFolderUpsert(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.folder.upsert failed", error);
+      } else {
+        logger.error("gtm.folder.upsert failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.folder.upsert tool
  */
 function registerFolderUpsertTool(
@@ -3744,36 +4550,8 @@ function registerFolderUpsertTool(
   bootstrap.registerTool({
     name: "gtm.folder.upsert",
     description: "Create or update folder in GTM workspace",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-        folderId: {
-          type: "string",
-          description: "Folder ID (if provided, updates existing folder)",
-        },
-        name: {
-          type: "string",
-          description: "Folder name",
-        },
-      },
-      required: ["parent", "name"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeFolderUpsert(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.folder.upsert failed", error);
-        } else {
-          logger.error("gtm.folder.upsert failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getFolderUpsertToolSchema(),
+    handler: createFolderUpsertToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -3838,6 +4616,48 @@ export async function executeFolderDelete(
 }
 
 /**
+ * Get folder delete tool input schema
+ */
+function getFolderDeleteToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Folder path in format accounts/123456/containers/987654/workspaces/111111/folders/1",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create folder delete tool handler
+ */
+function createFolderDeleteToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof folderDeleteResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeFolderDelete(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.folder.delete failed", error);
+      } else {
+        logger.error("gtm.folder.delete failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.folder.delete tool
  */
 function registerFolderDeleteTool(
@@ -3850,28 +4670,8 @@ function registerFolderDeleteTool(
   bootstrap.registerTool({
     name: "gtm.folder.delete",
     description: "Delete folder from GTM workspace",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Folder path in format accounts/123456/containers/987654/workspaces/111111/folders/1",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeFolderDelete(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.folder.delete failed", error);
-        } else {
-          logger.error("gtm.folder.delete failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getFolderDeleteToolSchema(),
+    handler: createFolderDeleteToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -3939,6 +4739,48 @@ export async function executeVersionList(
 }
 
 /**
+ * Get version list tool input schema
+ */
+function getVersionListToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Container path in format accounts/123456/containers/987654",
+      },
+    },
+    required: ["parent"],
+  };
+}
+
+/**
+ * Create version list tool handler
+ */
+function createVersionListToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof versionListResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeVersionList(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.version.list failed", error);
+      } else {
+        logger.error("gtm.version.list failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.version.list tool
  */
 function registerVersionListTool(
@@ -3951,28 +4793,8 @@ function registerVersionListTool(
   bootstrap.registerTool({
     name: "gtm.version.list",
     description: "List container versions",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Container path in format accounts/123456/containers/987654",
-        },
-      },
-      required: ["parent"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeVersionList(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.version.list failed", error);
-        } else {
-          logger.error("gtm.version.list failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getVersionListToolSchema(),
+    handler: createVersionListToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -4035,6 +4857,48 @@ export async function executeVersionGet(
 }
 
 /**
+ * Get version get tool input schema
+ */
+function getVersionGetToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Version path in format accounts/123456/containers/987654/versions/1",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create version get tool handler
+ */
+function createVersionGetToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof versionGetResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeVersionGet(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.version.get failed", error);
+      } else {
+        logger.error("gtm.version.get failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.version.get tool
  */
 function registerVersionGetTool(
@@ -4047,28 +4911,8 @@ function registerVersionGetTool(
   bootstrap.registerTool({
     name: "gtm.version.get",
     description: "Get version details by path",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Version path in format accounts/123456/containers/987654/versions/1",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeVersionGet(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.version.get failed", error);
-        } else {
-          logger.error("gtm.version.get failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getVersionGetToolSchema(),
+    handler: createVersionGetToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -4138,6 +4982,60 @@ export async function executeVersionCreate(
 }
 
 /**
+ * Get version create tool input schema
+ */
+function getVersionCreateToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Container path in format accounts/123456/containers/987654",
+      },
+      workspaceId: {
+        type: "string",
+        description: "Workspace ID",
+      },
+      name: {
+        type: "string",
+        description: "Version name",
+      },
+      notes: {
+        type: "string",
+        description: "Optional version notes",
+      },
+    },
+    required: ["parent", "workspaceId", "name"],
+  };
+}
+
+/**
+ * Create version create tool handler
+ */
+function createVersionCreateToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof versionCreateResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeVersionCreate(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.version.create failed", error);
+      } else {
+        logger.error("gtm.version.create failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.version.create tool
  */
 function registerVersionCreateTool(
@@ -4150,40 +5048,8 @@ function registerVersionCreateTool(
   bootstrap.registerTool({
     name: "gtm.version.create",
     description: "Create version from workspace",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Container path in format accounts/123456/containers/987654",
-        },
-        workspaceId: {
-          type: "string",
-          description: "Workspace ID",
-        },
-        name: {
-          type: "string",
-          description: "Version name",
-        },
-        notes: {
-          type: "string",
-          description: "Optional version notes",
-        },
-      },
-      required: ["parent", "workspaceId", "name"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeVersionCreate(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.version.create failed", error);
-        } else {
-          logger.error("gtm.version.create failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getVersionCreateToolSchema(),
+    handler: createVersionCreateToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -4248,6 +5114,48 @@ export async function executeVersionRestore(
 }
 
 /**
+ * Get version restore tool input schema
+ */
+function getVersionRestoreToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Version path in format accounts/123456/containers/987654/versions/1",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create version restore tool handler
+ */
+function createVersionRestoreToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof versionRestoreResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeVersionRestore(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.version.restore failed", error);
+      } else {
+        logger.error("gtm.version.restore failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.version.restore tool
  */
 function registerVersionRestoreTool(
@@ -4260,28 +5168,8 @@ function registerVersionRestoreTool(
   bootstrap.registerTool({
     name: "gtm.version.restore",
     description: "Restore version to workspace",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Version path in format accounts/123456/containers/987654/versions/1",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeVersionRestore(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.version.restore failed", error);
-        } else {
-          logger.error("gtm.version.restore failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getVersionRestoreToolSchema(),
+    handler: createVersionRestoreToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -4361,6 +5249,52 @@ export async function executeWorkspacePublish(
 }
 
 /**
+ * Get workspace publish tool input schema
+ */
+function getWorkspacePublishToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
+      },
+      fingerprint: {
+        type: "string",
+        description: "Optional fingerprint for optimistic locking (if not provided, fetched from workspace)",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create workspace publish tool handler
+ */
+function createWorkspacePublishToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof workspacePublishResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeWorkspacePublish(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.workspace.publish failed", error);
+      } else {
+        logger.error("gtm.workspace.publish failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.workspace.publish tool
  */
 function registerWorkspacePublishTool(
@@ -4373,32 +5307,8 @@ function registerWorkspacePublishTool(
   bootstrap.registerTool({
     name: "gtm.workspace.publish",
     description: "Publish workspace to create a new container version",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Workspace path in format accounts/123456/containers/987654/workspaces/111111",
-        },
-        fingerprint: {
-          type: "string",
-          description: "Optional fingerprint for optimistic locking (if not provided, fetched from workspace)",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeWorkspacePublish(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.workspace.publish failed", error);
-        } else {
-          logger.error("gtm.workspace.publish failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getWorkspacePublishToolSchema(),
+    handler: createWorkspacePublishToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -4497,6 +5407,52 @@ export async function executePreviewCreate(
 }
 
 /**
+ * Get preview create tool input schema
+ */
+function getPreviewCreateToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Container path in format accounts/123456/containers/987654",
+      },
+      workspaceId: {
+        type: "string",
+        description: "Workspace ID",
+      },
+    },
+    required: ["parent", "workspaceId"],
+  };
+}
+
+/**
+ * Create preview create tool handler
+ */
+function createPreviewCreateToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof previewCreateResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executePreviewCreate(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.preview.create failed", error);
+      } else {
+        logger.error("gtm.preview.create failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.preview.create tool
  */
 function registerPreviewCreateTool(
@@ -4509,32 +5465,8 @@ function registerPreviewCreateTool(
   bootstrap.registerTool({
     name: "gtm.preview.create",
     description: "Create preview environment for testing workspace changes",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Container path in format accounts/123456/containers/987654",
-        },
-        workspaceId: {
-          type: "string",
-          description: "Workspace ID",
-        },
-      },
-      required: ["parent", "workspaceId"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executePreviewCreate(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.preview.create failed", error);
-        } else {
-          logger.error("gtm.preview.create failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getPreviewCreateToolSchema(),
+    handler: createPreviewCreateToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -4599,6 +5531,48 @@ export async function executePreviewGet(
 }
 
 /**
+ * Get preview get tool input schema
+ */
+function getPreviewGetToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Environment path in format accounts/123456/containers/987654/environments/env1",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create preview get tool handler
+ */
+function createPreviewGetToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof previewGetResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executePreviewGet(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.preview.get failed", error);
+      } else {
+        logger.error("gtm.preview.get failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.preview.get tool
  */
 function registerPreviewGetTool(
@@ -4611,28 +5585,8 @@ function registerPreviewGetTool(
   bootstrap.registerTool({
     name: "gtm.preview.get",
     description: "Get preview environment details",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Environment path in format accounts/123456/containers/987654/environments/env1",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executePreviewGet(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.preview.get failed", error);
-        } else {
-          logger.error("gtm.preview.get failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getPreviewGetToolSchema(),
+    handler: createPreviewGetToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -4735,6 +5689,83 @@ export async function executeConsentConfigure(
 }
 
 /**
+ * Get consent configure tool input schema
+ */
+function getConsentConfigureToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Container path in format accounts/123456/containers/987654",
+      },
+      enabled: {
+        type: "boolean",
+        description: "Enable or disable consent mode",
+      },
+      settings: {
+        type: "object",
+        description: "Consent mode settings (ad_storage, analytics_storage, etc.)",
+        properties: {
+          ad_storage: {
+            type: "string",
+            enum: ["granted", "denied", "pending"],
+            description: "Ad storage consent state",
+          },
+          analytics_storage: {
+            type: "string",
+            enum: ["granted", "denied", "pending"],
+            description: "Analytics storage consent state",
+          },
+          functionality_storage: {
+            type: "string",
+            enum: ["granted", "denied", "pending"],
+            description: "Functionality storage consent state",
+          },
+          personalization_storage: {
+            type: "string",
+            enum: ["granted", "denied", "pending"],
+            description: "Personalization storage consent state",
+          },
+          security_storage: {
+            type: "string",
+            enum: ["granted", "denied", "pending"],
+            description: "Security storage consent state",
+          },
+        },
+      },
+    },
+    required: ["path", "enabled"],
+  };
+}
+
+/**
+ * Create consent configure tool handler
+ */
+function createConsentConfigureToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof consentConfigureResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeConsentConfigure(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.consent.configure failed", error);
+      } else {
+        logger.error("gtm.consent.configure failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.consent.configure tool
  */
 function registerConsentConfigureTool(
@@ -4747,63 +5778,8 @@ function registerConsentConfigureTool(
   bootstrap.registerTool({
     name: "gtm.consent.configure",
     description: "Configure GTM consent mode settings for a container",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Container path in format accounts/123456/containers/987654",
-        },
-        enabled: {
-          type: "boolean",
-          description: "Enable or disable consent mode",
-        },
-        settings: {
-          type: "object",
-          description: "Consent mode settings (ad_storage, analytics_storage, etc.)",
-          properties: {
-            ad_storage: {
-              type: "string",
-              enum: ["granted", "denied", "pending"],
-              description: "Ad storage consent state",
-            },
-            analytics_storage: {
-              type: "string",
-              enum: ["granted", "denied", "pending"],
-              description: "Analytics storage consent state",
-            },
-            functionality_storage: {
-              type: "string",
-              enum: ["granted", "denied", "pending"],
-              description: "Functionality storage consent state",
-            },
-            personalization_storage: {
-              type: "string",
-              enum: ["granted", "denied", "pending"],
-              description: "Personalization storage consent state",
-            },
-            security_storage: {
-              type: "string",
-              enum: ["granted", "denied", "pending"],
-              description: "Security storage consent state",
-            },
-          },
-        },
-      },
-      required: ["path", "enabled"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeConsentConfigure(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.consent.configure failed", error);
-        } else {
-          logger.error("gtm.consent.configure failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getConsentConfigureToolSchema(),
+    handler: createConsentConfigureToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -4883,6 +5859,48 @@ export async function executeConsentGet(
 }
 
 /**
+ * Get consent get tool input schema
+ */
+function getConsentGetToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Container path in format accounts/123456/containers/987654",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create consent get tool handler
+ */
+function createConsentGetToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof consentGetResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeConsentGet(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.consent.get failed", error);
+      } else {
+        logger.error("gtm.consent.get failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.consent.get tool
  */
 function registerConsentGetTool(
@@ -4895,28 +5913,8 @@ function registerConsentGetTool(
   bootstrap.registerTool({
     name: "gtm.consent.get",
     description: "Get GTM consent mode configuration for a container",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Container path in format accounts/123456/containers/987654",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeConsentGet(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.consent.get failed", error);
-        } else {
-          logger.error("gtm.consent.get failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getConsentGetToolSchema(),
+    handler: createConsentGetToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -5030,6 +6028,68 @@ export async function executeTagSequenceUpdate(
 }
 
 /**
+ * Get tag sequence update tool input schema
+ */
+function getTagSequenceUpdateToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/tag1",
+      },
+      blockingTriggerId: {
+        type: "array",
+        items: { type: "string" },
+        description: "Trigger IDs that must fire before this tag",
+      },
+      setupTagId: {
+        type: "array",
+        items: { type: "string" },
+        description: "Tag IDs that must fire before this tag",
+      },
+      teardownTagId: {
+        type: "array",
+        items: { type: "string" },
+        description: "Tag IDs that must fire after this tag",
+      },
+      tagFiringOption: {
+        type: "string",
+        enum: ["UNLIMITED", "ONCE_PER_EVENT", "ONCE_PER_LOAD"],
+        description: "Tag firing option",
+      },
+    },
+    required: ["path"],
+  };
+}
+
+/**
+ * Create tag sequence update tool handler
+ */
+function createTagSequenceUpdateToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof tagSequenceUpdateResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeTagSequenceUpdate(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.tag.sequence.update failed", error);
+      } else {
+        logger.error("gtm.tag.sequence.update failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.tag.sequence.update tool
  */
 function registerTagSequenceUpdateTool(
@@ -5042,48 +6102,8 @@ function registerTagSequenceUpdateTool(
   bootstrap.registerTool({
     name: "gtm.tag.sequence.update",
     description: "Update tag sequencing settings (blocking triggers, setup/teardown tags, firing options)",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/tag1",
-        },
-        blockingTriggerId: {
-          type: "array",
-          items: { type: "string" },
-          description: "Trigger IDs that must fire before this tag",
-        },
-        setupTagId: {
-          type: "array",
-          items: { type: "string" },
-          description: "Tag IDs that must fire before this tag",
-        },
-        teardownTagId: {
-          type: "array",
-          items: { type: "string" },
-          description: "Tag IDs that must fire after this tag",
-        },
-        tagFiringOption: {
-          type: "string",
-          enum: ["UNLIMITED", "ONCE_PER_EVENT", "ONCE_PER_LOAD"],
-          description: "Tag firing option",
-        },
-      },
-      required: ["path"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeTagSequenceUpdate(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.tag.sequence.update failed", error);
-        } else {
-          logger.error("gtm.tag.sequence.update failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getTagSequenceUpdateToolSchema(),
+    handler: createTagSequenceUpdateToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
 
@@ -5186,6 +6206,52 @@ export async function executeTagPriorityUpdate(
 }
 
 /**
+ * Get tag priority update tool input schema
+ */
+function getTagPriorityUpdateToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      path: {
+        type: "string",
+        description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/tag1",
+      },
+      priority: {
+        type: "number",
+        description: "Tag priority (higher numbers fire first, can be negative)",
+      },
+    },
+    required: ["path", "priority"],
+  };
+}
+
+/**
+ * Create tag priority update tool handler
+ */
+function createTagPriorityUpdateToolHandler(
+  gtmClient: GTMClient,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): (args: unknown) => Promise<z.infer<typeof tagPriorityUpdateResponseSchema>> {
+  return async (args: unknown) => {
+    try {
+      return await executeTagPriorityUpdate(args, gtmClient, capabilitiesRegistry, logger);
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error("gtm.tag.priority.update failed", error);
+      } else {
+        logger.error("gtm.tag.priority.update failed", new Error(String(error)));
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  };
+}
+
+/**
  * Register gtm.tag.priority.update tool
  */
 function registerTagPriorityUpdateTool(
@@ -5198,31 +6264,7 @@ function registerTagPriorityUpdateTool(
   bootstrap.registerTool({
     name: "gtm.tag.priority.update",
     description: "Update tag priority (higher numbers fire first)",
-    inputSchema: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Tag path in format accounts/123456/containers/987654/workspaces/111111/tags/tag1",
-        },
-        priority: {
-          type: "number",
-          description: "Tag priority (higher numbers fire first, can be negative)",
-        },
-      },
-      required: ["path", "priority"],
-    },
-    handler: async (args: unknown) => {
-      try {
-        return await executeTagPriorityUpdate(args, gtmClient, capabilitiesRegistry, logger);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error("gtm.tag.priority.update failed", error);
-        } else {
-          logger.error("gtm.tag.priority.update failed", new Error(String(error)));
-        }
-        throw error instanceof Error ? error : new Error(String(error));
-      }
-    },
+    inputSchema: getTagPriorityUpdateToolSchema(),
+    handler: createTagPriorityUpdateToolHandler(gtmClient, capabilitiesRegistry, logger),
   });
 }
