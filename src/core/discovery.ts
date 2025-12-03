@@ -362,4 +362,3 @@ export async function discoverAdsCapabilities(
   registry.setProductCapabilities("ads", capabilities);
   return Promise.resolve();
 }
-

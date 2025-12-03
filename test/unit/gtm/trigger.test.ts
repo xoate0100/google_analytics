@@ -241,4 +241,3 @@ describe("GTM Trigger Tools", () => {
     });
   });
 });
-

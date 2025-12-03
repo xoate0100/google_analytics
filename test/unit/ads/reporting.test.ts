@@ -218,4 +218,3 @@ describe("Google Ads GAQL Reporting Tools", () => {
     }, 15000); // Increase timeout for this test
   });
 });
-

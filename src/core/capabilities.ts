@@ -90,4 +90,3 @@ export class CapabilitiesRegistry implements ICapabilitiesRegistry {
 export function createCapabilitiesRegistry(): ICapabilitiesRegistry {
   return new CapabilitiesRegistry();
 }
-

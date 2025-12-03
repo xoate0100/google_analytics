@@ -140,7 +140,7 @@
 ## 3) Architecture Overview
 
 * **Runtime:** Node.js (TypeScript) MCP server (`@modelcontextprotocol/server`).
-* **Modules:** 
+* **Modules:**
   * `ga4/` — Data API, Admin API, Measurement Protocol
   * `gtm/` — Containers, Workspaces, Tags, Triggers, Variables, Data Layer, Versions
   * `ads/` — Reporting, Campaigns, Conversions, Audiences, Budgets

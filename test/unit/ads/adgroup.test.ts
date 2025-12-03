@@ -237,4 +237,3 @@ describe("Google Ads Ad Group Tools", () => {
     });
   });
 });
-

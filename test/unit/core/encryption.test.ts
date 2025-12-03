@@ -128,4 +128,3 @@ describe("Encryption module", () => {
     });
   });
 });
-

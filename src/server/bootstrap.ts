@@ -163,4 +163,3 @@ export class MCPServerBootstrap {
     // The server will handle list_tools requests automatically
   }
 }
-

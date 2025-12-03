@@ -50,4 +50,3 @@ volumes:
 networks:
   mcp-network:
     driver: bridge
-

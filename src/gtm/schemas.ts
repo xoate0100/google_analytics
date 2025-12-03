@@ -899,4 +899,3 @@ export const consentGetResponseSchema = z.object({
   enabled: z.boolean(),
   settings: consentModeSettingsSchema.optional(),
 });
-

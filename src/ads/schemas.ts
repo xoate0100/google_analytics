@@ -602,4 +602,3 @@ export const biddingStrategyUpsertRequestSchema = z.object({
  * Bidding Strategy Upsert Response Schema
  */
 export const biddingStrategyUpsertResponseSchema = biddingStrategyGetResponseSchema;
-

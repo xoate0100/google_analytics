@@ -595,4 +595,3 @@ export function createGTMVariableRollback(
     compensation: previousState,
   };
 }
-

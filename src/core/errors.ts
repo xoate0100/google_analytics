@@ -243,4 +243,3 @@ export function getErrorType(error: unknown): ErrorType | "unknown" {
   }
   return "unknown";
 }
-

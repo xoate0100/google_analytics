@@ -198,4 +198,3 @@ describe("GTM Data Layer Monitoring Tools", () => {
     });
   });
 });
-

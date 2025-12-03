@@ -263,9 +263,9 @@ interface OperationResult {
 
 ```typescript
 // Start operation
-logger.info("Executing ga4.report.run", { 
+logger.info("Executing ga4.report.run", {
   opId: envelope.opId,
-  property: validatedRequest.property 
+  property: validatedRequest.property
 });
 
 // Operation complete

@@ -208,4 +208,3 @@ export class MeasurementProtocolClient {
     return result;
   }
 }
-

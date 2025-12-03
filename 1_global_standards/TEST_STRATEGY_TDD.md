@@ -24,15 +24,15 @@
    ```typescript
    // ✅ CORRECT: Use fake timers for controlled async testing
    import { vi } from 'vitest';
-   
+
    beforeEach(() => {
      vi.useFakeTimers();
    });
-   
+
    afterEach(() => {
      vi.useRealTimers();
    });
-   
+
    it('should handle async operation', async () => {
      const promise = asyncOperation();
      vi.advanceTimersByTime(1000); // Fast-forward time
@@ -47,10 +47,10 @@
    const mockClient = {
      search: vi.fn().mockResolvedValue({ results: [] }), // No delay
    };
-   
+
    // ❌ WRONG: Adding real delays in tests
    const mockClient = {
-     search: vi.fn().mockImplementation(() => 
+     search: vi.fn().mockImplementation(() =>
        new Promise(resolve => setTimeout(() => resolve({ results: [] }), 1000))
      ),
    };
@@ -71,7 +71,7 @@
        return mockStream;
      }),
    };
-   
+
    // ❌ WRONG: Using setTimeout in stream mocks
    const mockStream = {
      on: vi.fn((event, callback) => {
@@ -128,10 +128,10 @@ it('should process keywords', async () => {
       results: [{ keyword: { text: 'test' } }],
     }),
   };
-  
+
   // Business logic executes immediately
   const result = await executeKeywordList(args, mockClient, registry, logger);
-  
+
   // Validate business logic
   expect(result.keywords).toHaveLength(1);
   expect(result.keywords[0].text).toBe('test');
@@ -143,11 +143,11 @@ it('should process keywords', async () => {
 it('should process keywords', async () => {
   // ❌ Real delay - can cause timeout
   const mockClient = {
-    search: vi.fn().mockImplementation(() => 
+    search: vi.fn().mockImplementation(() =>
       new Promise(resolve => setTimeout(() => resolve({ results: [] }), 2000))
     ),
   };
-  
+
   // Test may timeout waiting for delay
   const result = await executeKeywordList(args, mockClient, registry, logger);
 });
@@ -193,7 +193,7 @@ it('should get audience', async () => {
    // ✅ CORRECT: Check implementation before writing test
    // Implementation expects: response.results[0].campaignBudget
    // So mock MUST return: { results: [{ campaignBudget: {...} }] }
-   
+
    // ❌ WRONG: Assuming structure without checking
    // Mock returns: { results: [{ budget: {...} }] } // Wrong property name!
    ```
@@ -244,4 +244,3 @@ it('should get audience', async () => {
 - CI should fail tests that exceed timeout thresholds
 - Code review should verify async mocking patterns
 - **NEW**: Code review must verify mock response structures match implementation (grep implementation for property names)
-

@@ -84,4 +84,3 @@ This file is regenerated when you run `capabilities.refresh()`.
 You can create multiple profiles in `config.json` for different environments (dev, staging, production).
 
 Switch profiles using environment variables or MCP tool parameters.
-

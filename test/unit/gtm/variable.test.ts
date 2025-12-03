@@ -265,4 +265,3 @@ describe("GTM Variable Tools", () => {
     });
   });
 });
-

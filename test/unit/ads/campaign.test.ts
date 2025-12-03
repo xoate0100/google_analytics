@@ -286,4 +286,3 @@ describe("Google Ads Campaign Tools", () => {
     });
   });
 });
-

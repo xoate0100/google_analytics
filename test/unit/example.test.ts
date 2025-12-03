@@ -11,4 +11,3 @@ describe("Example Test", () => {
     expect(value).toBe(2);
   });
 });
-

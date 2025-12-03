@@ -205,4 +205,3 @@ describe("GA4 Property Settings Tools", () => {
     });
   });
 });
-

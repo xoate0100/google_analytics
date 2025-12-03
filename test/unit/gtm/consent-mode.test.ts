@@ -207,4 +207,3 @@ describe("GTM Consent Mode Tools", () => {
     });
   });
 });
-

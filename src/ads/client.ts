@@ -1,7 +1,7 @@
 /**
  * Google Ads REST client wrapper
  * Integrates Google Ads API with rate limiting, logging, and OAuth
- * 
+ *
  * Note: Google Ads API uses gRPC/REST and requires a separate client library.
  * This wrapper provides the structure for integration with the core rate limiter and OAuth.
  */
@@ -24,7 +24,7 @@ export interface AdsClientOptions {
 /**
  * Google Ads REST client wrapper
  * Provides access to Google Ads API
- * 
+ *
  * Note: Actual Google Ads API client implementation will need to use
  * google-ads-api library or direct HTTP/gRPC calls. This wrapper provides
  * the structure for rate limiting and OAuth integration.
@@ -53,7 +53,7 @@ export class AdsClient {
   /**
    * Get Google Ads API client
    * @returns Google Ads API client
-   * 
+   *
    * Note: This will be implemented when integrating actual Google Ads API library
    */
   getGoogleAdsClient(): unknown {
@@ -120,4 +120,3 @@ export class AdsClient {
     return this.loginCustomerId;
   }
 }
-

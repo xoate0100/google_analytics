@@ -178,4 +178,3 @@ See [Contribution Guidelines](docs/contrib.md) for details.
 ---
 
 **Note**: This project uses the Master Git Meta-Framework (L2.5 Single-Agent Sandbox). See the main [README.md](README.md) for meta-framework information.
-

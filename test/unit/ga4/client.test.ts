@@ -135,4 +135,3 @@ describe("GA4 REST Client", () => {
     });
   });
 });
-

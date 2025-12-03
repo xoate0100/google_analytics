@@ -91,4 +91,3 @@ export class AdaptiveBackoff {
 export function createBackoff(options: BackoffOptions): AdaptiveBackoff {
   return new AdaptiveBackoff(options);
 }
-

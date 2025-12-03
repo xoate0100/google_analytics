@@ -123,4 +123,3 @@ class PinoLoggerWrapper implements ILogger {
 export function createLogger(options?: PinoLoggerOptions): ILogger {
   return new PinoLogger(options);
 }
-

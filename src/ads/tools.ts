@@ -145,6 +145,114 @@ async function findExistingCampaign(
 }
 
 /**
+ * Helper: Build ad group resource name
+ */
+function buildAdGroupResourceName(customerId: string, adGroupId: string): string {
+  const normalizedCustomerId = customerId.replace(/^customers\//, "");
+  return `customers/${normalizedCustomerId}/adGroups/${adGroupId}`;
+}
+
+/**
+ * Helper: Find existing keyword by ID or text+matchType
+ */
+async function findExistingKeyword(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        adGroupCriterion?: {
+          criterion?: {
+            id?: string;
+            resourceName?: string;
+          };
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  keywordId?: string,
+  text?: string,
+  matchType?: string,
+  adGroupResourceName?: string
+): Promise<{ id?: string; resourceName?: string } | undefined> {
+  if (keywordId) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT ad_group_criterion.criterion_id, ad_group_criterion.resource_name FROM ad_group_criterion WHERE ad_group_criterion.criterion_id = ${keywordId}`,
+    })) as {
+      results?: Array<{
+        adGroupCriterion?: {
+          criterion?: {
+            id?: string;
+            resourceName?: string;
+          };
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.adGroupCriterion?.criterion;
+  }
+
+  if (text && matchType && adGroupResourceName) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT ad_group_criterion.criterion_id, ad_group_criterion.resource_name FROM ad_group_criterion WHERE ad_group_criterion.keyword.text = '${escapeSqlString(text)}' AND ad_group_criterion.keyword.match_type = '${matchType}' AND ad_group_criterion.ad_group = '${adGroupResourceName}'`,
+    })) as {
+      results?: Array<{
+        adGroupCriterion?: {
+          criterion?: {
+            id?: string;
+            resourceName?: string;
+          };
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.adGroupCriterion?.criterion;
+  }
+
+  return undefined;
+}
+
+/**
+ * Helper: Build keyword mutation operation
+ */
+function buildKeywordMutationOperation(
+  existingKeyword: { id?: string; resourceName?: string } | undefined,
+  validatedRequest: z.infer<typeof keywordUpsertRequestSchema>,
+  customerId: string,
+  adGroupResourceName: string,
+  cpcBidMicros?: string
+): Record<string, unknown> {
+  const operation: Record<string, unknown> = {};
+
+  if (existingKeyword) {
+    operation.update = {
+      resourceName:
+        existingKeyword.resourceName ||
+        `customers/${customerId.replace(/^customers\//, "")}/adGroupCriteria/${existingKeyword.id}`,
+      keyword: {
+        text: validatedRequest.text,
+        matchType: validatedRequest.matchType,
+      },
+    };
+    if (cpcBidMicros) {
+      (operation.update as Record<string, unknown>).cpcBidMicros = cpcBidMicros;
+    }
+  } else {
+    operation.create = {
+      adGroup: adGroupResourceName,
+      keyword: {
+        text: validatedRequest.text,
+        matchType: validatedRequest.matchType,
+      },
+    };
+    if (cpcBidMicros) {
+      (operation.create as Record<string, unknown>).cpcBidMicros = cpcBidMicros;
+    }
+  }
+
+  return operation;
+}
+
+/**
  * Helper: Build campaign mutation operation
  */
 function buildCampaignMutationOperation(
@@ -1960,106 +2068,96 @@ function registerKeywordListTool(
 /**
  * Execute API request to upsert keyword
  */
+/**
+ * Helper: Convert CPC bid to micros
+ */
+function convertCpcBidToMicros(cpcBid?: number): string | undefined {
+  return cpcBid ? Math.round(cpcBid * 1000000).toString() : undefined;
+}
+
+/**
+ * Helper: Extract keyword response data
+ */
+function extractKeywordResponse(
+  result: {
+    resourceName?: string;
+    criterion?: {
+      id?: string;
+      keyword?: {
+        text?: string;
+        matchType?: string;
+      };
+    };
+  },
+  validatedRequest: z.infer<typeof keywordUpsertRequestSchema>
+): z.infer<typeof keywordUpsertResponseSchema> {
+  const keywordId = result.criterion?.id || extractResourceId(result.resourceName);
+  return {
+    keywordId,
+    text: result.criterion?.keyword?.text || validatedRequest.text,
+    matchType: result.criterion?.keyword?.matchType as "EXACT" | "PHRASE" | "BROAD" | undefined || validatedRequest.matchType,
+    cpcBid: validatedRequest.cpcBid,
+  };
+}
+
+/**
+ * Helper: Get keyword upsert Google Ads client
+ */
+type KeywordUpsertClient = {
+  search?: (params: unknown) => Promise<{
+    results?: Array<{
+      adGroupCriterion?: {
+        criterion?: {
+          id?: string;
+          resourceName?: string;
+        };
+      };
+    }>;
+  }>;
+  mutate?: (params: unknown) => Promise<{
+    results?: Array<{
+      adGroupCriterion?: {
+        resourceName?: string;
+        criterion?: {
+          id?: string;
+          keyword?: {
+            text?: string;
+            matchType?: string;
+          };
+        };
+      };
+    }>;
+  }>;
+};
+
+function getKeywordUpsertClient(adsClient: AdsClient): KeywordUpsertClient {
+  return adsClient.getGoogleAdsClient() as KeywordUpsertClient;
+}
+
 async function executeKeywordUpsertAPIRequest(
   validatedRequest: z.infer<typeof keywordUpsertRequestSchema>,
   adsClient: AdsClient
 ): Promise<z.infer<typeof keywordUpsertResponseSchema>> {
   await adsClient.checkRateLimit("ads", "keyword.upsert");
-  const googleAdsClient = adsClient.getGoogleAdsClient() as {
-    search?: (params: unknown) => Promise<{
-      results?: Array<{
-        adGroupCriterion?: {
-          criterion?: {
-            id?: string;
-            resourceName?: string;
-          };
-        };
-      }>;
-    }>;
-    mutate?: (params: unknown) => Promise<{
-      results?: Array<{
-        adGroupCriterion?: {
-          resourceName?: string;
-          criterion?: {
-            id?: string;
-            keyword?: {
-              text?: string;
-              matchType?: string;
-            };
-          };
-        };
-      }>;
-    }>;
-  };
-
+  const googleAdsClient = getKeywordUpsertClient(adsClient);
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  const adGroupResourceName = `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/adGroups/${validatedRequest.adGroupId}`;
-
-  // Check if keyword exists (for idempotency)
-  let existingKeyword: { id?: string; resourceName?: string } | undefined;
-  if (validatedRequest.keywordId) {
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT ad_group_criterion.criterion_id, ad_group_criterion.resource_name FROM ad_group_criterion WHERE ad_group_criterion.criterion_id = ${validatedRequest.keywordId}`,
-    })) as {
-      results?: Array<{
-        adGroupCriterion?: {
-          criterion?: {
-            id?: string;
-            resourceName?: string;
-          };
-        };
-      }>;
-    };
-    existingKeyword = searchResponse.results?.[0]?.adGroupCriterion?.criterion;
-  } else {
-    // Check by text and match type for idempotency
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT ad_group_criterion.criterion_id, ad_group_criterion.resource_name FROM ad_group_criterion WHERE ad_group_criterion.keyword.text = '${validatedRequest.text.replace(/'/g, "''")}' AND ad_group_criterion.keyword.match_type = '${validatedRequest.matchType}' AND ad_group_criterion.ad_group = '${adGroupResourceName}'`,
-    })) as {
-      results?: Array<{
-        adGroupCriterion?: {
-          criterion?: {
-            id?: string;
-            resourceName?: string;
-          };
-        };
-      }>;
-    };
-    existingKeyword = searchResponse.results?.[0]?.adGroupCriterion?.criterion;
-  }
-
-  // Build mutation operation
-  const operation: Record<string, unknown> = {};
-  const cpcBidMicros = validatedRequest.cpcBid ? Math.round(validatedRequest.cpcBid * 1000000).toString() : undefined;
-
-  if (existingKeyword) {
-    // Update existing keyword
-    operation.update = {
-      resourceName: existingKeyword.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/adGroupCriteria/${existingKeyword.id}`,
-      keyword: {
-        text: validatedRequest.text,
-        matchType: validatedRequest.matchType,
-      },
-    };
-    if (cpcBidMicros) {
-      (operation.update as Record<string, unknown>).cpcBidMicros = cpcBidMicros;
-    }
-  } else {
-    // Create new keyword
-    operation.create = {
-      adGroup: adGroupResourceName,
-      keyword: {
-        text: validatedRequest.text,
-        matchType: validatedRequest.matchType,
-      },
-    };
-    if (cpcBidMicros) {
-      (operation.create as Record<string, unknown>).cpcBidMicros = cpcBidMicros;
-    }
-  }
+  const adGroupResourceName = buildAdGroupResourceName(customerId, validatedRequest.adGroupId);
+  const existingKeyword = await findExistingKeyword(
+    googleAdsClient,
+    customerId,
+    validatedRequest.keywordId,
+    validatedRequest.text,
+    validatedRequest.matchType,
+    adGroupResourceName
+  );
+  const cpcBidMicros = convertCpcBidToMicros(validatedRequest.cpcBid);
+  const operation = buildKeywordMutationOperation(
+    existingKeyword,
+    validatedRequest,
+    customerId,
+    adGroupResourceName,
+    cpcBidMicros
+  );
 
   const response = (await googleAdsClient.mutate?.({
     customerId,
@@ -2084,15 +2182,7 @@ async function executeKeywordUpsertAPIRequest(
     throw new Error("Failed to create/update keyword");
   }
 
-  // Extract keyword ID from resource name
-  const keywordId = result.criterion?.id || result.resourceName?.split("/").pop();
-
-  return {
-    keywordId,
-    text: result.criterion?.keyword?.text || validatedRequest.text,
-    matchType: result.criterion?.keyword?.matchType as "EXACT" | "PHRASE" | "BROAD" | undefined || validatedRequest.matchType,
-    cpcBid: validatedRequest.cpcBid,
-  };
+  return extractKeywordResponse(result, validatedRequest);
 }
 
 /**
@@ -5201,4 +5291,3 @@ function registerBiddingStrategyUpsertTool(
     },
   });
 }
-

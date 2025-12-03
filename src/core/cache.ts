@@ -232,4 +232,3 @@ export class LRUCache implements ICache {
 export function createCache(options: LRUCacheOptions): ICache {
   return new LRUCache(options);
 }
-

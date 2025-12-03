@@ -180,4 +180,3 @@ export interface ICapabilitiesRegistry {
   ): void;
   refresh(): Promise<void>;
 }
-

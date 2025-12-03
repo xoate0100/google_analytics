@@ -56,4 +56,3 @@ git commit --no-verify
 ```
 
 **Note**: This bypasses all quality gates and should only be used in exceptional circumstances.
-

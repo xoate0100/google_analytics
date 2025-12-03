@@ -136,4 +136,3 @@ export const commonSchemas = {
     .array(z.string().min(1))
     .min(1, "At least one metric is required"),
 };
-

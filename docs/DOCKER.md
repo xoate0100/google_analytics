@@ -29,7 +29,7 @@ The MCP Google Marketing Ops server is fully containerized for easy local develo
    ```bash
    # Unix/Mac
    mkdir -p ~/.mcp/google
-   
+
    # Windows (PowerShell)
    New-Item -ItemType Directory -Force -Path $env:USERPROFILE\.mcp\google
    ```
@@ -270,24 +270,24 @@ services:
 
 ## Security Considerations
 
-1. **Secrets Management**: 
+1. **Secrets Management**:
    - Use Docker secrets or environment variables (never commit)
    - Consider using Docker secrets for production
    - Use `.env` file (gitignored) for local development
 
-2. **Non-root User**: 
+2. **Non-root User**:
    - Container runs as `nodejs` user (UID 1001)
    - Reduces security attack surface
 
-3. **Read-only Volumes**: 
+3. **Read-only Volumes**:
    - Production uses read-only mounts where possible
    - Config directory mounted read-only in production
 
-4. **Network Isolation**: 
+4. **Network Isolation**:
    - Use Docker networks to isolate services
    - Default network: `mcp-network` (bridge)
 
-5. **Image Scanning**: 
+5. **Image Scanning**:
    - Regularly scan images for vulnerabilities
    - Use `docker scan mcp-google-marketing:latest`
 

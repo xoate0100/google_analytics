@@ -232,4 +232,3 @@ describe("GA4 Conversion Tools", () => {
     });
   });
 });
-

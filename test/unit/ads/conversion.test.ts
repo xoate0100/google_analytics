@@ -377,4 +377,3 @@ describe("Google Ads Conversion Tools", () => {
     });
   });
 });
-

@@ -265,4 +265,3 @@ describe("Google Ads Keyword Tools", () => {
     });
   });
 });
-

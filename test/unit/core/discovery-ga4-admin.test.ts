@@ -187,4 +187,3 @@ describe("GA4 Admin API Discovery", () => {
     });
   });
 });
-

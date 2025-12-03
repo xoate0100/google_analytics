@@ -74,4 +74,3 @@ Supports:
 3. Validate events before production
 4. Use lookup tables for normalization
 5. Monitor event delivery
-

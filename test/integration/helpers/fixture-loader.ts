@@ -23,4 +23,3 @@ export function loadFixtureSync(_name: string): unknown {
   // For now, we'll use async version
   throw new Error("loadFixtureSync not implemented - use loadFixture instead");
 }
-

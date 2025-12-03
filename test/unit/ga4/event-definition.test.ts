@@ -216,4 +216,3 @@ describe("GA4 Event Definition Tools", () => {
     });
   });
 });
-

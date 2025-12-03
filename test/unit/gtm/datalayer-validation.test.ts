@@ -247,4 +247,3 @@ describe("GTM Data Layer Validation Tools", () => {
     });
   });
 });
-

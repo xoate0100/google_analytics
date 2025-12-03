@@ -11,7 +11,7 @@ jobs:
   quality:
     name: Quality Checks
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,4 +43,3 @@ jobs:
           echo "Mutation testing will be implemented in future phase"
           echo "Target: 75% kill rate"
         continue-on-error: true
-

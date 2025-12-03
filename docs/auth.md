@@ -122,4 +122,3 @@ Google Ads requires additional setup:
 3. Login customer ID (MCC or account ID)
 
 See [Google Ads API Documentation](https://developers.google.com/google-ads/api/docs/oauth/overview) for details.
-

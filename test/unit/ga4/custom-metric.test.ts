@@ -234,4 +234,3 @@ describe("GA4 Custom Metric Tools", () => {
     });
   });
 });
-

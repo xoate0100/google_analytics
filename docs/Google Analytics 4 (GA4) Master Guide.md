@@ -1139,25 +1139,25 @@ Similar Audiences: \+10%
 #### Performance Review
 
 1. **Check key metrics**:  
-     
+
    - Impressions, clicks, CTR  
    - Conversions, CPA, ROAS  
    - Quality Score  
    - Search Impression Share
 
-   
+
 
 2. **Identify issues**:  
-     
+
    - Low CTR ads  
    - High CPA keywords  
    - Underperforming ad groups  
    - Budget constraints
 
-   
+
 
 3. **Take action**:  
-     
+
    - Pause underperforming ads  
    - Adjust bids  
    - Add negative keywords  
@@ -1168,24 +1168,24 @@ Similar Audiences: \+10%
 #### Campaign Analysis
 
 1. **Performance comparison**:  
-     
+
    - Week-over-week trends  
    - Month-over-month trends  
    - Year-over-year (if available)
 
-   
+
 
 2. **Segment analysis**:  
-     
+
    - Device performance  
    - Location performance  
    - Time of day performance  
    - Audience performance
 
-   
+
 
 3. **Strategic adjustments**:  
-     
+
    - Budget reallocation  
    - Bid strategy changes  
    - Audience expansion  
@@ -1196,24 +1196,24 @@ Similar Audiences: \+10%
 #### Strategic Review
 
 1. **Campaign structure audit**:  
-     
+
    - Ad group organization  
    - Keyword relevance  
    - Negative keyword lists  
    - Extension performance
 
-   
+
 
 2. **Competitive analysis**:  
-     
+
    - Auction insights  
    - Impression share trends  
    - Competitor activity
 
-   
+
 
 3. **Planning**:  
-     
+
    - New campaign ideas  
    - Seasonal adjustments  
    - Budget planning  
@@ -1230,24 +1230,24 @@ Similar Audiences: \+10%
 #### Improvement Strategies
 
 1. **Improve ad relevance**:  
-     
+
    - Include keywords in ads  
    - Match ad copy to search intent  
    - Use keyword insertion
 
-   
+
 
 2. **Optimize landing pages**:  
-     
+
    - Fast load times  
    - Mobile-friendly  
    - Relevant content  
    - Clear CTAs
 
-   
+
 
 3. **Increase CTR**:  
-     
+
    - Compelling headlines  
    - Strong CTAs  
    - Relevant extensions  
@@ -1303,7 +1303,7 @@ function main() {
 
     .get();
 
-  
+
 
   while (keywords.hasNext()) {
 
@@ -1331,19 +1331,19 @@ function main() {
 
   );
 
-  
+
 
   var rows \= report.rows();
 
   var emailBody \= 'Daily Performance Report\\n\\n';
 
-  
+
 
   while (rows.hasNext()) {
 
     var row \= rows.next();
 
-    emailBody \+= row\['CampaignName'\] \+ ': ' \+ 
+    emailBody \+= row\['CampaignName'\] \+ ': ' \+
 
                  row\['Impressions'\] \+ ' impressions, ' \+
 
@@ -1353,7 +1353,7 @@ function main() {
 
   }
 
-  
+
 
   MailApp.sendEmail({
 
@@ -3229,4 +3229,3 @@ Improvement Tracking:
 - Proceed to [Maintenance & Scaling Methodology](http://./maintenance-scaling.md)  
 - Review [Optimization Roadmaps](http://../templates/optimization-roadmaps.md)  
 - Check [Performance Review Templates](http://../templates/optimization-roadmaps.md)
-

@@ -377,4 +377,3 @@ describe("Google Ads Budget & Bidding Strategy Tools", () => {
     });
   });
 });
-

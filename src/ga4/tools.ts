@@ -288,7 +288,7 @@ async function executeAPIRequest(
 ): Promise<z.infer<typeof runReportResponseSchema>> {
   await ga4Client.checkRateLimit("ga4", "runReport");
   const dataClient = ga4Client.getAnalyticsDataClient();
-  
+
   // Convert validated request to API format (handle optional name as null)
   const apiRequest = {
     ...validatedRequest,
@@ -298,7 +298,7 @@ async function executeAPIRequest(
       name: dr.name ?? null,
     })),
   };
-  
+
   const response = await dataClient.properties.runReport({
     property: validatedRequest.property,
     requestBody: apiRequest as never,
@@ -991,7 +991,7 @@ async function executePropertyListAPIRequest(
 ): Promise<z.infer<typeof propertyListResponseSchema>> {
   await ga4Client.checkRateLimit("ga4", "property.list");
   const adminClient = ga4Client.getAnalyticsAdminClient();
-  
+
   const params: Record<string, unknown> = {};
   if (validatedRequest.parent) {
     params.parent = validatedRequest.parent;
@@ -7027,7 +7027,7 @@ async function executeGoogleSignalsGetAPIRequest(
   const response = (await (adminClient.properties as { getGoogleSignalsSettings?: (params: { name: string }) => Promise<{ data?: unknown }> }).getGoogleSignalsSettings?.({
     name: `${property}/googleSignalsSettings`,
   })) as { data?: unknown };
-  
+
   if (!response) {
     throw createPreconditionError("not_found", "Google Signals settings not found", {
       property,
@@ -7139,7 +7139,7 @@ async function executeGoogleSignalsUpdateAPIRequest(
     } as never,
     updateMask: "state",
   })) as { data?: unknown };
-  
+
   if (!response) {
     throw createPreconditionError("not_found", "Google Signals settings not found", {
       property,
@@ -7262,7 +7262,7 @@ async function executeDataRetentionGetAPIRequest(
   const response = (await (adminClient.properties as { getDataRetentionSettings?: (params: { name: string }) => Promise<{ data?: unknown }> }).getDataRetentionSettings?.({
     name: `${property}/dataRetentionSettings`,
   })) as { data?: unknown };
-  
+
   if (!response) {
     throw createPreconditionError("not_found", "Data retention settings not found", {
       property,
@@ -7377,7 +7377,7 @@ async function executeDataRetentionUpdateAPIRequest(
     } as never,
     updateMask,
   })) as { data?: unknown };
-  
+
   if (!response) {
     throw createPreconditionError("not_found", "Data retention settings not found", {
       property,
@@ -7494,7 +7494,7 @@ async function executeDataFilterListAPIRequest(
     params.pageToken = pageToken;
   }
   const response = (await (adminClient.properties as { dataFilters?: { list?: (params: { parent: string; pageSize?: number; pageToken?: string }) => Promise<{ data?: unknown }> } }).dataFilters?.list?.(params)) as { data?: unknown };
-  
+
   if (!response || !response.data) {
     throw createPreconditionError("not_found", "Data filters not found", {
       property,
@@ -7609,7 +7609,7 @@ async function executeDataFilterGetAPIRequest(
   const response = (await (adminClient.properties as { dataFilters?: { get?: (params: { name: string }) => Promise<{ data?: unknown }> } }).dataFilters?.get?.({
     name: `${property}/${filterId}`,
   })) as { data?: unknown };
-  
+
   if (!response || !response.data) {
     throw createPreconditionError("not_found", "Data filter not found", {
       property,
@@ -7723,7 +7723,7 @@ async function executeDataFilterCreateAPIRequest(
       eventNames: request.eventNames,
     } as never,
   })) as { data?: unknown };
-  
+
   if (!response || !response.data) {
     throw createPreconditionError("precheck_failed", "Failed to create data filter", {
       property,
@@ -7898,7 +7898,7 @@ async function executeDataFilterUpdateAPIRequest(
     updateMask,
     dataFilter: updates as never,
   })) as { data?: unknown };
-  
+
   if (!response || !response.data) {
     throw createPreconditionError("not_found", "Data filter not found", {
       property,
@@ -8082,4 +8082,3 @@ function registerDataFilterDeleteTool(
     },
   });
 }
-
