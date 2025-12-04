@@ -24,6 +24,80 @@ export interface DiscoveryOptions {
  * Probes Data API, Admin API, and Measurement Protocol to verify endpoints
  * @param options - Discovery options
  */
+/**
+ * Helper: Build GA4 endpoint verification list
+ */
+function buildGA4EndpointsToVerify(
+  adminClient: ReturnType<import("../ga4/client.js").GA4Client["getAnalyticsAdminClient"]>
+): Array<{ resource: unknown; method: string }> {
+  return [
+    { resource: adminClient.accounts, method: "accounts.list" },
+    { resource: adminClient.properties, method: "properties.list" },
+    { resource: (adminClient.properties as unknown as { dataStreams?: { list?: () => Promise<unknown> } }).dataStreams, method: "dataStreams.list" },
+    { resource: (adminClient.properties as unknown as { customDimensions?: { list?: () => Promise<unknown> } }).customDimensions, method: "customDimensions.list" },
+    { resource: (adminClient.properties as unknown as { customMetrics?: { list?: () => Promise<unknown> } }).customMetrics, method: "customMetrics.list" },
+  ];
+}
+
+/**
+ * Helper: Verify single GA4 endpoint
+ */
+async function verifyGA4Endpoint(
+  resource: unknown,
+  method: string,
+  logger: ILogger
+): Promise<{ accessible: boolean; error?: string }> {
+  try {
+    if (resource && typeof (resource as { list?: unknown }).list === "function") {
+      await (resource as { list: () => Promise<unknown> }).list();
+      logger.debug(`GA4 Admin API endpoint verified: ${method}`, { resource: method });
+      return { accessible: true };
+    }
+    return { accessible: false, error: `${method}: endpoint not available` };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("403") || errorMessage.includes("permission")) {
+      logger.debug(`GA4 Admin API endpoint exists but no permission: ${method}`);
+      return { accessible: true };
+    }
+    if (errorMessage.includes("404") || errorMessage.includes("not found")) {
+      logger.warn(`GA4 Admin API endpoint not found: ${method}`, { error: errorMessage });
+      return { accessible: false, error: `${method}: endpoint not found` };
+    }
+    logger.error(`GA4 Admin API endpoint check failed: ${method}`, error instanceof Error ? error : new Error(String(error)));
+    return { accessible: false, error: `${method}: ${errorMessage}` };
+  }
+}
+
+/**
+ * Helper: Verify all GA4 Admin API endpoints
+ */
+async function verifyGA4AdminEndpoints(
+  adminClient: ReturnType<import("../ga4/client.js").GA4Client["getAnalyticsAdminClient"]>,
+  logger: ILogger
+): Promise<boolean> {
+  const endpointsToVerify = buildGA4EndpointsToVerify(adminClient);
+  const errors: string[] = [];
+  let allEndpointsAccessible = true;
+
+  for (const { resource, method } of endpointsToVerify) {
+    const result = await verifyGA4Endpoint(resource, method, logger);
+    if (!result.accessible) {
+      allEndpointsAccessible = false;
+      if (result.error) {
+        errors.push(result.error);
+      }
+    }
+  }
+
+  if (allEndpointsAccessible && errors.length === 0) {
+    logger.info("GA4 Admin API endpoints verified and accessible");
+    return true;
+  }
+  logger.warn("Some GA4 Admin API endpoints may not be accessible", { errors });
+  return errors.length < endpointsToVerify.length / 2;
+}
+
 export async function discoverGA4Capabilities(
   options: DiscoveryOptions
 ): Promise<void> {
@@ -31,7 +105,6 @@ export async function discoverGA4Capabilities(
 
   logger.info("Discovering GA4 capabilities");
 
-  // Default capabilities
   const capabilities: ProductCapabilities = {
     data_api: "v1",
     admin_api: false,
@@ -39,69 +112,13 @@ export async function discoverGA4Capabilities(
     properties: [],
   };
 
-  // If GA4 client is provided, verify Admin API endpoints
   if (ga4Client) {
     try {
       await ga4Client.checkRateLimit("ga4", "discovery");
       const adminClient = ga4Client.getAnalyticsAdminClient();
-
-      // Verify core Admin API endpoints are accessible
-      // Note: dataStreams, customDimensions, customMetrics are accessed via properties
-      const endpointsToVerify = [
-        { resource: adminClient.accounts, method: "accounts.list" },
-        { resource: adminClient.properties, method: "properties.list" },
-        { resource: (adminClient.properties as unknown as { dataStreams?: { list?: () => Promise<unknown> } }).dataStreams, method: "dataStreams.list" },
-        { resource: (adminClient.properties as unknown as { customDimensions?: { list?: () => Promise<unknown> } }).customDimensions, method: "customDimensions.list" },
-        { resource: (adminClient.properties as unknown as { customMetrics?: { list?: () => Promise<unknown> } }).customMetrics, method: "customMetrics.list" },
-      ];
-
-      let allEndpointsAccessible = true;
-      const errors: string[] = [];
-
-      for (const { resource, method } of endpointsToVerify) {
-        try {
-          if (resource && typeof (resource as { list?: unknown }).list === "function") {
-            await (resource as { list: () => Promise<unknown> }).list();
-            logger.debug(`GA4 Admin API endpoint verified: ${method}`, {
-              resource: method,
-            });
-          } else {
-            allEndpointsAccessible = false;
-            errors.push(`${method}: endpoint not available`);
-          }
-        } catch (error) {
-          // If it's a permission error, the endpoint exists but we don't have access
-          // If it's a 404, the endpoint might not exist
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          if (errorMessage.includes("403") || errorMessage.includes("permission")) {
-            // Endpoint exists but no permission - still consider it accessible
-            logger.debug(`GA4 Admin API endpoint exists but no permission: ${method}`);
-          } else if (errorMessage.includes("404") || errorMessage.includes("not found")) {
-            allEndpointsAccessible = false;
-            errors.push(`${method}: endpoint not found`);
-            logger.warn(`GA4 Admin API endpoint not found: ${method}`, { error: errorMessage });
-          } else {
-            // Other errors might indicate endpoint issues
-            logger.error(`GA4 Admin API endpoint check failed: ${method}`, error instanceof Error ? error : new Error(String(error)));
-            allEndpointsAccessible = false;
-            errors.push(`${method}: ${errorMessage}`);
-          }
-        }
-      }
-
-      if (allEndpointsAccessible && errors.length === 0) {
-        capabilities.admin_api = true;
-        logger.info("GA4 Admin API endpoints verified and accessible");
-      } else {
-        logger.warn("Some GA4 Admin API endpoints may not be accessible", { errors });
-        // Still set admin_api to true if most endpoints work
-        if (errors.length < endpointsToVerify.length / 2) {
-          capabilities.admin_api = true;
-        }
-      }
+      capabilities.admin_api = await verifyGA4AdminEndpoints(adminClient, logger);
     } catch (error) {
       logger.error("GA4 Admin API discovery failed", error instanceof Error ? error : new Error(String(error)));
-      // Keep admin_api as false if discovery fails
     }
   } else {
     logger.debug("GA4 client not provided, skipping Admin API verification");

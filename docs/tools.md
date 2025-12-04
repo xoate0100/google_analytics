@@ -2971,19 +2971,274 @@ Enable a built-in variable in a workspace.
 
 ---
 
-### GTM Workflow Examples
+### GTM Advanced Tools (Sprint 3)
 
-**Creating a tag and publishing:**
+#### `gtm.datalayer.validate`
+
+Validate data layer structure against a schema.
+
+**Parameters:**
+```json
+{
+  "containerPath": "accounts/123456/containers/987654",
+  "schema": {
+    "event": "string",
+    "eventCategory": "string"
+  }
+}
+```
+
+**Returns:**
+```json
+{
+  "valid": true,
+  "errors": []
+}
+```
+
+**Status:** ✅ Implemented (Sprint 3)
+
+**For AI Agents:**
+- **Intent**: Validate data layer structure for compliance
+- **Required Args**: `containerPath`, `schema`
+- **Safety Checks**: Container path validation, schema validation, GTM API capability check
+- **Canonical Example**: `gtm.datalayer.validate({ containerPath: "accounts/123456/containers/987654", schema: { event: "string" } })`
+
+---
+
+#### `gtm.folder.list`, `gtm.folder.upsert`, `gtm.folder.delete`
+
+Manage folders for organizing tags, triggers, and variables.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+#### `gtm.version.list`, `gtm.version.create`, `gtm.version.restore`
+
+Manage container versions for version control.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+#### `gtm.workspace.publish`, `gtm.preview.create`, `gtm.preview.get`
+
+Publish workspaces and create preview environments.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+#### `gtm.consent.configure`, `gtm.consent.get`
+
+Configure consent mode settings for GDPR/CCPA compliance.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+#### `gtm.tag.sequence.update`, `gtm.tag.priority.update`
+
+Manage tag sequencing and execution priority.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+### GTM Workflow Examples
 
 1. Create a workspace: `gtm.workspace.create({ parent: "accounts/123456/containers/987654", name: "My Workspace" })`
 2. Create a tag: `gtm.tag.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "GA4 Configuration", type: "GOOGLE_ANALYTICS_GA4_CONFIGURATION" })`
-3. Create a trigger: `gtm.trigger.upsert({ parent: "accounts/123456/containers/987654/workspaces/111111", name: "Page View", type: "PAGEVIEW" })`
-4. Merge workspace: `gtm.workspace.merge({ path: "accounts/123456/containers/987654/workspaces/111111", sourceWorkspacePath: "accounts/123456/containers/987654/workspaces/222222" })`
-5. (Publish step would be in a future sprint)
+3. Validate data layer: `gtm.datalayer.validate({ containerPath: "accounts/123456/containers/987654", schema: { event: "string" } })`
+4. Create version and publish: `gtm.version.create({ parent: "accounts/123456/containers/987654" })` then `gtm.workspace.publish({ path: "accounts/123456/containers/987654/workspaces/111111" })`
+5. Configure consent mode: `gtm.consent.configure({ containerPath: "accounts/123456/containers/987654", consentMode: { adStorage: "granted" } })`
 
 ## Google Ads Tools
 
-Google Ads tools are planned for future sprints. See roadmap for implementation timeline.
+### Reporting
+
+#### `ads.report.gaql`
+
+Execute a Google Ads Query Language (GAQL) query.
+
+**Parameters:**
+```json
+{
+  "customerId": "1234567890",
+  "query": "SELECT campaign.id, campaign.name FROM campaign WHERE campaign.status = 'ENABLED'",
+  "limit": 100
+}
+```
+
+**Returns:**
+```json
+{
+  "results": [
+    {
+      "campaign.id": "12345",
+      "campaign.name": "Summer Sale"
+    }
+  ]
+}
+```
+
+**Status:** ✅ Implemented (Sprint 3)
+
+**For AI Agents:**
+- **Intent**: Query Google Ads data using GAQL
+- **Required Args**: `customerId`, `query`
+- **Safety Checks**: Customer ID validation, query validation, Ads API capability check
+- **Canonical Example**: `ads.report.gaql({ customerId: "1234567890", query: "SELECT campaign.id, campaign.name FROM campaign" })`
+
+---
+
+#### `ads.report.gaqlBatch`
+
+Execute multiple GAQL queries in batch.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+### Campaigns, Ad Groups, Keywords
+
+#### `ads.campaign.list`, `ads.campaign.get`, `ads.campaign.upsert`, `ads.campaign.pause`
+
+Manage campaigns.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+#### `ads.adgroup.list`, `ads.adgroup.get`, `ads.adgroup.upsert`
+
+Manage ad groups.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+#### `ads.keyword.list`, `ads.keyword.upsert`, `ads.keyword.delete`
+
+Manage keywords.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+### Conversions
+
+#### `ads.conversion.list`, `ads.conversion.get`, `ads.conversion.upsert`, `ads.conversion.delete`
+
+Manage conversion actions. Supports `type: "GOOGLE_ANALYTICS"` for GA4 linking.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+#### `ads.conversion.offlineImport`
+
+Import offline conversions with GCLID matching.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+#### `ads.conversion.enhanced`
+
+Configure enhanced conversions with hashed customer data.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+### Audiences, Budgets, Bidding
+
+#### `ads.audience.list`, `ads.audience.get`, `ads.audience.upsert`, `ads.audience.attach`
+
+Manage audiences and attach to campaigns.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+#### `ads.budget.list`, `ads.budget.get`, `ads.budget.upsert`
+
+Manage campaign budgets.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+#### `ads.biddingStrategy.list`, `ads.biddingStrategy.get`, `ads.biddingStrategy.upsert`
+
+Manage bidding strategies.
+
+**Status:** ✅ Implemented (Sprint 3)
+
+---
+
+### Google Ads Workflow Examples
+
+1. Query campaigns: `ads.report.gaql({ customerId: "1234567890", query: "SELECT campaign.id, campaign.name FROM campaign" })`
+2. Create campaign: `ads.campaign.upsert({ customerId: "1234567890", name: "Summer Sale", advertisingChannelType: "SEARCH" })`
+3. Create ad group: `ads.adgroup.upsert({ customerId: "1234567890", campaignId: "12345", name: "Product Ad Group" })`
+4. Add keyword: `ads.keyword.upsert({ customerId: "1234567890", adGroupId: "67890", text: "buy shoes", matchType: "EXACT" })`
+5. Create conversion: `ads.conversion.upsert({ customerId: "1234567890", name: "Purchase", type: "GOOGLE_ANALYTICS" })`
+6. Import offline conversions: `ads.conversion.offlineImport({ customerId: "1234567890", conversionId: "22222", conversions: [{ gclid: "abc123", conversionDateTime: "2024-01-17T10:00:00Z" }] })`
+
+## Workflow Tools
+
+### Cross-Product Workflows
+
+#### `workflow.ga4-ads.conversionLink`
+
+Link a GA4 conversion event to a Google Ads conversion action. This workflow:
+1. Creates or verifies the GA4 conversion event
+2. Creates or verifies the Google Ads link in GA4 (if adsCustomerId provided)
+3. Creates a Google Ads conversion action with type "GOOGLE_ANALYTICS"
+4. Returns the complete linking configuration
+
+**Parameters:**
+```json
+{
+  "propertyId": "123456789",
+  "eventName": "purchase",
+  "customerId": "9876543210",
+  "conversionName": "Purchase Conversion",
+  "conversionCategory": "PURCHASE",
+  "adsCustomerId": "1111111111",
+  "countingMethod": "ONCE_PER_EVENT",
+  "attributionModel": "DATA_DRIVEN"
+}
+```
+
+**Returns:**
+```json
+{
+  "ga4ConversionName": "properties/123456789/conversionEvents/purchase",
+  "ga4LinkName": "properties/123456789/googleAdsLinks/2222222222",
+  "adsConversionActionId": "3333333333",
+  "adsConversionActionResourceName": "customers/9876543210/conversionActions/3333333333",
+  "linked": true
+}
+```
+
+**Status:** ✅ Implemented (Sprint 3)
+
+**For AI Agents:**
+- **Intent**: Link GA4 conversions to Google Ads for cross-product tracking
+- **Required Args**: `propertyId`, `eventName`, `customerId`, `conversionName`
+- **Safety Checks**: Property ID validation, customer ID validation, event name validation, Ads API and GA4 Admin API capability checks
+- **Canonical Example**: `workflow.ga4-ads.conversionLink({ propertyId: "123456789", eventName: "purchase", customerId: "9876543210", conversionName: "Purchase Conversion" })`
+
+---
+
+### Workflow Examples
+
+1. **Link GA4 conversion to Ads**: `workflow.ga4-ads.conversionLink({ propertyId: "123456789", eventName: "purchase", customerId: "9876543210", conversionName: "Purchase Conversion" })`
+2. **Complete conversion setup**: Create GA4 conversion → Link to Ads → Configure attribution
 
 ---
 

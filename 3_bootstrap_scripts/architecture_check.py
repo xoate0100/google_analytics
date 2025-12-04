@@ -377,21 +377,53 @@ def check_isp_interface_segregation():
                     if interface_match:
                         interface_name = interface_match.group(1)
                         # Count methods/properties in interface
+                        # i is 1-indexed (line number), convert to 0-indexed for array access
+                        line_idx = i - 1
                         brace_count = line.count('{') - line.count('}')
                         method_count = 0
-                        j = i
 
-                        while j < len(lines) and brace_count >= 0:
-                            current_line = lines[j]
-                            brace_count += current_line.count('{') - current_line.count('}')
+                        # Find opening brace
+                        opening_brace_line = None
+                        j = line_idx
 
-                            # Count method/property definitions
-                            if re.search(r'^\s*\w+.*[:?]\s*[^;]', current_line) or re.search(r'^\s*\w+\s*\(', current_line):
-                                method_count += 1
-
-                            if brace_count < 0:
+                        # Find opening brace (could be on same line or next line)
+                        while j < len(lines) and j < line_idx + 10:
+                            brace_count += lines[j].count('{') - lines[j].count('}')
+                            if brace_count > 0:
+                                opening_brace_line = j
                                 break
                             j += 1
+
+                        if opening_brace_line is not None:
+                            # Count only properties at interface level (brace_level == 1)
+                            # Start from line after opening brace
+                            k = opening_brace_line + 1
+                            interface_level = 1  # We're inside the interface
+
+                            while k < len(lines):
+                                current_line = lines[k]
+                                stripped = current_line.strip()
+
+                                # Track brace level
+                                interface_level += current_line.count('{') - current_line.count('}')
+
+                                # Interface ends when we close the opening brace
+                                if interface_level <= 0:
+                                    break
+
+                                # Only count properties at interface level (level 1)
+                                if interface_level == 1:
+                                    # Skip empty lines and comments
+                                    if (stripped and
+                                        not stripped.startswith('//') and
+                                        not stripped.startswith('/*') and
+                                        not (stripped.startswith('*') and not stripped.startswith('**')) and
+                                        (re.match(r'^\s*\w+(\??)\s*[:\(]', stripped) or
+                                         re.match(r'^\s*\w+\s*\(', stripped)) and
+                                        '=>' not in stripped):
+                                        method_count += 1
+
+                                k += 1
 
                         if method_count > 10:
                             violations.append(
@@ -404,20 +436,50 @@ def check_isp_interface_segregation():
                     type_match = re.search(r'type\s+(\w+)\s*=\s*\{', line)
                     if type_match:
                         type_name = type_match.group(1)
+                        # i is 1-indexed (line number), convert to 0-indexed for array access
+                        line_idx = i - 1
                         brace_count = line.count('{') - line.count('}')
                         method_count = 0
-                        j = i
 
-                        while j < len(lines) and brace_count >= 0:
-                            current_line = lines[j]
-                            brace_count += current_line.count('{') - current_line.count('}')
+                        # Find opening brace
+                        opening_brace_line = None
+                        j = line_idx
 
-                            if re.search(r'^\s*\w+.*[:?]\s*[^;]', current_line):
-                                method_count += 1
-
-                            if brace_count < 0:
+                        # Find opening brace
+                        while j < len(lines) and j < line_idx + 10:
+                            brace_count += lines[j].count('{') - lines[j].count('}')
+                            if brace_count > 0:
+                                opening_brace_line = j
                                 break
                             j += 1
+
+                        if opening_brace_line is not None:
+                            # Count only properties at type level (brace_level == 1)
+                            k = opening_brace_line + 1
+                            type_level = 1
+
+                            while k < len(lines):
+                                current_line = lines[k]
+                                stripped = current_line.strip()
+
+                                # Track brace level
+                                type_level += current_line.count('{') - current_line.count('}')
+
+                                # Type ends when we close the opening brace
+                                if type_level <= 0:
+                                    break
+
+                                # Only count properties at type level (level 1)
+                                if type_level == 1:
+                                    # Skip empty lines and comments
+                                    if (stripped and
+                                        not stripped.startswith('//') and
+                                        not stripped.startswith('/*') and
+                                        not (stripped.startswith('*') and not stripped.startswith('**')) and
+                                        re.match(r'^\s*\w+(\??)\s*:', stripped)):
+                                        method_count += 1
+
+                                k += 1
 
                         if method_count > 10:
                             violations.append(

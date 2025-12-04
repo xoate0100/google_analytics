@@ -395,60 +395,82 @@ function registerDataFilterTools(
   registerDataFilterDeleteTool(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 }
 
+/**
+ * Helper: Register GA4 Data API and Measurement Protocol tools
+ */
+function registerGA4DataTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger,
+  measurementClient?: MeasurementProtocolClient
+): void {
+  registerDataAPITools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  if (measurementClient) {
+    registerMeasurementProtocolTools(bootstrap, measurementClient, logger);
+  }
+}
+
+/**
+ * Helper: Register GA4 Admin API core tools
+ */
+function registerGA4AdminCoreTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  registerPropertyTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataStreamTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerCustomDimensionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerCustomMetricTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerEventTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
+
+/**
+ * Helper: Register GA4 Admin API advanced tools
+ */
+function registerGA4AdminAdvancedTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  registerConversionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerAudienceTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerAttributionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerGoogleAdsIntegrationTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerBigQueryIntegrationTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
+
+/**
+ * Helper: Register GA4 Admin API settings tools
+ */
+function registerGA4AdminSettingsTools(
+  bootstrap: MCPServerBootstrap,
+  ga4Client: GA4Client,
+  cache: ICache,
+  capabilitiesRegistry: ICapabilitiesRegistry,
+  logger: ILogger
+): void {
+  registerPropertySettingsTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerGoogleSignalsTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataRetentionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerDataFilterTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+}
+
 export function registerGA4Tools(options: GA4ToolsOptions): void {
   const { bootstrap, ga4Client, cache, capabilitiesRegistry, logger } = options;
 
   logger.info("Registering GA4 tools");
 
-  // Data API tools
-  registerDataAPITools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Measurement Protocol tools
-  if (options.measurementClient) {
-    registerMeasurementProtocolTools(bootstrap, options.measurementClient, logger);
-  }
-
-  // Admin API tools - Properties
-  registerPropertyTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Data Streams
-  registerDataStreamTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Custom Dimensions
-  registerCustomDimensionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Custom Metrics
-  registerCustomMetricTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Events
-  registerEventTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Conversions
-  registerConversionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Audiences
-  registerAudienceTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Attribution
-  registerAttributionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Google Ads Integration
-  registerGoogleAdsIntegrationTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - BigQuery Integration
-  registerBigQueryIntegrationTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Property Settings
-  registerPropertySettingsTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Google Signals
-  registerGoogleSignalsTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Data Retention
-  registerDataRetentionTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
-
-  // Admin API tools - Data Filters
-  registerDataFilterTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerGA4DataTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger, options.measurementClient);
+  registerGA4AdminCoreTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerGA4AdminAdvancedTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
+  registerGA4AdminSettingsTools(bootstrap, ga4Client, cache, capabilitiesRegistry, logger);
 
   logger.info("GA4 tools registered");
 }
@@ -1495,6 +1517,24 @@ async function executePropertyUpsertAPIRequest(
 /**
  * Execute property upsert operation with pre/post validation
  */
+/**
+ * Helper: Verify property exists for update
+ */
+async function verifyPropertyExistsForUpdate(
+  ga4Client: GA4Client,
+  propertyName: string
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "property.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.get({ name: propertyName });
+  } catch {
+    throw createPreconditionError("not_found", "Property not found", {
+      property: propertyName,
+    });
+  }
+}
+
 async function executePropertyUpsert(
   args: unknown,
   ga4Client: GA4Client,
@@ -1526,22 +1566,12 @@ async function executePropertyUpsert(
     );
   }
 
-  // Pre-check: if updating, verify property exists
   if (validatedRequest.name) {
-    await ga4Client.checkRateLimit("ga4", "property.get");
-    const adminClient = ga4Client.getAnalyticsAdminClient();
-    try {
-      await adminClient.properties.get({ name: validatedRequest.name });
-    } catch {
-      throw createPreconditionError("not_found", "Property not found", {
-        property: validatedRequest.name,
-      });
-    }
+    await verifyPropertyExistsForUpdate(ga4Client, validatedRequest.name);
   }
 
   const validatedResponse = await executePropertyUpsertAPIRequest(validatedRequest, ga4Client);
 
-  // Post-check: verify property was created/updated
   const cacheKey = `ga4:property:${validatedResponse.name}`;
   await cache.invalidate(cacheKey);
   await cache.set(cacheKey, validatedResponse, 300000);
@@ -1557,6 +1587,51 @@ async function executePropertyUpsert(
 /**
  * Register ga4.property.upsert tool
  */
+/**
+ * Helper: Get property upsert tool schema
+ */
+function getPropertyUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Account ID in format accounts/123456789 (required for create)",
+      },
+      name: {
+        type: "string",
+        description: "Property ID in format properties/123456789 (required for update)",
+      },
+      displayName: {
+        type: "string",
+        description: "Property display name",
+      },
+      timeZone: {
+        type: "string",
+        description: "Property timezone (e.g., America/New_York)",
+      },
+      currencyCode: {
+        type: "string",
+        description: "Property currency code (e.g., USD)",
+      },
+      industryCategory: {
+        type: "string",
+        description: "Industry category",
+      },
+      propertyType: {
+        type: "string",
+        enum: ["PROPERTY_TYPE_ORDINARY", "PROPERTY_TYPE_SUBPROPERTY", "PROPERTY_TYPE_ROLLUP"],
+        description: "Property type",
+      },
+    },
+    required: ["displayName"],
+  };
+}
+
 function registerPropertyUpsertTool(
   bootstrap: MCPServerBootstrap,
   ga4Client: GA4Client,
@@ -1567,41 +1642,7 @@ function registerPropertyUpsertTool(
   bootstrap.registerTool({
     name: "ga4.property.upsert",
     description: "Create or update GA4 property",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Account ID in format accounts/123456789 (required for create)",
-        },
-        name: {
-          type: "string",
-          description: "Property ID in format properties/123456789 (required for update)",
-        },
-        displayName: {
-          type: "string",
-          description: "Property display name",
-        },
-        timeZone: {
-          type: "string",
-          description: "Property timezone (e.g., America/New_York)",
-        },
-        currencyCode: {
-          type: "string",
-          description: "Property currency code (e.g., USD)",
-        },
-        industryCategory: {
-          type: "string",
-          description: "Industry category",
-        },
-        propertyType: {
-          type: "string",
-          enum: ["PROPERTY_TYPE_ORDINARY", "PROPERTY_TYPE_SUBPROPERTY", "PROPERTY_TYPE_ROLLUP"],
-          description: "Property type",
-        },
-      },
-      required: ["displayName"],
-    },
+    inputSchema: getPropertyUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executePropertyUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
@@ -1620,6 +1661,69 @@ function registerPropertyUpsertTool(
 /**
  * Execute property delete operation with rollback
  */
+/**
+ * Helper: Verify property exists before delete
+ */
+async function verifyPropertyExists(
+  adminClient: ReturnType<GA4Client["getAnalyticsAdminClient"]>,
+  propertyName: string
+): Promise<void> {
+  await adminClient.properties.get({ name: propertyName });
+}
+
+/**
+ * Helper: Verify property exists for delete (with rate limit)
+ */
+async function verifyPropertyExistsForDelete(
+  ga4Client: GA4Client,
+  adminClient: ReturnType<GA4Client["getAnalyticsAdminClient"]>,
+  propertyName: string
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "property.get");
+  try {
+    await verifyPropertyExists(adminClient, propertyName);
+  } catch {
+    throw createPreconditionError("not_found", "Property not found", { property: propertyName });
+  }
+}
+
+/**
+ * Helper: Execute property delete mutation
+ */
+async function executePropertyDeleteMutation(
+  adminClient: ReturnType<GA4Client["getAnalyticsAdminClient"]>,
+  propertyName: string,
+  logger: ILogger
+): Promise<void> {
+  try {
+    await adminClient.properties.delete({ name: propertyName });
+  } catch (error) {
+    logger.error("Property delete failed, rollback not needed", error instanceof Error ? error : new Error(String(error)));
+    throw error;
+  }
+}
+
+/**
+ * Helper: Verify property was deleted
+ */
+async function verifyPropertyDeleted(
+  adminClient: ReturnType<GA4Client["getAnalyticsAdminClient"]>,
+  propertyName: string,
+  logger: ILogger
+): Promise<void> {
+  try {
+    await adminClient.properties.get({ name: propertyName });
+    logger.warn("Property delete post-check failed - property still exists", { property: propertyName });
+    throw createPreconditionError("precheck_failed", "Property deletion failed", { property: propertyName });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("not found")) {
+      // Success - property deleted
+      return;
+    }
+    throw error;
+  }
+}
+
 async function executePropertyDelete(
   args: unknown,
   ga4Client: GA4Client,
@@ -1641,61 +1745,15 @@ async function executePropertyDelete(
 
   const validatedRequest = validateSchema(propertyDeleteRequestSchema, args);
 
-  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
-  if (!hasCapability) {
-    throw createPreconditionError(
-      "precheck_failed",
-      "GA4 Admin API capability not available",
-      { product: "ga4" }
-    );
+  if (!capabilitiesRegistry.hasCapability("ga4", "admin_api")) {
+    throw createPreconditionError("precheck_failed", "GA4 Admin API capability not available", { product: "ga4" });
   }
 
-  // Pre-check: verify property exists
-  await ga4Client.checkRateLimit("ga4", "property.get");
   const adminClient = ga4Client.getAnalyticsAdminClient();
-  try {
-    await adminClient.properties.get({ name: validatedRequest.name });
-  } catch {
-    throw createPreconditionError("not_found", "Property not found", {
-      property: validatedRequest.name,
-    });
-  }
+  await verifyPropertyExistsForDelete(ga4Client, adminClient, validatedRequest.name);
+  await executePropertyDeleteMutation(adminClient, validatedRequest.name, logger);
+  await verifyPropertyDeleted(adminClient, validatedRequest.name, logger);
 
-  // Delete property
-  await ga4Client.checkRateLimit("ga4", "property.delete");
-  try {
-    await adminClient.properties.delete({
-      name: validatedRequest.name,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Property delete failed, rollback not needed", error);
-    } else {
-      logger.error("Property delete failed, rollback not needed", new Error(String(error)));
-    }
-    throw error;
-  }
-
-  // Post-check: verify property was deleted
-  try {
-    await adminClient.properties.get({ name: validatedRequest.name });
-    // If we get here, property still exists - rollback scenario
-    logger.warn("Property delete post-check failed - property still exists", {
-      property: validatedRequest.name,
-    });
-    throw createPreconditionError("precheck_failed", "Property deletion failed", {
-      property: validatedRequest.name,
-    });
-  } catch (error) {
-    // Expected: property should not exist
-    if (error instanceof Error && error.message.includes("not found")) {
-      // Success - property deleted
-    } else {
-      throw error;
-    }
-  }
-
-  // Invalidate cache
   const cacheKey = `ga4:property:${validatedRequest.name}`;
   await cache.delete(cacheKey);
 
@@ -2042,6 +2100,24 @@ async function executeDataStreamUpsertAPIRequest(
 /**
  * Execute data stream upsert operation with pre/post validation
  */
+/**
+ * Helper: Verify data stream exists for update
+ */
+async function verifyDataStreamExistsForUpdate(
+  ga4Client: GA4Client,
+  streamName: string
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "datastream.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.dataStreams.get({ name: streamName });
+  } catch {
+    throw createPreconditionError("not_found", "Data stream not found", {
+      stream: streamName,
+    });
+  }
+}
+
 async function executeDataStreamUpsert(
   args: unknown,
   ga4Client: GA4Client,
@@ -2074,22 +2150,12 @@ async function executeDataStreamUpsert(
     );
   }
 
-  // Pre-check: if updating, verify stream exists
   if (validatedRequest.name) {
-    await ga4Client.checkRateLimit("ga4", "datastream.get");
-    const adminClient = ga4Client.getAnalyticsAdminClient();
-    try {
-      await adminClient.properties.dataStreams.get({ name: validatedRequest.name });
-    } catch {
-      throw createPreconditionError("not_found", "Data stream not found", {
-        stream: validatedRequest.name,
-      });
-    }
+    await verifyDataStreamExistsForUpdate(ga4Client, validatedRequest.name);
   }
 
   const validatedResponse = await executeDataStreamUpsertAPIRequest(validatedRequest, ga4Client);
 
-  // Post-check: verify stream was created/updated
   const cacheKey = `ga4:datastream:${validatedResponse.name}`;
   await cache.invalidate(cacheKey);
   await cache.set(cacheKey, validatedResponse, 300000);
@@ -2105,6 +2171,85 @@ async function executeDataStreamUpsert(
 /**
  * Register ga4.datastream.upsert tool
  */
+/**
+ * Helper: Get data stream upsert tool schema
+ */
+/**
+ * Helper: Get data stream type enum
+ */
+function getDataStreamTypeEnum(): string[] {
+  return ["WEB_DATA_STREAM", "IOS_APP_DATA_STREAM", "ANDROID_APP_DATA_STREAM"];
+}
+
+/**
+ * Helper: Get app stream data schemas
+ */
+function getAppStreamDataSchemas(): Record<string, unknown> {
+  return {
+    iosAppStreamData: {
+      type: "object",
+      properties: {
+        bundleId: {
+          type: "string",
+          description: "iOS bundle ID",
+        },
+      },
+      description: "iOS app stream data (required for IOS_APP_DATA_STREAM)",
+    },
+    androidAppStreamData: {
+      type: "object",
+      properties: {
+        packageName: {
+          type: "string",
+          description: "Android package name",
+        },
+      },
+      description: "Android app stream data (required for ANDROID_APP_DATA_STREAM)",
+    },
+  };
+}
+
+function getDataStreamUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Property ID in format properties/123456789 (required for create)",
+      },
+      name: {
+        type: "string",
+        description: "Data stream ID in format properties/123456789/dataStreams/987654321 (required for update)",
+      },
+      displayName: {
+        type: "string",
+        description: "Data stream display name",
+      },
+      type: {
+        type: "string",
+        enum: getDataStreamTypeEnum(),
+        description: "Data stream type",
+      },
+      webStreamData: {
+        type: "object",
+        properties: {
+          defaultUri: {
+            type: "string",
+            description: "Default URI for web stream",
+          },
+        },
+        description: "Web stream data (required for WEB_DATA_STREAM)",
+      },
+      ...getAppStreamDataSchemas(),
+    },
+    required: ["parent", "displayName", "type"],
+  };
+}
+
 function registerDataStreamUpsertTool(
   bootstrap: MCPServerBootstrap,
   ga4Client: GA4Client,
@@ -2115,59 +2260,7 @@ function registerDataStreamUpsertTool(
   bootstrap.registerTool({
     name: "ga4.datastream.upsert",
     description: "Create or update GA4 data stream",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Property ID in format properties/123456789 (required for create)",
-        },
-        name: {
-          type: "string",
-          description: "Data stream ID in format properties/123456789/dataStreams/987654321 (required for update)",
-        },
-        displayName: {
-          type: "string",
-          description: "Data stream display name",
-        },
-        type: {
-          type: "string",
-          enum: ["WEB_DATA_STREAM", "IOS_APP_DATA_STREAM", "ANDROID_APP_DATA_STREAM"],
-          description: "Data stream type",
-        },
-        webStreamData: {
-          type: "object",
-          properties: {
-            defaultUri: {
-              type: "string",
-              description: "Default URI for web stream",
-            },
-          },
-          description: "Web stream data (required for WEB_DATA_STREAM)",
-        },
-        iosAppStreamData: {
-          type: "object",
-          properties: {
-            bundleId: {
-              type: "string",
-              description: "iOS bundle ID",
-            },
-          },
-          description: "iOS app stream data (required for IOS_APP_DATA_STREAM)",
-        },
-        androidAppStreamData: {
-          type: "object",
-          properties: {
-            packageName: {
-              type: "string",
-              description: "Android package name",
-            },
-          },
-          description: "Android app stream data (required for ANDROID_APP_DATA_STREAM)",
-        },
-      },
-      required: ["parent", "displayName", "type"],
-    },
+    inputSchema: getDataStreamUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeDataStreamUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
@@ -2186,6 +2279,63 @@ function registerDataStreamUpsertTool(
 /**
  * Execute data stream delete operation with rollback
  */
+/**
+ * Helper: Verify data stream exists before delete
+ */
+async function verifyDataStreamExists(
+  adminClient: ReturnType<GA4Client["getAnalyticsAdminClient"]>,
+  streamName: string
+): Promise<void> {
+  await adminClient.properties.dataStreams.get({ name: streamName });
+}
+
+/**
+ * Helper: Verify data stream exists for delete (with rate limit)
+ */
+async function verifyDataStreamExistsForDelete(
+  ga4Client: GA4Client,
+  adminClient: ReturnType<GA4Client["getAnalyticsAdminClient"]>,
+  streamName: string
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "datastream.get");
+  try {
+    await verifyDataStreamExists(adminClient, streamName);
+  } catch {
+    throw createPreconditionError("not_found", "Data stream not found", { stream: streamName });
+  }
+}
+
+/**
+ * Helper: Execute data stream delete mutation
+ */
+async function executeDataStreamDeleteMutation(
+  adminClient: ReturnType<GA4Client["getAnalyticsAdminClient"]>,
+  streamName: string,
+  _logger: ILogger
+): Promise<void> {
+  await adminClient.properties.dataStreams.delete({ name: streamName });
+}
+
+/**
+ * Helper: Verify data stream was deleted
+ */
+async function verifyDataStreamDeleted(
+  adminClient: ReturnType<GA4Client["getAnalyticsAdminClient"]>,
+  streamName: string,
+  logger: ILogger
+): Promise<void> {
+  try {
+    await adminClient.properties.dataStreams.get({ name: streamName });
+    logger.warn("Data stream delete post-check failed - stream still exists", { stream: streamName });
+    throw createPreconditionError("precheck_failed", "Data stream deletion failed", { stream: streamName });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("not found")) {
+      return;
+    }
+    throw error;
+  }
+}
+
 async function executeDataStreamDelete(
   args: unknown,
   ga4Client: GA4Client,
@@ -2207,61 +2357,16 @@ async function executeDataStreamDelete(
 
   const validatedRequest = validateSchema(dataStreamDeleteRequestSchema, args);
 
-  const hasCapability = capabilitiesRegistry.hasCapability("ga4", "admin_api");
-  if (!hasCapability) {
-    throw createPreconditionError(
-      "precheck_failed",
-      "GA4 Admin API capability not available",
-      { product: "ga4" }
-    );
+  if (!capabilitiesRegistry.hasCapability("ga4", "admin_api")) {
+    throw createPreconditionError("precheck_failed", "GA4 Admin API capability not available", { product: "ga4" });
   }
 
-  // Pre-check: verify stream exists
-  await ga4Client.checkRateLimit("ga4", "datastream.get");
   const adminClient = ga4Client.getAnalyticsAdminClient();
-  try {
-    await adminClient.properties.dataStreams.get({ name: validatedRequest.name });
-  } catch {
-    throw createPreconditionError("not_found", "Data stream not found", {
-      stream: validatedRequest.name,
-    });
-  }
+  await verifyDataStreamExistsForDelete(ga4Client, adminClient, validatedRequest.name);
+  await executeDataStreamDeleteMutation(adminClient, validatedRequest.name, logger);
 
-  // Delete stream
-  await ga4Client.checkRateLimit("ga4", "datastream.delete");
-  try {
-    await adminClient.properties.dataStreams.delete({
-      name: validatedRequest.name,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Data stream delete failed, rollback not needed", error);
-    } else {
-      logger.error("Data stream delete failed, rollback not needed", new Error(String(error)));
-    }
-    throw error;
-  }
+  await verifyDataStreamDeleted(adminClient, validatedRequest.name, logger);
 
-  // Post-check: verify stream was deleted
-  try {
-    await adminClient.properties.dataStreams.get({ name: validatedRequest.name });
-    // If we get here, stream still exists - rollback scenario
-    logger.warn("Data stream delete post-check failed - stream still exists", {
-      stream: validatedRequest.name,
-    });
-    throw createPreconditionError("precheck_failed", "Data stream deletion failed", {
-      stream: validatedRequest.name,
-    });
-  } catch (error) {
-    // Expected: stream should not exist
-    if (error instanceof Error && error.message.includes("not found")) {
-      // Success - stream deleted
-    } else {
-      throw error;
-    }
-  }
-
-  // Invalidate cache
   const cacheKey = `ga4:datastream:${validatedRequest.name}`;
   await cache.delete(cacheKey);
 
@@ -2341,6 +2446,22 @@ async function executeEnhancedMeasurementGetAPIRequest(
 }
 
 /**
+ * Helper: Get cached enhanced measurement
+ */
+async function getCachedEnhancedMeasurement(
+  cache: ICache,
+  cacheKey: string,
+  logger: ILogger
+): Promise<z.infer<typeof enhancedMeasurementResponseSchema> | null> {
+  const cached = await cache.get<unknown>(cacheKey);
+  if (cached) {
+    logger.debug("Cache hit for enhanced measurement", { cacheKey });
+    return validateSchema(enhancedMeasurementResponseSchema, cached);
+  }
+  return null;
+}
+
+/**
  * Execute enhanced measurement get operation
  */
 async function executeEnhancedMeasurementGet(
@@ -2374,10 +2495,9 @@ async function executeEnhancedMeasurementGet(
   }
 
   const cacheKey = `ga4:datastream:${validatedRequest.name}:enhancedMeasurement`;
-  const cached = await cache.get<unknown>(cacheKey);
+  const cached = await getCachedEnhancedMeasurement(cache, cacheKey, logger);
   if (cached) {
-    logger.debug("Cache hit for enhanced measurement", { cacheKey });
-    return validateSchema(enhancedMeasurementResponseSchema, cached);
+    return cached;
   }
 
   const validatedResponse = await executeEnhancedMeasurementGetAPIRequest(
@@ -2561,6 +2681,71 @@ async function executeEnhancedMeasurementUpdate(
 /**
  * Register ga4.datastream.enhancedMeasurement.update tool
  */
+/**
+ * Helper: Get enhanced measurement update tool schema
+ */
+/**
+ * Helper: Get enhanced measurement boolean properties
+ */
+function getEnhancedMeasurementBooleanProperties(): Record<string, unknown> {
+  return {
+    streamEnabled: {
+      type: "boolean",
+      description: "Enable/disable enhanced measurement",
+    },
+    scrollsEnabled: {
+      type: "boolean",
+      description: "Enable scroll tracking",
+    },
+    outboundClicksEnabled: {
+      type: "boolean",
+      description: "Enable outbound click tracking",
+    },
+    siteSearchEnabled: {
+      type: "boolean",
+      description: "Enable site search tracking",
+    },
+    videoEngagementEnabled: {
+      type: "boolean",
+      description: "Enable video engagement tracking",
+    },
+    fileDownloadsEnabled: {
+      type: "boolean",
+      description: "Enable file download tracking",
+    },
+    pageChangesEnabled: {
+      type: "boolean",
+      description: "Enable page change tracking",
+    },
+    pageViewsEnabled: {
+      type: "boolean",
+      description: "Enable page view tracking",
+    },
+  };
+}
+
+function getEnhancedMeasurementUpdateToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      name: {
+        type: "string",
+        description: "Data stream name in format properties/123456789/dataStreams/987654321",
+      },
+      ...getEnhancedMeasurementBooleanProperties(),
+      scrollsThresholdPercent: {
+        type: "number",
+        description: "Scroll threshold percentage (0-100)",
+      },
+    },
+    required: ["name"],
+  };
+}
+
 function registerEnhancedMeasurementUpdateTool(
   bootstrap: MCPServerBootstrap,
   ga4Client: GA4Client,
@@ -2571,52 +2756,7 @@ function registerEnhancedMeasurementUpdateTool(
   bootstrap.registerTool({
     name: "ga4.datastream.enhancedMeasurement.update",
     description: "Update enhanced measurement settings for a GA4 data stream",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: {
-          type: "string",
-          description: "Data stream name in format properties/123456789/dataStreams/987654321",
-        },
-        streamEnabled: {
-          type: "boolean",
-          description: "Enable/disable enhanced measurement",
-        },
-        scrollsEnabled: {
-          type: "boolean",
-          description: "Enable scroll tracking",
-        },
-        scrollsThresholdPercent: {
-          type: "number",
-          description: "Scroll threshold percentage (0-100)",
-        },
-        outboundClicksEnabled: {
-          type: "boolean",
-          description: "Enable outbound click tracking",
-        },
-        siteSearchEnabled: {
-          type: "boolean",
-          description: "Enable site search tracking",
-        },
-        videoEngagementEnabled: {
-          type: "boolean",
-          description: "Enable video engagement tracking",
-        },
-        fileDownloadsEnabled: {
-          type: "boolean",
-          description: "Enable file download tracking",
-        },
-        pageChangesEnabled: {
-          type: "boolean",
-          description: "Enable page change tracking",
-        },
-        pageViewsEnabled: {
-          type: "boolean",
-          description: "Enable page view tracking",
-        },
-      },
-      required: ["name"],
-    },
+    inputSchema: getEnhancedMeasurementUpdateToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeEnhancedMeasurementUpdate(
@@ -2986,6 +3126,47 @@ async function executeCustomDimensionUpsert(
 /**
  * Register ga4.customDimension.upsert tool
  */
+/**
+ * Helper: Get custom dimension upsert tool schema
+ */
+function getCustomDimensionUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Property ID in format properties/123456789",
+      },
+      parameterName: {
+        type: "string",
+        description: "Parameter name for the custom dimension",
+      },
+      displayName: {
+        type: "string",
+        description: "Display name for the custom dimension",
+      },
+      description: {
+        type: "string",
+        description: "Description of the custom dimension",
+      },
+      scope: {
+        type: "string",
+        enum: ["USER", "EVENT", "ITEM"],
+        description: "Scope of the custom dimension",
+      },
+      disallowAdsPersonalization: {
+        type: "boolean",
+        description: "Disallow ads personalization for this dimension",
+      },
+    },
+    required: ["parent", "parameterName", "scope"],
+  };
+}
+
 function registerCustomDimensionUpsertTool(
   bootstrap: MCPServerBootstrap,
   ga4Client: GA4Client,
@@ -2996,37 +3177,7 @@ function registerCustomDimensionUpsertTool(
   bootstrap.registerTool({
     name: "ga4.customDimension.upsert",
     description: "Create or update GA4 custom dimension (supports USER, EVENT, ITEM scopes)",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Property ID in format properties/123456789",
-        },
-        parameterName: {
-          type: "string",
-          description: "Parameter name for the custom dimension",
-        },
-        displayName: {
-          type: "string",
-          description: "Display name for the custom dimension",
-        },
-        description: {
-          type: "string",
-          description: "Description of the custom dimension",
-        },
-        scope: {
-          type: "string",
-          enum: ["USER", "EVENT", "ITEM"],
-          description: "Scope of the custom dimension",
-        },
-        disallowAdsPersonalization: {
-          type: "boolean",
-          description: "Disallow ads personalization for this dimension",
-        },
-      },
-      required: ["parent", "parameterName", "scope"],
-    },
+    inputSchema: getCustomDimensionUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeCustomDimensionUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
@@ -3045,6 +3196,46 @@ function registerCustomDimensionUpsertTool(
 /**
  * Execute custom dimension delete operation (archive)
  */
+/**
+ * Helper: Verify custom dimension exists
+ */
+async function verifyCustomDimensionExists(
+  ga4Client: GA4Client,
+  name: string
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "customDimension.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.customDimensions.get({ name });
+  } catch {
+    throw createPreconditionError("not_found", "Custom dimension not found", {
+      dimension: name,
+    });
+  }
+}
+
+/**
+ * Helper: Archive custom dimension
+ */
+async function archiveCustomDimension(
+  ga4Client: GA4Client,
+  name: string,
+  logger: ILogger
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "customDimension.archive");
+  try {
+    const adminClient = ga4Client.getAnalyticsAdminClient();
+    await adminClient.properties.customDimensions.archive({ name });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Custom dimension archive failed", error);
+    } else {
+      logger.error("Custom dimension archive failed", new Error(String(error)));
+    }
+    throw error;
+  }
+}
+
 async function executeCustomDimensionDelete(
   args: unknown,
   ga4Client: GA4Client,
@@ -3075,33 +3266,9 @@ async function executeCustomDimensionDelete(
     );
   }
 
-  // Pre-check: verify dimension exists
-  await ga4Client.checkRateLimit("ga4", "customDimension.get");
-  const adminClient = ga4Client.getAnalyticsAdminClient();
-  try {
-    await adminClient.properties.customDimensions.get({ name: validatedRequest.name });
-  } catch {
-    throw createPreconditionError("not_found", "Custom dimension not found", {
-      dimension: validatedRequest.name,
-    });
-  }
+  await verifyCustomDimensionExists(ga4Client, validatedRequest.name);
+  await archiveCustomDimension(ga4Client, validatedRequest.name, logger);
 
-  // Archive dimension (GA4 uses archive, not delete)
-  await ga4Client.checkRateLimit("ga4", "customDimension.archive");
-  try {
-    await adminClient.properties.customDimensions.archive({
-      name: validatedRequest.name,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Custom dimension archive failed", error);
-    } else {
-      logger.error("Custom dimension archive failed", new Error(String(error)));
-    }
-    throw error;
-  }
-
-  // Invalidate cache
   const cacheKey = `ga4:customDimension:${validatedRequest.name}`;
   await cache.delete(cacheKey);
 
@@ -3500,6 +3667,79 @@ async function executeCustomMetricUpsert(
 /**
  * Register ga4.customMetric.upsert tool
  */
+/**
+ * Helper: Get custom metric upsert tool schema
+ */
+/**
+ * Helper: Get measurement unit enum
+ */
+function getMeasurementUnitEnum(): string[] {
+  return [
+    "MEASUREMENT_UNIT_UNSPECIFIED",
+    "STANDARD",
+    "CURRENCY",
+    "FEET",
+    "METERS",
+    "KILOMETERS",
+    "MILES",
+    "MILLISECONDS",
+    "SECONDS",
+    "MINUTES",
+    "HOURS",
+  ];
+}
+
+/**
+ * Helper: Get custom metric type enum
+ */
+function getCustomMetricTypeEnum(): string[] {
+  return ["INTEGER", "FLOAT", "SECONDS", "MILLISECONDS", "CURRENCY", "FEET", "METERS"];
+}
+
+function getCustomMetricUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Property ID in format properties/123456789",
+      },
+      parameterName: {
+        type: "string",
+        description: "Parameter name for the custom metric",
+      },
+      displayName: {
+        type: "string",
+        description: "Display name for the custom metric",
+      },
+      description: {
+        type: "string",
+        description: "Description of the custom metric",
+      },
+      measurementUnit: {
+        type: "string",
+        enum: getMeasurementUnitEnum(),
+        description: "Measurement unit for the metric",
+      },
+      scope: {
+        type: "string",
+        enum: ["USER", "EVENT", "ITEM"],
+        description: "Scope of the custom metric",
+      },
+      type: {
+        type: "string",
+        enum: getCustomMetricTypeEnum(),
+        description: "Type of the custom metric",
+      },
+    },
+    required: ["parent", "parameterName", "scope", "type"],
+  };
+}
+
 function registerCustomMetricUpsertTool(
   bootstrap: MCPServerBootstrap,
   ga4Client: GA4Client,
@@ -3510,55 +3750,7 @@ function registerCustomMetricUpsertTool(
   bootstrap.registerTool({
     name: "ga4.customMetric.upsert",
     description: "Create or update GA4 custom metric (supports currency/time units)",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Property ID in format properties/123456789",
-        },
-        parameterName: {
-          type: "string",
-          description: "Parameter name for the custom metric",
-        },
-        displayName: {
-          type: "string",
-          description: "Display name for the custom metric",
-        },
-        description: {
-          type: "string",
-          description: "Description of the custom metric",
-        },
-        measurementUnit: {
-          type: "string",
-          enum: [
-            "MEASUREMENT_UNIT_UNSPECIFIED",
-            "STANDARD",
-            "CURRENCY",
-            "FEET",
-            "METERS",
-            "KILOMETERS",
-            "MILES",
-            "MILLISECONDS",
-            "SECONDS",
-            "MINUTES",
-            "HOURS",
-          ],
-          description: "Measurement unit for the metric",
-        },
-        scope: {
-          type: "string",
-          enum: ["USER", "EVENT", "ITEM"],
-          description: "Scope of the custom metric",
-        },
-        type: {
-          type: "string",
-          enum: ["INTEGER", "FLOAT", "SECONDS", "MILLISECONDS", "CURRENCY", "FEET", "METERS"],
-          description: "Type of the custom metric",
-        },
-      },
-      required: ["parent", "parameterName", "scope", "type"],
-    },
+    inputSchema: getCustomMetricUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeCustomMetricUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
@@ -3577,6 +3769,46 @@ function registerCustomMetricUpsertTool(
 /**
  * Execute custom metric delete operation (archive)
  */
+/**
+ * Helper: Verify custom metric exists
+ */
+async function verifyCustomMetricExists(
+  ga4Client: GA4Client,
+  name: string
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "customMetric.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.customMetrics.get({ name });
+  } catch {
+    throw createPreconditionError("not_found", "Custom metric not found", {
+      metric: name,
+    });
+  }
+}
+
+/**
+ * Helper: Archive custom metric
+ */
+async function archiveCustomMetric(
+  ga4Client: GA4Client,
+  name: string,
+  logger: ILogger
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "customMetric.archive");
+  try {
+    const adminClient = ga4Client.getAnalyticsAdminClient();
+    await adminClient.properties.customMetrics.archive({ name });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Custom metric archive failed", error);
+    } else {
+      logger.error("Custom metric archive failed", new Error(String(error)));
+    }
+    throw error;
+  }
+}
+
 async function executeCustomMetricDelete(
   args: unknown,
   ga4Client: GA4Client,
@@ -3607,33 +3839,9 @@ async function executeCustomMetricDelete(
     );
   }
 
-  // Pre-check: verify metric exists
-  await ga4Client.checkRateLimit("ga4", "customMetric.get");
-  const adminClient = ga4Client.getAnalyticsAdminClient();
-  try {
-    await adminClient.properties.customMetrics.get({ name: validatedRequest.name });
-  } catch {
-    throw createPreconditionError("not_found", "Custom metric not found", {
-      metric: validatedRequest.name,
-    });
-  }
+  await verifyCustomMetricExists(ga4Client, validatedRequest.name);
+  await archiveCustomMetric(ga4Client, validatedRequest.name, logger);
 
-  // Archive metric (GA4 uses archive, not delete)
-  await ga4Client.checkRateLimit("ga4", "customMetric.archive");
-  try {
-    await adminClient.properties.customMetrics.archive({
-      name: validatedRequest.name,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Custom metric archive failed", error);
-    } else {
-      logger.error("Custom metric archive failed", new Error(String(error)));
-    }
-    throw error;
-  }
-
-  // Invalidate cache
   const cacheKey = `ga4:customMetric:${validatedRequest.name}`;
   await cache.delete(cacheKey);
 
@@ -3963,13 +4171,12 @@ function registerEventGetTool(
 /**
  * Execute API request to create/update event
  */
-async function executeEventUpsertAPIRequest(
-  validatedRequest: z.infer<typeof eventUpsertRequestSchema>,
-  ga4Client: GA4Client
-): Promise<z.infer<typeof eventUpsertResponseSchema>> {
-  await ga4Client.checkRateLimit("ga4", "event.upsert");
-  const adminClient = ga4Client.getAnalyticsAdminClient();
-
+/**
+ * Helper: Build event data for upsert
+ */
+function buildEventUpsertData(
+  validatedRequest: z.infer<typeof eventUpsertRequestSchema>
+): Record<string, unknown> {
   const eventData: Record<string, unknown> = {
     eventName: validatedRequest.eventName,
   };
@@ -3979,9 +4186,21 @@ async function executeEventUpsertAPIRequest(
   if (validatedRequest.matchingCondition) {
     eventData.matchingCondition = validatedRequest.matchingCondition;
   }
+  return eventData;
+}
 
-  // Check if event exists by trying to get it
-  const eventName = `${validatedRequest.parent}/eventCreateRules/${validatedRequest.eventName}`;
+/**
+ * Helper: Get event create rules client
+ */
+function getEventCreateRulesClient(adminClient: ReturnType<GA4Client["getAnalyticsAdminClient"]>): {
+  get: (params: { name: string }) => Promise<{ data?: unknown }>;
+  patch: (params: {
+    name: string;
+    updateMask?: string;
+    requestBody?: Record<string, unknown>;
+  }) => Promise<{ data?: unknown }>;
+  create: (params: { requestBody?: Record<string, unknown> }) => Promise<{ data?: unknown }>;
+} {
   const eventCreateRules = (
     adminClient.properties as {
       eventCreateRules?: {
@@ -4000,17 +4219,28 @@ async function executeEventUpsertAPIRequest(
     throw createPreconditionError("not_found", "Event create rules API not available", {});
   }
 
+  return eventCreateRules;
+}
+
+async function executeEventUpsertAPIRequest(
+  validatedRequest: z.infer<typeof eventUpsertRequestSchema>,
+  ga4Client: GA4Client
+): Promise<z.infer<typeof eventUpsertResponseSchema>> {
+  await ga4Client.checkRateLimit("ga4", "event.upsert");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const eventData = buildEventUpsertData(validatedRequest);
+  const eventName = `${validatedRequest.parent}/eventCreateRules/${validatedRequest.eventName}`;
+  const eventCreateRules = getEventCreateRulesClient(adminClient);
+
   let response;
   try {
     await eventCreateRules.get({ name: eventName });
-    // Event exists, update it
     response = await eventCreateRules.patch({
       name: eventName,
       updateMask: "createEvent,matchingCondition",
       requestBody: eventData,
     });
   } catch {
-    // Event doesn't exist, create it
     eventData.parent = validatedRequest.parent;
     response = await eventCreateRules.create({
       requestBody: eventData,
@@ -4028,6 +4258,33 @@ async function executeEventUpsertAPIRequest(
 /**
  * Execute event upsert operation with pre-check for conflicts
  */
+/**
+ * Helper: Check if event exists (for pre-check)
+ */
+async function checkEventExists(
+  ga4Client: GA4Client,
+  eventName: string
+): Promise<boolean> {
+  try {
+    await ga4Client.checkRateLimit("ga4", "event.get");
+    const adminClient = ga4Client.getAnalyticsAdminClient();
+    const eventCreateRules = (
+      adminClient.properties as {
+        eventCreateRules?: {
+          get: (params: { name: string }) => Promise<{ data?: unknown }>;
+        };
+      }
+    ).eventCreateRules;
+    if (eventCreateRules) {
+      await eventCreateRules.get({ name: eventName });
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 async function executeEventUpsert(
   args: unknown,
   ga4Client: GA4Client,
@@ -4058,29 +4315,11 @@ async function executeEventUpsert(
     );
   }
 
-  // Pre-check: verify no event name conflicts
   const eventName = `${validatedRequest.parent}/eventCreateRules/${validatedRequest.eventName}`;
-  try {
-    await ga4Client.checkRateLimit("ga4", "event.get");
-    const adminClient = ga4Client.getAnalyticsAdminClient();
-    const eventCreateRules = (
-      adminClient.properties as {
-        eventCreateRules?: {
-          get: (params: { name: string }) => Promise<{ data?: unknown }>;
-        };
-      }
-    ).eventCreateRules;
-    if (eventCreateRules) {
-      await eventCreateRules.get({ name: eventName });
-      // Event exists, will update
-    }
-  } catch {
-    // Event doesn't exist, will create
-  }
+  await checkEventExists(ga4Client, eventName);
 
   const validatedResponse = await executeEventUpsertAPIRequest(validatedRequest, ga4Client);
 
-  // Post-check: verify event was created/updated
   const cacheKey = `ga4:event:${validatedResponse.name}`;
   await cache.invalidate(cacheKey);
   await cache.set(cacheKey, validatedResponse, 300000);
@@ -4096,6 +4335,52 @@ async function executeEventUpsert(
 /**
  * Register ga4.event.upsert tool
  */
+/**
+ * Helper: Get event upsert tool schema
+ */
+function getEventUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Property ID in format properties/123456789",
+      },
+      eventName: {
+        type: "string",
+        description: "Event name",
+      },
+      createEvent: {
+        type: "boolean",
+        description: "Whether to create the event",
+      },
+      matchingCondition: {
+        type: "object",
+        properties: {
+          field: {
+            type: "string",
+            description: "Field to match",
+          },
+          comparisonType: {
+            type: "string",
+            description: "Comparison type",
+          },
+          value: {
+            type: "string",
+            description: "Value to match",
+          },
+        },
+        description: "Matching condition for event creation",
+      },
+    },
+    required: ["parent", "eventName"],
+  };
+}
+
 function registerEventUpsertTool(
   bootstrap: MCPServerBootstrap,
   ga4Client: GA4Client,
@@ -4106,42 +4391,7 @@ function registerEventUpsertTool(
   bootstrap.registerTool({
     name: "ga4.event.upsert",
     description: "Create or update GA4 event definition with custom parameters",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Property ID in format properties/123456789",
-        },
-        eventName: {
-          type: "string",
-          description: "Event name",
-        },
-        createEvent: {
-          type: "boolean",
-          description: "Whether to create the event",
-        },
-        matchingCondition: {
-          type: "object",
-          properties: {
-            field: {
-              type: "string",
-              description: "Field to match",
-            },
-            comparisonType: {
-              type: "string",
-              description: "Comparison type",
-            },
-            value: {
-              type: "string",
-              description: "Value to match",
-            },
-          },
-          description: "Matching condition for event creation",
-        },
-      },
-      required: ["parent", "eventName"],
-    },
+    inputSchema: getEventUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeEventUpsert(args, ga4Client, cache, capabilitiesRegistry, logger);
@@ -4289,6 +4539,46 @@ async function executeEventParameterUpsert(
 }
 
 /**
+ * Helper: Get event parameter upsert tool schema
+ */
+function getEventParameterUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      parent: {
+        type: "string",
+        description: "Property ID in format properties/123456789",
+      },
+      eventName: {
+        type: "string",
+        description: "Event name",
+      },
+      parameterName: {
+        type: "string",
+        description: "Parameter name",
+      },
+      parameterType: {
+        type: "string",
+        description: "Parameter type",
+      },
+      required: {
+        type: "boolean",
+        description: "Whether parameter is required",
+      },
+      description: {
+        type: "string",
+        description: "Parameter description",
+      },
+    },
+    required: ["parent", "eventName", "parameterName"],
+  };
+}
+
+/**
  * Register ga4.event.parameter.upsert tool
  */
 function registerEventParameterUpsertTool(
@@ -4302,36 +4592,7 @@ function registerEventParameterUpsertTool(
     name: "ga4.event.parameter.upsert",
     description:
       "Create or update event parameter. Note: Event parameters are dynamic and not directly supported via API. Use custom dimensions with EVENT scope instead.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        parent: {
-          type: "string",
-          description: "Property ID in format properties/123456789",
-        },
-        eventName: {
-          type: "string",
-          description: "Event name",
-        },
-        parameterName: {
-          type: "string",
-          description: "Parameter name",
-        },
-        parameterType: {
-          type: "string",
-          description: "Parameter type",
-        },
-        required: {
-          type: "boolean",
-          description: "Whether parameter is required",
-        },
-        description: {
-          type: "string",
-          description: "Parameter description",
-        },
-      },
-      required: ["parent", "eventName", "parameterName"],
-    },
+    inputSchema: getEventParameterUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeEventParameterUpsert(args, capabilitiesRegistry, logger);
@@ -4729,7 +4990,7 @@ async function executeConversionUpsertAPIRequest(
 /**
  * Execute conversion upsert operation with idempotency via event name
  */
-async function executeConversionUpsert(
+export async function executeConversionUpsert(
   args: unknown,
   ga4Client: GA4Client,
   cache: ICache,
@@ -4824,6 +5085,71 @@ function registerConversionUpsertTool(
 /**
  * Execute conversion delete operation with rollback
  */
+/**
+ * Helper: Verify conversion exists
+ */
+async function verifyConversionExists(
+  ga4Client: GA4Client,
+  name: string
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "conversion.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.conversionEvents.get({ name });
+  } catch {
+    throw createPreconditionError("not_found", "Conversion not found", {
+      conversion: name,
+    });
+  }
+}
+
+/**
+ * Helper: Execute conversion delete mutation
+ */
+async function executeConversionDeleteMutation(
+  ga4Client: GA4Client,
+  name: string,
+  logger: ILogger
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "conversion.delete");
+  try {
+    const adminClient = ga4Client.getAnalyticsAdminClient();
+    await adminClient.properties.conversionEvents.delete({ name });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Conversion delete failed", error);
+    } else {
+      logger.error("Conversion delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+}
+
+/**
+ * Helper: Verify conversion was deleted
+ */
+async function verifyConversionDeleted(
+  ga4Client: GA4Client,
+  name: string,
+  logger: ILogger
+): Promise<void> {
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  try {
+    await adminClient.properties.conversionEvents.get({ name });
+    logger.warn("Conversion delete post-check failed - conversion still exists", {
+      conversion: name,
+    });
+    throw createPreconditionError("precheck_failed", "Conversion deletion failed", {
+      conversion: name,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("precheck_failed")) {
+      throw error;
+    }
+    // Expected error - conversion not found (success)
+  }
+}
+
 async function executeConversionDelete(
   args: unknown,
   ga4Client: GA4Client,
@@ -4854,54 +5180,10 @@ async function executeConversionDelete(
     );
   }
 
-  // Pre-check: verify conversion exists
-  await ga4Client.checkRateLimit("ga4", "conversion.get");
-  const adminClient = ga4Client.getAnalyticsAdminClient();
-  try {
-    await adminClient.properties.conversionEvents.get({ name: validatedRequest.name });
-  } catch {
-    throw createPreconditionError("not_found", "Conversion not found", {
-      conversion: validatedRequest.name,
-    });
-  }
+  await verifyConversionExists(ga4Client, validatedRequest.name);
+  await executeConversionDeleteMutation(ga4Client, validatedRequest.name, logger);
+  await verifyConversionDeleted(ga4Client, validatedRequest.name, logger);
 
-  // Delete conversion
-  await ga4Client.checkRateLimit("ga4", "conversion.delete");
-  try {
-    await adminClient.properties.conversionEvents.delete({
-      name: validatedRequest.name,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Conversion delete failed", error);
-    } else {
-      logger.error("Conversion delete failed", new Error(String(error)));
-    }
-    throw error;
-  }
-
-  // Post-check: verify conversion was deleted
-  try {
-    await adminClient.properties.conversionEvents.get({ name: validatedRequest.name });
-    // If we get here, conversion still exists - rollback scenario
-    logger.warn("Conversion delete post-check failed - conversion still exists", {
-      conversion: validatedRequest.name,
-    });
-    throw createPreconditionError("precheck_failed", "Conversion deletion failed", {
-      conversion: validatedRequest.name,
-    });
-  } catch (error) {
-    // Expected: conversion should not exist
-    if (error instanceof Error && error.message.includes("not found")) {
-      // Success - conversion deleted
-    } else if (error instanceof Error && error.message.includes("precheck_failed")) {
-      throw error;
-    } else {
-      // Expected error - conversion not found
-    }
-  }
-
-  // Invalidate cache
   const cacheKey = `ga4:conversion:${validatedRequest.name}`;
   await cache.delete(cacheKey);
 
@@ -5769,6 +6051,83 @@ async function executeAttributionUpdate(
 /**
  * Register ga4.attribution.update tool
  */
+/**
+ * Helper: Get attribution update tool schema
+ */
+/**
+ * Helper: Get lookback window enum
+ */
+function getLookbackWindowEnum(): string[] {
+  return [
+    "ATTRIBUTION_LOOKBACK_WINDOW_UNSPECIFIED",
+    "ATTRIBUTION_LOOKBACK_WINDOW_7_DAYS",
+    "ATTRIBUTION_LOOKBACK_WINDOW_30_DAYS",
+    "ATTRIBUTION_LOOKBACK_WINDOW_60_DAYS",
+    "ATTRIBUTION_LOOKBACK_WINDOW_90_DAYS",
+  ];
+}
+
+/**
+ * Helper: Get acquisition conversion event lookback window enum
+ */
+function getAcquisitionConversionEventLookbackWindowEnum(): string[] {
+  return [
+    "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_UNSPECIFIED",
+    "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_7_DAYS",
+    "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_30_DAYS",
+    "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_60_DAYS",
+    "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_90_DAYS",
+  ];
+}
+
+/**
+ * Helper: Get attribution model enum
+ */
+function getAttributionModelEnum(): string[] {
+  return [
+    "ATTRIBUTION_MODEL_UNSPECIFIED",
+    "CROSS_CHANNEL_LAST_CLICK",
+    "CROSS_CHANNEL_DATA_DRIVEN",
+    "CROSS_CHANNEL_FIRST_CLICK",
+    "CROSS_CHANNEL_LINEAR",
+    "CROSS_CHANNEL_POSITION_BASED",
+    "CROSS_CHANNEL_TIME_DECAY",
+    "ADS_PREFERRED_LAST_CLICK",
+  ];
+}
+
+function getAttributionUpdateToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      name: {
+        type: "string",
+        description: "Attribution settings ID in format properties/123456789/attributionSettings",
+      },
+      acquisitionConversionEventLookbackWindow: {
+        type: "string",
+        enum: getAcquisitionConversionEventLookbackWindowEnum(),
+        description: "Acquisition conversion event lookback window",
+      },
+      attributionLookbackWindow: {
+        type: "string",
+        enum: getLookbackWindowEnum(),
+        description: "Attribution lookback window",
+      },
+      attributionModel: {
+        type: "string",
+        enum: getAttributionModelEnum(),
+        description: "Attribution model",
+      },
+    },
+    required: ["name"],
+  };
+}
+
 function registerAttributionUpdateTool(
   bootstrap: MCPServerBootstrap,
   ga4Client: GA4Client,
@@ -5779,52 +6138,7 @@ function registerAttributionUpdateTool(
   bootstrap.registerTool({
     name: "ga4.attribution.update",
     description: "Update GA4 attribution settings (models, lookback windows)",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: {
-          type: "string",
-          description: "Attribution settings ID in format properties/123456789/attributionSettings",
-        },
-        acquisitionConversionEventLookbackWindow: {
-          type: "string",
-          enum: [
-            "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_UNSPECIFIED",
-            "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_7_DAYS",
-            "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_30_DAYS",
-            "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_60_DAYS",
-            "ACQUISITION_CONVERSION_EVENT_LOOKBACK_WINDOW_90_DAYS",
-          ],
-          description: "Acquisition conversion event lookback window",
-        },
-        attributionLookbackWindow: {
-          type: "string",
-          enum: [
-            "ATTRIBUTION_LOOKBACK_WINDOW_UNSPECIFIED",
-            "ATTRIBUTION_LOOKBACK_WINDOW_7_DAYS",
-            "ATTRIBUTION_LOOKBACK_WINDOW_30_DAYS",
-            "ATTRIBUTION_LOOKBACK_WINDOW_60_DAYS",
-            "ATTRIBUTION_LOOKBACK_WINDOW_90_DAYS",
-          ],
-          description: "Attribution lookback window",
-        },
-        attributionModel: {
-          type: "string",
-          enum: [
-            "ATTRIBUTION_MODEL_UNSPECIFIED",
-            "CROSS_CHANNEL_LAST_CLICK",
-            "CROSS_CHANNEL_DATA_DRIVEN",
-            "CROSS_CHANNEL_FIRST_CLICK",
-            "CROSS_CHANNEL_LINEAR",
-            "CROSS_CHANNEL_POSITION_BASED",
-            "CROSS_CHANNEL_TIME_DECAY",
-            "ADS_PREFERRED_LAST_CLICK",
-          ],
-          description: "Attribution model",
-        },
-      },
-      required: ["name"],
-    },
+    inputSchema: getAttributionUpdateToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeAttributionUpdate(args, ga4Client, cache, capabilitiesRegistry, logger);
@@ -6157,7 +6471,7 @@ async function executeGoogleAdsIntegrationCreateAPIRequest(
 /**
  * Execute Google Ads integration create operation
  */
-async function executeGoogleAdsIntegrationCreate(
+export async function executeGoogleAdsIntegrationCreate(
   args: unknown,
   ga4Client: GA4Client,
   cache: ICache,
@@ -6389,6 +6703,73 @@ function registerGoogleAdsIntegrationUpdateTool(
 /**
  * Execute Google Ads integration delete operation with rollback
  */
+/**
+ * Helper: Get Google Ads links client
+ */
+function getGoogleAdsLinksClient(
+  adminClient: ReturnType<GA4Client["getAnalyticsAdminClient"]>
+): {
+  get: (params: { name: string }) => Promise<{ data?: unknown }>;
+  delete: (params: { name: string }) => Promise<unknown>;
+} {
+  const googleAdsLinks = (
+    adminClient.properties as unknown as {
+      googleAdsLinks?: {
+        get: (params: { name: string }) => Promise<{ data?: unknown }>;
+        delete: (params: { name: string }) => Promise<unknown>;
+      };
+    }
+  ).googleAdsLinks;
+
+  if (!googleAdsLinks) {
+    throw createPreconditionError("not_found", "Google Ads links API not available", {});
+  }
+
+  return googleAdsLinks;
+}
+
+/**
+ * Helper: Verify Google Ads link exists
+ */
+async function verifyGoogleAdsLinkExists(
+  ga4Client: GA4Client,
+  name: string
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "integration.ads.get");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const googleAdsLinks = getGoogleAdsLinksClient(adminClient);
+  try {
+    await googleAdsLinks.get({ name });
+  } catch {
+    throw createPreconditionError("not_found", "Google Ads link not found", {
+      link: name,
+    });
+  }
+}
+
+/**
+ * Helper: Execute Google Ads link delete mutation
+ */
+async function executeGoogleAdsLinkDeleteMutation(
+  ga4Client: GA4Client,
+  name: string,
+  logger: ILogger
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "integration.ads.delete");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const googleAdsLinks = getGoogleAdsLinksClient(adminClient);
+  try {
+    await googleAdsLinks.delete({ name });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Google Ads link delete failed", error);
+    } else {
+      logger.error("Google Ads link delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+}
+
 async function executeGoogleAdsIntegrationDelete(
   args: unknown,
   ga4Client: GA4Client,
@@ -6419,48 +6800,9 @@ async function executeGoogleAdsIntegrationDelete(
     );
   }
 
-  // Pre-check: verify link exists
-  await ga4Client.checkRateLimit("ga4", "integration.ads.get");
-  const adminClient = ga4Client.getAnalyticsAdminClient();
-  const googleAdsLinks = (
-    adminClient.properties as unknown as {
-      googleAdsLinks?: {
-        get: (params: { name: string }) => Promise<{ data?: unknown }>;
-        delete: (params: { name: string }) => Promise<unknown>;
-      };
-    }
-  ).googleAdsLinks;
+  await verifyGoogleAdsLinkExists(ga4Client, validatedRequest.name);
+  await executeGoogleAdsLinkDeleteMutation(ga4Client, validatedRequest.name, logger);
 
-  if (!googleAdsLinks) {
-    throw createPreconditionError("not_found", "Google Ads links API not available", {
-      link: validatedRequest.name,
-    });
-  }
-
-  try {
-    await googleAdsLinks.get({ name: validatedRequest.name });
-  } catch {
-    throw createPreconditionError("not_found", "Google Ads link not found", {
-      link: validatedRequest.name,
-    });
-  }
-
-  // Delete link
-  await ga4Client.checkRateLimit("ga4", "integration.ads.delete");
-  try {
-    await googleAdsLinks.delete({
-      name: validatedRequest.name,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Google Ads link delete failed", error);
-    } else {
-      logger.error("Google Ads link delete failed", new Error(String(error)));
-    }
-    throw error;
-  }
-
-  // Invalidate cache
   const cacheKey = `ga4:googleAdsLink:${validatedRequest.name}`;
   await cache.delete(cacheKey);
 

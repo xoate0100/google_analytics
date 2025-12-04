@@ -13,7 +13,6 @@ import type {
   Postcheck,
   Rollback,
 } from "./types.js";
-import type { ICounter, IHistogram } from "./metrics.js";
 
 /**
  * Generate UUID v7-like operation ID
@@ -211,44 +210,5 @@ export class OperationEnvelopeBuilder {
 
   build(): OperationEnvelope {
     return { ...this.envelope };
-  }
-}
-
-/**
- * Options for recording envelope metrics
- */
-export interface EnvelopeMetricsOptions {
-  latencyHistogram: IHistogram;
-  successCounter: ICounter;
-  failureCounter: ICounter;
-  rollbackCounter: ICounter;
-}
-
-/**
- * Record metrics from operation envelope
- * Records latency, success/failure, and rollback metrics
- */
-export function recordEnvelopeMetrics(
-  envelope: OperationEnvelope,
-  options: EnvelopeMetricsOptions
-): void {
-  const { latencyHistogram, successCounter, failureCounter, rollbackCounter } =
-    options;
-
-  // Record latency
-  if (envelope.latencyMs > 0) {
-    latencyHistogram.observe(envelope.latencyMs);
-  }
-
-  // Record success/failure
-  if (envelope.result.status === "success") {
-    successCounter.inc();
-  } else {
-    failureCounter.inc();
-  }
-
-  // Record rollback
-  if (envelope.rollback.needed) {
-    rollbackCounter.inc();
   }
 }

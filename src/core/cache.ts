@@ -52,20 +52,19 @@ export interface CacheResultWithETag<T> {
 }
 
 /**
- * Cache statistics
+ * Cache performance metrics
  */
-export interface CacheStatistics {
+export interface CacheMetrics {
   hits: number;
   misses: number;
   evictions: number;
+  expirations: number;
   size: number;
-  hitRatio: number;
+  maxSize: number;
+  hitRate: number;
+  utilization: number;
+  isMemoryPressure: boolean;
 }
-
-/**
- * Data type for adaptive TTL calculation
- */
-export type CacheDataType = "realtime" | "historical" | "unknown";
 
 export class LRUCache implements ICache {
   private readonly entries: Map<string, CacheEntry<unknown>>;
@@ -75,6 +74,7 @@ export class LRUCache implements ICache {
   private hits = 0;
   private misses = 0;
   private evictions = 0;
+  private expirations = 0;
 
   constructor(options: LRUCacheOptions) {
     this.entries = new Map();
@@ -86,20 +86,21 @@ export class LRUCache implements ICache {
   async get<T>(key: string): Promise<T | undefined> {
     const entry = this.entries.get(key);
     if (!entry) {
-      this.misses += 1;
+      this.misses++;
       return Promise.resolve(undefined);
     }
 
     // Check expiration
     if (this.isExpired(entry)) {
       this.entries.delete(key);
-      this.misses += 1;
+      this.expirations++;
+      this.misses++;
       return Promise.resolve(undefined);
     }
 
     // Update access time for LRU
     entry.accessTime = getNextAccessTime();
-    this.hits += 1;
+    this.hits++;
     return Promise.resolve(entry.value as T);
   }
 
@@ -127,6 +128,7 @@ export class LRUCache implements ICache {
     // Check if we need to evict
     if (this.entries.size >= this.maxSize) {
       this.evictLRU();
+      this.evictions++;
     }
 
     // Add new entry
@@ -202,7 +204,6 @@ export class LRUCache implements ICache {
 
     if (oldestKey) {
       this.entries.delete(oldestKey);
-      this.evictions += 1;
     }
   }
 
@@ -227,23 +228,24 @@ export class LRUCache implements ICache {
   ): Promise<CacheResultWithETag<T> | undefined> {
     const entry = this.entries.get(key);
     if (!entry) {
-      this.misses += 1;
+      this.misses++;
       return Promise.resolve(undefined);
     }
 
     // Check expiration
     if (this.isExpired(entry)) {
       this.entries.delete(key);
-      this.misses += 1;
+      this.expirations++;
+      this.misses++;
       return Promise.resolve(undefined);
     }
 
     // Update access time for LRU
     entry.accessTime = getNextAccessTime();
-    this.hits += 1;
 
     // Check ETag match
     const cached = ifNoneMatch !== undefined && entry.etag === ifNoneMatch;
+    this.hits++;
     return Promise.resolve({
       value: entry.value as T,
       etag: entry.etag || "",
@@ -252,43 +254,35 @@ export class LRUCache implements ICache {
   }
 
   /**
-   * Calculate adaptive TTL based on data type
+   * Get cache performance metrics
    */
-  calculateAdaptiveTTL(dataType: CacheDataType, baseTTL: number): number {
-    if (dataType === "realtime") {
-      // Real-time data: shorter TTL (50% of base)
-      return Math.floor(baseTTL * 0.5);
-    }
-    if (dataType === "historical") {
-      // Historical data: longer TTL (200% of base)
-      return Math.floor(baseTTL * 2);
-    }
-    // Unknown: use base TTL
-    return baseTTL;
-  }
-
-  /**
-   * Get cache statistics
-   */
-  getStatistics(): CacheStatistics {
+  getMetrics(): CacheMetrics {
     const totalRequests = this.hits + this.misses;
-    const hitRatio = totalRequests > 0 ? this.hits / totalRequests : 0;
+    const hitRate = totalRequests > 0 ? this.hits / totalRequests : 0;
+    const utilization = this.maxSize > 0 ? this.entries.size / this.maxSize : 0;
+    const isMemoryPressure = utilization >= 0.9;
+
     return {
       hits: this.hits,
       misses: this.misses,
       evictions: this.evictions,
+      expirations: this.expirations,
       size: this.entries.size,
-      hitRatio,
+      maxSize: this.maxSize,
+      hitRate,
+      utilization,
+      isMemoryPressure,
     };
   }
 
   /**
-   * Reset cache statistics
+   * Reset all metrics counters
    */
-  resetStatistics(): void {
+  resetMetrics(): void {
     this.hits = 0;
     this.misses = 0;
     this.evictions = 0;
+    this.expirations = 0;
   }
 }
 

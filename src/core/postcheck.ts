@@ -288,6 +288,41 @@ async function executeGA4DataStreamUpdateRollback(
 }
 
 /**
+ * Helper: Build GA4 data stream rollback action
+ */
+async function buildGA4DataStreamRollbackAction(
+  envelope: OperationEnvelope,
+  pathInfo: { propertyPath: string; dataStreamId: string },
+  previousState: unknown,
+  ga4Client: import("../ga4/client.js").GA4Client,
+  logger: import("./types.js").ILogger
+): Promise<void> {
+  await ga4Client.checkRateLimit("ga4", "rollback");
+  const adminClient = ga4Client.getAnalyticsAdminClient();
+  const prevState = previousState as { displayName?: string; type?: string };
+
+  if (envelope.opName.includes("delete")) {
+    await executeGA4DataStreamDeleteRollback(
+      pathInfo.propertyPath,
+      pathInfo.dataStreamId,
+      prevState,
+      adminClient,
+      logger,
+      envelope.opId
+    );
+  } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+    await executeGA4DataStreamUpdateRollback(
+      pathInfo.propertyPath,
+      pathInfo.dataStreamId,
+      prevState,
+      adminClient,
+      logger,
+      envelope.opId
+    );
+  }
+}
+
+/**
  * Create GA4 data stream rollback action
  * Restores data stream to previous state if operation fails
  */
@@ -310,29 +345,13 @@ export function createGA4DataStreamRollback(
     needed: true,
     action: async () => {
       try {
-        await ga4Client.checkRateLimit("ga4", "rollback");
-        const adminClient = ga4Client.getAnalyticsAdminClient();
-        const prevState = previousState as { displayName?: string; type?: string };
-
-        if (envelope.opName.includes("delete")) {
-          await executeGA4DataStreamDeleteRollback(
-            pathInfo.propertyPath,
-            pathInfo.dataStreamId,
-            prevState,
-            adminClient,
-            logger,
-            envelope.opId
-          );
-        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
-          await executeGA4DataStreamUpdateRollback(
-            pathInfo.propertyPath,
-            pathInfo.dataStreamId,
-            prevState,
-            adminClient,
-            logger,
-            envelope.opId
-          );
-        }
+        await buildGA4DataStreamRollbackAction(
+          envelope,
+          pathInfo,
+          previousState,
+          ga4Client,
+          logger
+        );
       } catch (error) {
         logger.error("GA4 data stream rollback failed", error instanceof Error ? error : new Error(String(error)), {
           opId: envelope.opId,
@@ -349,12 +368,10 @@ export function createGA4DataStreamRollback(
  * Create GA4 conversion rollback action
  * Restores conversion to previous state if operation fails
  */
-export function createGA4ConversionRollback(
-  envelope: OperationEnvelope,
-  previousState: unknown,
-  ga4Client: import("../ga4/client.js").GA4Client,
-  logger: import("./types.js").ILogger
-): Rollback {
+/**
+ * Helper: Build GA4 conversion path from envelope
+ */
+function buildGA4ConversionPath(envelope: OperationEnvelope): { propertyPath: string; conversionId: string | null } | null {
   const propertyPath = envelope.target.propertyId
     ? `properties/${envelope.target.propertyId}`
     : envelope.result?.resourceId
@@ -364,6 +381,113 @@ export function createGA4ConversionRollback(
   const conversionId = envelope.result?.resourceId?.split("/conversions/")[1] || null;
 
   if (!propertyPath) {
+    return null;
+  }
+
+  return { propertyPath, conversionId };
+}
+
+/**
+ * Helper: Execute GA4 conversion delete rollback
+ */
+async function executeGA4ConversionDeleteRollback(
+  propertyPath: string,
+  conversionId: string | null,
+  prevState: { eventName?: string; countingMethod?: string },
+  adminClient: ReturnType<import("../ga4/client.js").GA4Client["getAnalyticsAdminClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  if (prevState.eventName && prevState.countingMethod) {
+    const conversions = (adminClient.properties as unknown as { eventCreateRules?: { create?: (params: unknown) => Promise<unknown> } }).eventCreateRules;
+    if (conversions?.create) {
+      await conversions.create({
+        parent: propertyPath,
+        requestBody: {
+          eventName: prevState.eventName,
+          countingMethod: prevState.countingMethod,
+        },
+      });
+      logger.info("GA4 conversion rollback: recreated conversion", {
+        opId,
+        conversion: conversionId ? `${propertyPath}/conversions/${conversionId}` : propertyPath,
+      });
+    }
+  }
+}
+
+/**
+ * Helper: Execute GA4 conversion update rollback
+ */
+async function executeGA4ConversionUpdateRollback(
+  propertyPath: string,
+  conversionId: string,
+  prevState: { countingMethod?: string },
+  adminClient: ReturnType<import("../ga4/client.js").GA4Client["getAnalyticsAdminClient"]>,
+  logger: import("./types.js").ILogger,
+  opId: string
+): Promise<void> {
+  if (prevState.countingMethod) {
+    const updateMask: string[] = ["counting_method"];
+    const conversions = (adminClient.properties as unknown as { eventCreateRules?: { patch?: (params: unknown) => Promise<unknown> } }).eventCreateRules;
+    if (conversions?.patch) {
+      await conversions.patch({
+        name: `${propertyPath}/conversions/${conversionId}`,
+        updateMask: updateMask.join(","),
+        requestBody: {
+          countingMethod: prevState.countingMethod,
+        },
+      });
+      logger.info("GA4 conversion rollback: restored previous state", {
+        opId,
+        conversion: `${propertyPath}/conversions/${conversionId}`,
+      });
+    }
+  }
+}
+
+/**
+ * Helper: Execute GA4 conversion rollback action
+ */
+async function executeGA4ConversionRollbackAction(
+  pathInfo: { propertyPath: string; conversionId: string | null },
+  envelope: OperationEnvelope,
+  prevState: { eventName?: string; countingMethod?: string },
+  adminClient: ReturnType<import("../ga4/client.js").GA4Client["getAnalyticsAdminClient"]>,
+  logger: import("./types.js").ILogger
+): Promise<void> {
+  if (envelope.opName.includes("delete")) {
+    await executeGA4ConversionDeleteRollback(
+      pathInfo.propertyPath,
+      pathInfo.conversionId,
+      prevState,
+      adminClient,
+      logger,
+      envelope.opId
+    );
+  } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
+    if (pathInfo.conversionId) {
+      await executeGA4ConversionUpdateRollback(
+        pathInfo.propertyPath,
+        pathInfo.conversionId,
+        prevState,
+        adminClient,
+        logger,
+        envelope.opId
+      );
+    }
+  }
+}
+
+export function createGA4ConversionRollback(
+  envelope: OperationEnvelope,
+  previousState: unknown,
+  ga4Client: import("../ga4/client.js").GA4Client,
+  logger: import("./types.js").ILogger
+): Rollback {
+  const pathInfo = buildGA4ConversionPath(envelope);
+
+  if (!pathInfo) {
     return {
       needed: false,
       action: null,
@@ -376,56 +500,12 @@ export function createGA4ConversionRollback(
       try {
         await ga4Client.checkRateLimit("ga4", "rollback");
         const adminClient = ga4Client.getAnalyticsAdminClient();
-
-        const prevState = previousState as { name?: string; eventName?: string; countingMethod?: string };
-
-        // Determine rollback type based on operation
-        if (envelope.opName.includes("delete")) {
-          // Rollback delete: recreate conversion
-          if (prevState.eventName && prevState.countingMethod) {
-            const conversions = (adminClient.properties as unknown as { eventCreateRules?: { create?: (params: unknown) => Promise<unknown> } }).eventCreateRules;
-            if (conversions?.create) {
-              await conversions.create({
-                parent: propertyPath,
-                requestBody: {
-                  eventName: prevState.eventName,
-                  countingMethod: prevState.countingMethod,
-                },
-              });
-              logger.info("GA4 conversion rollback: recreated conversion", {
-                opId: envelope.opId,
-                conversion: conversionId ? `${propertyPath}/conversions/${conversionId}` : propertyPath,
-              });
-            }
-          }
-        } else if (envelope.opName.includes("upsert") || envelope.opName.includes("update")) {
-          // Rollback update: restore previous state
-          if (conversionId && prevState.countingMethod) {
-            const updateMask: string[] = [];
-            if (prevState.countingMethod) updateMask.push("counting_method");
-
-            if (updateMask.length > 0) {
-              const conversions = (adminClient.properties as unknown as { eventCreateRules?: { patch?: (params: unknown) => Promise<unknown> } }).eventCreateRules;
-              if (conversions?.patch) {
-                await conversions.patch({
-                  name: `${propertyPath}/conversions/${conversionId}`,
-                  updateMask: updateMask.join(","),
-                  requestBody: {
-                    countingMethod: prevState.countingMethod,
-                  },
-                });
-                logger.info("GA4 conversion rollback: restored previous state", {
-                  opId: envelope.opId,
-                  conversion: `${propertyPath}/conversions/${conversionId}`,
-                });
-              }
-            }
-          }
-        }
+        const prevState = previousState as { eventName?: string; countingMethod?: string };
+        await executeGA4ConversionRollbackAction(pathInfo, envelope, prevState, adminClient, logger);
       } catch (error) {
         logger.error("GA4 conversion rollback failed", error instanceof Error ? error : new Error(String(error)), {
           opId: envelope.opId,
-          conversion: conversionId ? `${propertyPath}/conversions/${conversionId}` : propertyPath,
+          conversion: pathInfo.conversionId ? `${pathInfo.propertyPath}/conversions/${pathInfo.conversionId}` : pathInfo.propertyPath,
         });
         throw error;
       }

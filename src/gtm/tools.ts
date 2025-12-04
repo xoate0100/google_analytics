@@ -774,6 +774,46 @@ function registerContainerUpsertTool(
 /**
  * Execute container delete operation
  */
+/**
+ * Helper: Verify container exists
+ */
+async function verifyContainerExists(
+  gtmClient: GTMClient,
+  path: string
+): Promise<void> {
+  await gtmClient.checkRateLimit("gtm", "container.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  try {
+    await tagManagerClient.accounts.containers.get({ path });
+  } catch {
+    throw createPreconditionError("not_found", "Container not found", {
+      container: path,
+    });
+  }
+}
+
+/**
+ * Helper: Execute container delete mutation
+ */
+async function executeContainerDeleteMutation(
+  gtmClient: GTMClient,
+  path: string,
+  logger: ILogger
+): Promise<void> {
+  await gtmClient.checkRateLimit("gtm", "container.delete");
+  try {
+    const tagManagerClient = gtmClient.getTagManagerClient();
+    await tagManagerClient.accounts.containers.delete({ path });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Container delete failed", error);
+    } else {
+      logger.error("Container delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+}
+
 async function executeContainerDelete(
   args: unknown,
   gtmClient: GTMClient,
@@ -804,33 +844,9 @@ async function executeContainerDelete(
     );
   }
 
-  // Pre-check: verify container exists
-  await gtmClient.checkRateLimit("gtm", "container.get");
-  const tagManagerClient = gtmClient.getTagManagerClient();
-  try {
-    await tagManagerClient.accounts.containers.get({ path: validatedRequest.path });
-  } catch {
-    throw createPreconditionError("not_found", "Container not found", {
-      container: validatedRequest.path,
-    });
-  }
+  await verifyContainerExists(gtmClient, validatedRequest.path);
+  await executeContainerDeleteMutation(gtmClient, validatedRequest.path, logger);
 
-  // Delete container
-  await gtmClient.checkRateLimit("gtm", "container.delete");
-  try {
-    await tagManagerClient.accounts.containers.delete({
-      path: validatedRequest.path,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Container delete failed", error);
-    } else {
-      logger.error("Container delete failed", new Error(String(error)));
-    }
-    throw error;
-  }
-
-  // Invalidate cache
   const cacheKey = `gtm:container:${validatedRequest.path}`;
   await cache.delete(cacheKey);
 
@@ -1336,6 +1352,133 @@ function registerWorkspaceCreateTool(
 /**
  * Execute workspace merge operation with rollback
  */
+/**
+ * Helper: Verify workspaces exist before merge
+ */
+async function verifyWorkspacesExist(
+  tagManagerClient: unknown,
+  targetPath: string,
+  sourcePath: string
+): Promise<void> {
+  const workspaces = tagManagerClient as {
+    get?: (params: { path: string }) => Promise<unknown>;
+  };
+  if (!workspaces.get) {
+    throw createPreconditionError("not_found", "Workspace API not available", {});
+  }
+  try {
+    await workspaces.get({ path: targetPath });
+    await workspaces.get({ path: sourcePath });
+  } catch {
+    throw createPreconditionError("not_found", "One or both workspaces not found", {
+      workspace: targetPath,
+      sourceWorkspace: sourcePath,
+    });
+  }
+}
+
+/**
+ * Helper: Execute workspace merge operation
+ */
+async function performWorkspaceMerge(
+  tagManagerClient: unknown,
+  targetPath: string,
+  sourcePath: string
+): Promise<z.infer<typeof workspaceGetResponseSchema> | undefined> {
+  const workspaces = tagManagerClient as {
+    merge?: (params: {
+      path: string;
+      sourceWorkspacePath: string;
+    }) => Promise<{ data?: unknown }>;
+  };
+
+  if (!workspaces.merge) {
+    throw createPreconditionError("not_found", "Workspace merge API not available", {});
+  }
+
+  const response = await workspaces.merge({
+    path: targetPath,
+    sourceWorkspacePath: sourcePath,
+  });
+  const responseData = response as { data?: unknown };
+  if (responseData.data) {
+    return validateSchema(workspaceGetResponseSchema, responseData.data);
+  }
+  return undefined;
+}
+
+/**
+ * Helper: Update cache after workspace merge
+ */
+async function updateWorkspaceCache(
+  cache: ICache,
+  targetPath: string,
+  sourcePath: string,
+  mergedWorkspace: z.infer<typeof workspaceGetResponseSchema> | undefined
+): Promise<void> {
+  if (mergedWorkspace) {
+    const cacheKey = `gtm:workspace:${targetPath}`;
+    await cache.invalidate(cacheKey);
+    await cache.set(cacheKey, mergedWorkspace, 300000);
+  }
+  const sourceCacheKey = `gtm:workspace:${sourcePath}`;
+  await cache.delete(sourceCacheKey);
+}
+
+/**
+ * Helper: Validate workspace merge request and check capabilities
+ */
+function validateWorkspaceMergeRequest(
+  args: unknown,
+  capabilitiesRegistry: ICapabilitiesRegistry
+): z.infer<typeof workspaceMergeRequestSchema> {
+  const validatedRequest = validateSchema(workspaceMergeRequestSchema, args);
+  if (!capabilitiesRegistry.hasCapability("gtm", "tag_manager_api")) {
+    throw createPreconditionError(
+      "precheck_failed",
+      "GTM Tag Manager API capability not available",
+      { product: "gtm" }
+    );
+  }
+  return validatedRequest;
+}
+
+/**
+ * Helper: Orchestrate workspace merge workflow
+ */
+async function orchestrateWorkspaceMerge(
+  gtmClient: GTMClient,
+  cache: ICache,
+  validatedRequest: z.infer<typeof workspaceMergeRequestSchema>
+): Promise<z.infer<typeof workspaceGetResponseSchema> | undefined> {
+  await gtmClient.checkRateLimit("gtm", "workspace.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  await verifyWorkspacesExist(
+    tagManagerClient,
+    validatedRequest.path,
+    validatedRequest.sourceWorkspacePath
+  );
+
+  await gtmClient.checkRateLimit("gtm", "workspace.merge");
+  const mergedWorkspace = await performWorkspaceMerge(
+    tagManagerClient,
+    validatedRequest.path,
+    validatedRequest.sourceWorkspacePath
+  );
+
+  await updateWorkspaceCache(
+    cache,
+    validatedRequest.path,
+    validatedRequest.sourceWorkspacePath,
+    mergedWorkspace
+  );
+
+  return mergedWorkspace;
+}
+
+/**
+ * Execute workspace merge
+ */
 async function executeWorkspaceMerge(
   args: unknown,
   gtmClient: GTMClient,
@@ -1354,75 +1497,15 @@ async function executeWorkspaceMerge(
   });
 
   logger.info("Executing gtm.workspace.merge", { opId: envelope.opId });
+  const validatedRequest = validateWorkspaceMergeRequest(args, capabilitiesRegistry);
 
-  const validatedRequest = validateSchema(workspaceMergeRequestSchema, args);
-
-  const hasCapability = capabilitiesRegistry.hasCapability("gtm", "tag_manager_api");
-  if (!hasCapability) {
-    throw createPreconditionError(
-      "precheck_failed",
-      "GTM Tag Manager API capability not available",
-      { product: "gtm" }
-    );
-  }
-
-  // Pre-check: verify both workspaces exist
-  await gtmClient.checkRateLimit("gtm", "workspace.get");
-  const tagManagerClient = gtmClient.getTagManagerClient();
+  let mergedWorkspace: z.infer<typeof workspaceGetResponseSchema> | undefined;
   try {
-    await tagManagerClient.accounts.containers.workspaces.get({ path: validatedRequest.path });
-    await tagManagerClient.accounts.containers.workspaces.get({
-      path: validatedRequest.sourceWorkspacePath,
-    });
-  } catch {
-    throw createPreconditionError("not_found", "One or both workspaces not found", {
-      workspace: validatedRequest.path,
-      sourceWorkspace: validatedRequest.sourceWorkspacePath,
-    });
-  }
-
-  // Merge workspaces
-  await gtmClient.checkRateLimit("gtm", "workspace.merge");
-  let mergedWorkspace;
-  try {
-    const workspaces = tagManagerClient.accounts.containers.workspaces as unknown as {
-      merge?: (params: {
-        path: string;
-        sourceWorkspacePath: string;
-      }) => Promise<{ data?: unknown }>;
-    };
-
-    if (!workspaces.merge) {
-      throw createPreconditionError("not_found", "Workspace merge API not available", {});
-    }
-
-    const response = await workspaces.merge({
-      path: validatedRequest.path,
-      sourceWorkspacePath: validatedRequest.sourceWorkspacePath,
-    });
-    const responseData = response as { data?: unknown };
-    if (responseData.data) {
-      mergedWorkspace = validateSchema(workspaceGetResponseSchema, responseData.data);
-    }
+    mergedWorkspace = await orchestrateWorkspaceMerge(gtmClient, cache, validatedRequest);
   } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Workspace merge failed", error);
-    } else {
-      logger.error("Workspace merge failed", new Error(String(error)));
-    }
+    logger.error("Workspace merge failed", error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
-
-  // Post-check: verify merge succeeded
-  if (mergedWorkspace) {
-    const cacheKey = `gtm:workspace:${validatedRequest.path}`;
-    await cache.invalidate(cacheKey);
-    await cache.set(cacheKey, mergedWorkspace, 300000);
-  }
-
-  // Invalidate source workspace cache
-  const sourceCacheKey = `gtm:workspace:${validatedRequest.sourceWorkspacePath}`;
-  await cache.delete(sourceCacheKey);
 
   logger.info("gtm.workspace.merge completed", {
     opId: envelope.opId,
@@ -1979,6 +2062,46 @@ function registerTagUpsertTool(
 /**
  * Execute tag delete operation
  */
+/**
+ * Helper: Verify tag exists
+ */
+async function verifyTagExists(
+  gtmClient: GTMClient,
+  path: string
+): Promise<void> {
+  await gtmClient.checkRateLimit("gtm", "tag.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  try {
+    await tagManagerClient.accounts.containers.workspaces.tags.get({ path });
+  } catch {
+    throw createPreconditionError("not_found", "Tag not found", {
+      tag: path,
+    });
+  }
+}
+
+/**
+ * Helper: Execute tag delete mutation
+ */
+async function executeTagDeleteMutation(
+  gtmClient: GTMClient,
+  path: string,
+  logger: ILogger
+): Promise<void> {
+  await gtmClient.checkRateLimit("gtm", "tag.delete");
+  try {
+    const tagManagerClient = gtmClient.getTagManagerClient();
+    await tagManagerClient.accounts.containers.workspaces.tags.delete({ path });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Tag delete failed", error);
+    } else {
+      logger.error("Tag delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+}
+
 async function executeTagDelete(
   args: unknown,
   gtmClient: GTMClient,
@@ -2009,33 +2132,9 @@ async function executeTagDelete(
     );
   }
 
-  // Pre-check: verify tag exists
-  await gtmClient.checkRateLimit("gtm", "tag.get");
-  const tagManagerClient = gtmClient.getTagManagerClient();
-  try {
-    await tagManagerClient.accounts.containers.workspaces.tags.get({ path: validatedRequest.path });
-  } catch {
-    throw createPreconditionError("not_found", "Tag not found", {
-      tag: validatedRequest.path,
-    });
-  }
+  await verifyTagExists(gtmClient, validatedRequest.path);
+  await executeTagDeleteMutation(gtmClient, validatedRequest.path, logger);
 
-  // Delete tag
-  await gtmClient.checkRateLimit("gtm", "tag.delete");
-  try {
-    await tagManagerClient.accounts.containers.workspaces.tags.delete({
-      path: validatedRequest.path,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Tag delete failed", error);
-    } else {
-      logger.error("Tag delete failed", new Error(String(error)));
-    }
-    throw error;
-  }
-
-  // Invalidate cache
   const cacheKey = `gtm:tag:${validatedRequest.path}`;
   await cache.delete(cacheKey);
 
@@ -2573,6 +2672,46 @@ function registerTriggerUpsertTool(
 }
 
 /**
+ * Helper: Verify trigger exists
+ */
+async function verifyTriggerExists(
+  gtmClient: GTMClient,
+  path: string
+): Promise<void> {
+  await gtmClient.checkRateLimit("gtm", "trigger.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  try {
+    await tagManagerClient.accounts.containers.workspaces.triggers.get({ path });
+  } catch {
+    throw createPreconditionError("not_found", "Trigger not found", {
+      trigger: path,
+    });
+  }
+}
+
+/**
+ * Helper: Execute trigger delete mutation
+ */
+async function executeTriggerDeleteMutation(
+  gtmClient: GTMClient,
+  path: string,
+  logger: ILogger
+): Promise<void> {
+  await gtmClient.checkRateLimit("gtm", "trigger.delete");
+  try {
+    const tagManagerClient = gtmClient.getTagManagerClient();
+    await tagManagerClient.accounts.containers.workspaces.triggers.delete({ path });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Trigger delete failed", error);
+    } else {
+      logger.error("Trigger delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+}
+
+/**
  * Execute trigger delete operation
  */
 async function executeTriggerDelete(
@@ -2605,33 +2744,8 @@ async function executeTriggerDelete(
     );
   }
 
-  // Pre-check: verify trigger exists
-  await gtmClient.checkRateLimit("gtm", "trigger.get");
-  const tagManagerClient = gtmClient.getTagManagerClient();
-  try {
-    await tagManagerClient.accounts.containers.workspaces.triggers.get({
-      path: validatedRequest.path,
-    });
-  } catch {
-    throw createPreconditionError("not_found", "Trigger not found", {
-      trigger: validatedRequest.path,
-    });
-  }
-
-  // Delete trigger
-  await gtmClient.checkRateLimit("gtm", "trigger.delete");
-  try {
-    await tagManagerClient.accounts.containers.workspaces.triggers.delete({
-      path: validatedRequest.path,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Trigger delete failed", error);
-    } else {
-      logger.error("Trigger delete failed", new Error(String(error)));
-    }
-    throw error;
-  }
+  await verifyTriggerExists(gtmClient, validatedRequest.path);
+  await executeTriggerDeleteMutation(gtmClient, validatedRequest.path, logger);
 
   // Invalidate cache
   const cacheKey = `gtm:trigger:${validatedRequest.path}`;
@@ -3164,6 +3278,46 @@ function registerVariableUpsertTool(
 }
 
 /**
+ * Helper: Verify variable exists
+ */
+async function verifyVariableExists(
+  gtmClient: GTMClient,
+  path: string
+): Promise<void> {
+  await gtmClient.checkRateLimit("gtm", "variable.get");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  try {
+    await tagManagerClient.accounts.containers.workspaces.variables.get({ path });
+  } catch {
+    throw createPreconditionError("not_found", "Variable not found", {
+      variable: path,
+    });
+  }
+}
+
+/**
+ * Helper: Execute variable delete mutation
+ */
+async function executeVariableDeleteMutation(
+  gtmClient: GTMClient,
+  path: string,
+  logger: ILogger
+): Promise<void> {
+  await gtmClient.checkRateLimit("gtm", "variable.delete");
+  try {
+    const tagManagerClient = gtmClient.getTagManagerClient();
+    await tagManagerClient.accounts.containers.workspaces.variables.delete({ path });
+  } catch (error) {
+    if (error instanceof Error) {
+      logger.error("Variable delete failed", error);
+    } else {
+      logger.error("Variable delete failed", new Error(String(error)));
+    }
+    throw error;
+  }
+}
+
+/**
  * Execute variable delete operation
  */
 async function executeVariableDelete(
@@ -3196,33 +3350,8 @@ async function executeVariableDelete(
     );
   }
 
-  // Pre-check: verify variable exists
-  await gtmClient.checkRateLimit("gtm", "variable.get");
-  const tagManagerClient = gtmClient.getTagManagerClient();
-  try {
-    await tagManagerClient.accounts.containers.workspaces.variables.get({
-      path: validatedRequest.path,
-    });
-  } catch {
-    throw createPreconditionError("not_found", "Variable not found", {
-      variable: validatedRequest.path,
-    });
-  }
-
-  // Delete variable
-  await gtmClient.checkRateLimit("gtm", "variable.delete");
-  try {
-    await tagManagerClient.accounts.containers.workspaces.variables.delete({
-      path: validatedRequest.path,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Variable delete failed", error);
-    } else {
-      logger.error("Variable delete failed", new Error(String(error)));
-    }
-    throw error;
-  }
+  await verifyVariableExists(gtmClient, validatedRequest.path);
+  await executeVariableDeleteMutation(gtmClient, validatedRequest.path, logger);
 
   // Invalidate cache
   const cacheKey = `gtm:variable:${validatedRequest.path}`;
@@ -3460,21 +3589,11 @@ async function executeBuiltinVariableEnable(
     );
   }
 
-  await gtmClient.checkRateLimit("gtm", "builtinVariable.enable");
   const tagManagerClient = gtmClient.getTagManagerClient();
-  try {
-    await tagManagerClient.accounts.containers.workspaces.built_in_variables.create({
-      parent: validatedRequest.path,
-      type: [validatedRequest.type],
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error("Built-in variable enable failed", error);
-    } else {
-      logger.error("Built-in variable enable failed", new Error(String(error)));
-    }
-    throw error;
-  }
+  await tagManagerClient.accounts.containers.workspaces.built_in_variables.create({
+    parent: validatedRequest.path,
+    type: [validatedRequest.type],
+  });
 
   logger.info("gtm.builtinVariable.enable completed", {
     opId: envelope.opId,
@@ -3555,6 +3674,85 @@ function registerBuiltinVariableEnableTool(
  * Execute data layer validation
  * Validates data layer structure against schema generated from GTM variables
  */
+/**
+ * Helper: Get data layer validation schema
+ */
+async function getDataLayerValidationSchema(
+  gtmClient: GTMClient,
+  validatedRequest: z.infer<typeof datalayerValidateRequestSchema>
+): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
+  if (validatedRequest.schema) {
+    return z.object({}) as z.ZodObject<Record<string, z.ZodTypeAny>>;
+  }
+  return await buildDataLayerSchemaFromVariables(gtmClient, validatedRequest.parent);
+}
+
+/**
+ * Helper: Build Zod schema from data layer variables
+ */
+async function buildDataLayerSchemaFromVariables(
+  gtmClient: GTMClient,
+  parent: string
+): Promise<z.ZodObject<Record<string, z.ZodTypeAny>>> {
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const variablesResponse = await tagManagerClient.accounts.containers.workspaces.variables.list({
+    parent,
+  });
+
+  const variables = (variablesResponse as { data?: { variable?: unknown[] } }).data?.variable || [];
+  const dataLayerVariables = variables.filter((v: unknown) => {
+    const varObj = v as { type?: string; parameter?: unknown[] };
+    return varObj.type === "v"; // Data layer variable type
+  });
+
+  const schemaShape: Record<string, z.ZodTypeAny> = {
+    event: z.string(), // Always required
+  };
+
+  for (const variable of dataLayerVariables) {
+    const varObj = variable as { name?: string; parameter?: unknown[] };
+    if (varObj.name) {
+      const dataLayerPath = varObj.parameter?.find(
+        (p: unknown) => (p as { key?: string }).key === "dataLayerName"
+      ) as { value?: string } | undefined;
+      if (dataLayerPath?.value) {
+        schemaShape[dataLayerPath.value] = z.unknown().optional();
+      }
+    }
+  }
+
+  return z.object(schemaShape);
+}
+
+/**
+ * Helper: Validate data layer against schema and extract errors
+ */
+function validateDataLayerAgainstSchema(
+  schema: z.ZodObject<Record<string, z.ZodTypeAny>>,
+  dataLayer: unknown
+): {
+  valid: boolean;
+  errors?: Array<{ path: string; message: string; code?: string }>;
+} {
+  const validationResult = schema.safeParse(dataLayer);
+  const errors: Array<{ path: string; message: string; code?: string }> = [];
+
+  if (!validationResult.success) {
+    for (const error of validationResult.error.errors) {
+      errors.push({
+        path: error.path.join("."),
+        message: error.message,
+        code: error.code,
+      });
+    }
+  }
+
+  return {
+    valid: validationResult.success,
+    ...(errors.length > 0 && { errors }),
+  };
+}
+
 export async function executeDataLayerValidate(
   args: unknown,
   gtmClient: GTMClient,
@@ -3574,7 +3772,6 @@ export async function executeDataLayerValidate(
 
   const validatedRequest = validateSchema(datalayerValidateRequestSchema, args);
 
-  // Check capabilities
   if (!capabilitiesRegistry.hasCapability("gtm", "datalayer")) {
     throw createPreconditionError(
       "precheck_failed",
@@ -3588,70 +3785,19 @@ export async function executeDataLayerValidate(
 
   await gtmClient.checkRateLimit("gtm", "datalayer.validate");
 
-  // If explicit schema provided, use it; otherwise generate from variables
-  let schema: z.ZodObject<Record<string, z.ZodTypeAny>>;
-  if (validatedRequest.schema) {
-    // Convert provided schema to Zod (simplified - would need proper conversion)
-    schema = z.object({}) as z.ZodObject<Record<string, z.ZodTypeAny>>;
-  } else {
-    // Generate schema from GTM variables
-    const tagManagerClient = gtmClient.getTagManagerClient();
-    const variablesResponse = await tagManagerClient.accounts.containers.workspaces.variables.list({
-      parent: validatedRequest.parent,
-    });
-
-    const variables = (variablesResponse as { data?: { variable?: unknown[] } }).data?.variable || [];
-    const dataLayerVariables = variables.filter((v: unknown) => {
-      const varObj = v as { type?: string; parameter?: unknown[] };
-      return varObj.type === "v"; // Data layer variable type
-    });
-
-    // Build schema from data layer variables
-    const schemaShape: Record<string, z.ZodTypeAny> = {
-      event: z.string(), // Always required
-    };
-
-    for (const variable of dataLayerVariables) {
-      const varObj = variable as { name?: string; parameter?: unknown[] };
-      if (varObj.name) {
-        // Extract data layer path from variable parameters
-        const dataLayerPath = varObj.parameter?.find(
-          (p: unknown) => (p as { key?: string }).key === "dataLayerName"
-        ) as { value?: string } | undefined;
-        if (dataLayerPath?.value) {
-          schemaShape[dataLayerPath.value] = z.unknown().optional();
-        }
-      }
-    }
-
-    schema = z.object(schemaShape);
-  }
-
-  // Validate data layer against schema
-  const validationResult = schema.safeParse(validatedRequest.dataLayer);
-  const errors: Array<{ path: string; message: string; code?: string }> = [];
-  const warnings: Array<{ path: string; message: string }> = [];
-
-  if (!validationResult.success) {
-    for (const error of validationResult.error.errors) {
-      errors.push({
-        path: error.path.join("."),
-        message: error.message,
-        code: error.code,
-      });
-    }
-  }
+  const schema = await getDataLayerValidationSchema(gtmClient, validatedRequest);
+  const { valid, errors } = validateDataLayerAgainstSchema(schema, validatedRequest.dataLayer);
 
   logger.info("gtm.datalayer.validate completed", {
     opId: envelope.opId,
-    valid: validationResult.success,
-    errorCount: errors.length,
+    valid,
+    errorCount: errors?.length || 0,
   });
 
   return {
-    valid: validationResult.success,
-    errors: errors.length > 0 ? errors : undefined,
-    warnings: warnings.length > 0 ? warnings : undefined,
+    valid,
+    errors,
+    warnings: undefined,
   };
 }
 
@@ -3727,6 +3873,98 @@ function registerDataLayerValidateTool(
  * Execute data layer schema generation
  * Generates schema from GTM data layer variable definitions
  */
+/**
+ * Helper: Get data layer variables from workspace
+ */
+async function getDataLayerVariables(
+  gtmClient: GTMClient,
+  parent: string
+): Promise<unknown[]> {
+  await gtmClient.checkRateLimit("gtm", "datalayer.schema.generate");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const variablesResponse = await tagManagerClient.accounts.containers.workspaces.variables.list({
+    parent,
+  });
+  const variables = (variablesResponse as { data?: { variable?: unknown[] } }).data?.variable || [];
+  return variables.filter((v: unknown) => {
+    const varObj = v as { type?: string };
+    return varObj.type === "v"; // Data layer variable type
+  });
+}
+
+/**
+ * Helper: Build schema from data layer variables
+ */
+/**
+ * Helper: Process data layer variable and add to schema
+ */
+function processDataLayerVariable(
+  variable: unknown,
+  schema: Record<string, unknown>,
+  variableMetadata: Array<{
+    name: string;
+    type: string;
+    required: boolean;
+    description?: string;
+  }>
+): void {
+  const varObj = variable as {
+    name?: string;
+    type?: string;
+    parameter?: unknown[];
+    notes?: string;
+  };
+  if (varObj.name) {
+    const dataLayerPath = varObj.parameter?.find(
+      (p: unknown) => (p as { key?: string }).key === "dataLayerName"
+    ) as { value?: string } | undefined;
+    if (dataLayerPath?.value) {
+      schema[dataLayerPath.value] = { type: "unknown", required: false };
+      variableMetadata.push({
+        name: dataLayerPath.value,
+        type: "unknown",
+        required: false,
+        ...(varObj.notes && { description: varObj.notes }),
+      });
+    }
+  }
+}
+
+function buildSchemaFromVariables(
+  dataLayerVariables: unknown[]
+): {
+  schema: Record<string, unknown>;
+  variables: Array<{
+    name: string;
+    type: string;
+    required: boolean;
+    description?: string;
+  }>;
+} {
+  const schema: Record<string, unknown> = {
+    event: { type: "string", required: true },
+  };
+  const variableMetadata: Array<{
+    name: string;
+    type: string;
+    required: boolean;
+    description?: string;
+  }> = [
+    {
+      name: "event",
+      type: "string",
+      required: true,
+      description: "Event name",
+    },
+  ];
+
+  for (const variable of dataLayerVariables) {
+    processDataLayerVariable(variable, schema, variableMetadata);
+  }
+
+  return { schema, variables: variableMetadata };
+}
+
 export async function executeDataLayerSchemaGenerate(
   args: unknown,
   gtmClient: GTMClient,
@@ -3746,7 +3984,6 @@ export async function executeDataLayerSchemaGenerate(
 
   const validatedRequest = validateSchema(datalayerSchemaGenerateRequestSchema, args);
 
-  // Check capabilities
   if (!capabilitiesRegistry.hasCapability("gtm", "datalayer")) {
     throw createPreconditionError(
       "precheck_failed",
@@ -3758,69 +3995,17 @@ export async function executeDataLayerSchemaGenerate(
     );
   }
 
-  await gtmClient.checkRateLimit("gtm", "datalayer.schema.generate");
-
-  const tagManagerClient = gtmClient.getTagManagerClient();
-  const variablesResponse = await tagManagerClient.accounts.containers.workspaces.variables.list({
-    parent: validatedRequest.parent,
-  });
-
-  const variables = (variablesResponse as { data?: { variable?: unknown[] } }).data?.variable || [];
-  const dataLayerVariables = variables.filter((v: unknown) => {
-    const varObj = v as { type?: string };
-    return varObj.type === "v"; // Data layer variable type
-  });
-
-  // Build schema structure and variable metadata
-  const schema: Record<string, unknown> = {
-    event: { type: "string", required: true },
-  };
-  const variableMetadata: Array<{
-    name: string;
-    type: string;
-    required: boolean;
-    description?: string;
-  }> = [
-    {
-      name: "event",
-      type: "string",
-      required: true,
-      description: "Event name",
-    },
-  ];
-
-  for (const variable of dataLayerVariables) {
-    const varObj = variable as {
-      name?: string;
-      type?: string;
-      parameter?: unknown[];
-      notes?: string;
-    };
-    if (varObj.name) {
-      // Extract data layer path from variable parameters
-      const dataLayerPath = varObj.parameter?.find(
-        (p: unknown) => (p as { key?: string }).key === "dataLayerName"
-      ) as { value?: string } | undefined;
-      if (dataLayerPath?.value) {
-        schema[dataLayerPath.value] = { type: "unknown", required: false };
-        variableMetadata.push({
-          name: dataLayerPath.value,
-          type: "unknown",
-          required: false,
-          ...(varObj.notes && { description: varObj.notes }),
-        });
-      }
-    }
-  }
+  const dataLayerVariables = await getDataLayerVariables(gtmClient, validatedRequest.parent);
+  const { schema, variables } = buildSchemaFromVariables(dataLayerVariables);
 
   logger.info("gtm.datalayer.schema.generate completed", {
     opId: envelope.opId,
-    variableCount: variableMetadata.length,
+    variableCount: variables.length,
   });
 
   return {
     schema,
-    variables: variableMetadata,
+    variables,
   };
 }
 
@@ -4007,6 +4192,118 @@ function registerDataLayerMonitorTool(
  * Execute data layer events list
  * Lists all data layer events from GTM triggers
  */
+/**
+ * Helper: Get custom event triggers from workspace
+ */
+async function getCustomEventTriggers(
+  gtmClient: GTMClient,
+  parent: string
+): Promise<unknown[]> {
+  await gtmClient.checkRateLimit("gtm", "datalayer.events.list");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+  const triggersResponse = await tagManagerClient.accounts.containers.workspaces.triggers.list({
+    parent,
+  });
+  const triggers = (triggersResponse as { data?: { trigger?: unknown[] } }).data?.trigger || [];
+  return triggers.filter((t: unknown) => {
+    const triggerObj = t as { type?: string };
+    return triggerObj.type === "customEvent";
+  });
+}
+
+/**
+ * Helper: Extract event names from custom event triggers
+ */
+/**
+ * Helper: Extract event name from filter
+ */
+function extractEventNameFromFilter(
+  filter: unknown
+): string | null {
+  const filterObj = filter as {
+    type?: string;
+    parameter?: unknown[];
+  };
+  if (filterObj.type === "equals" && filterObj.parameter) {
+    const eventParam = filterObj.parameter.find(
+      (p: unknown) => (p as { key?: string }).key === "arg1"
+    ) as { value?: string } | undefined;
+    return eventParam?.value || null;
+  }
+  return null;
+}
+
+/**
+ * Helper: Build event object from trigger
+ */
+function buildEventFromTrigger(
+  triggerObj: {
+    name?: string;
+    triggerId?: string;
+    customEventFilter?: unknown[];
+  },
+  eventName: string
+): {
+  name: string;
+  triggerName?: string;
+  triggerId?: string;
+  conditions?: unknown[];
+} {
+  const event: {
+    name: string;
+    triggerName?: string;
+    triggerId?: string;
+    conditions?: unknown[];
+  } = {
+    name: eventName,
+  };
+  if (triggerObj.name) {
+    event.triggerName = triggerObj.name;
+  }
+  if (triggerObj.triggerId) {
+    event.triggerId = triggerObj.triggerId;
+  }
+  if (triggerObj.customEventFilter) {
+    event.conditions = triggerObj.customEventFilter;
+  }
+  return event;
+}
+
+function extractEventNamesFromTriggers(
+  customEventTriggers: unknown[]
+): Array<{
+  name: string;
+  triggerName?: string;
+  triggerId?: string;
+  conditions?: unknown[];
+}> {
+  const events: Array<{
+    name: string;
+    triggerName?: string;
+    triggerId?: string;
+    conditions?: unknown[];
+  }> = [];
+
+  for (const trigger of customEventTriggers) {
+    const triggerObj = trigger as {
+      name?: string;
+      triggerId?: string;
+      customEventFilter?: unknown[];
+    };
+    if (triggerObj.customEventFilter) {
+      for (const filter of triggerObj.customEventFilter) {
+        const eventName = extractEventNameFromFilter(filter);
+        if (eventName) {
+          events.push(buildEventFromTrigger(triggerObj, eventName));
+          break;
+        }
+      }
+    }
+  }
+
+  return events;
+}
+
 export async function executeDataLayerEventsList(
   args: unknown,
   gtmClient: GTMClient,
@@ -4026,7 +4323,6 @@ export async function executeDataLayerEventsList(
 
   const validatedRequest = validateSchema(datalayerEventsListRequestSchema, args);
 
-  // Check capabilities
   if (!capabilitiesRegistry.hasCapability("gtm", "datalayer")) {
     throw createPreconditionError(
       "precheck_failed",
@@ -4038,69 +4334,8 @@ export async function executeDataLayerEventsList(
     );
   }
 
-  await gtmClient.checkRateLimit("gtm", "datalayer.events.list");
-
-  const tagManagerClient = gtmClient.getTagManagerClient();
-  const triggersResponse = await tagManagerClient.accounts.containers.workspaces.triggers.list({
-    parent: validatedRequest.parent,
-  });
-
-  const triggers = (triggersResponse as { data?: { trigger?: unknown[] } }).data?.trigger || [];
-  const customEventTriggers = triggers.filter((t: unknown) => {
-    const triggerObj = t as { type?: string };
-    return triggerObj.type === "customEvent";
-  });
-
-  // Extract event names from custom event triggers
-  const events: Array<{
-    name: string;
-    triggerName?: string;
-    triggerId?: string;
-    conditions?: unknown[];
-  }> = [];
-
-  for (const trigger of customEventTriggers) {
-    const triggerObj = trigger as {
-      name?: string;
-      triggerId?: string;
-      customEventFilter?: unknown[];
-    };
-    if (triggerObj.customEventFilter) {
-      // Extract event name from filter conditions
-      for (const filter of triggerObj.customEventFilter) {
-        const filterObj = filter as {
-          type?: string;
-          parameter?: unknown[];
-        };
-        if (filterObj.type === "equals" && filterObj.parameter) {
-          const eventParam = filterObj.parameter.find(
-            (p: unknown) => (p as { key?: string }).key === "arg1"
-          ) as { value?: string } | undefined;
-          if (eventParam?.value) {
-            const event: {
-              name: string;
-              triggerName?: string;
-              triggerId?: string;
-              conditions?: unknown[];
-            } = {
-              name: eventParam.value,
-            };
-            if (triggerObj.name) {
-              event.triggerName = triggerObj.name;
-            }
-            if (triggerObj.triggerId) {
-              event.triggerId = triggerObj.triggerId;
-            }
-            if (triggerObj.customEventFilter) {
-              event.conditions = triggerObj.customEventFilter;
-            }
-            events.push(event);
-            break;
-          }
-        }
-      }
-    }
-  }
+  const customEventTriggers = await getCustomEventTriggers(gtmClient, validatedRequest.parent);
+  const events = extractEventNamesFromTriggers(customEventTriggers);
 
   logger.info("gtm.datalayer.events.list completed", {
     opId: envelope.opId,
@@ -5593,6 +5828,38 @@ function registerPreviewGetTool(
 /**
  * Execute API request to configure consent mode
  */
+/**
+ * Helper: Get container fingerprint
+ */
+async function getContainerFingerprint(
+  tagManagerClient: ReturnType<GTMClient["getTagManagerClient"]>,
+  path: string
+): Promise<string> {
+  const containerResponse = (await (tagManagerClient.accounts.containers as unknown as {
+    get?: (params: unknown) => Promise<{ data?: { fingerprint?: string } }>;
+  }).get?.({
+    path,
+  })) as { data?: { fingerprint?: string } };
+  return containerResponse.data?.fingerprint || "";
+}
+
+/**
+ * Helper: Build consent configure request body
+ */
+function buildConsentConfigureRequestBody(
+  fingerprint: string,
+  validatedRequest: z.infer<typeof consentConfigureRequestSchema>
+): Record<string, unknown> {
+  const requestBody: Record<string, unknown> = {
+    fingerprint,
+    consentModeEnabled: validatedRequest.enabled,
+  };
+  if (validatedRequest.settings) {
+    requestBody.consentModeSettings = validatedRequest.settings;
+  }
+  return requestBody;
+}
+
 async function executeConsentConfigureAPIRequest(
   validatedRequest: z.infer<typeof consentConfigureRequestSchema>,
   gtmClient: GTMClient
@@ -5600,27 +5867,8 @@ async function executeConsentConfigureAPIRequest(
   await gtmClient.checkRateLimit("gtm", "consent.configure");
   const tagManagerClient = gtmClient.getTagManagerClient();
 
-  // Get current container to retrieve fingerprint
-  const containerResponse = (await (tagManagerClient.accounts.containers as unknown as {
-    get?: (params: unknown) => Promise<{ data?: { fingerprint?: string } }>;
-  }).get?.({
-    path: validatedRequest.path,
-  })) as { data?: { fingerprint?: string } };
-
-  const fingerprint = containerResponse.data?.fingerprint || "";
-
-  // Build update request body
-  const requestBody: Record<string, unknown> = {
-    fingerprint,
-  };
-
-  // Set consent mode enabled flag
-  requestBody.consentModeEnabled = validatedRequest.enabled;
-
-  // Set consent mode settings if provided
-  if (validatedRequest.settings) {
-    requestBody.consentModeSettings = validatedRequest.settings;
-  }
+  const fingerprint = await getContainerFingerprint(tagManagerClient, validatedRequest.path);
+  const requestBody = buildConsentConfigureRequestBody(fingerprint, validatedRequest);
 
   const response = (await (tagManagerClient.accounts.containers as unknown as {
     update?: (params: unknown) => Promise<{
@@ -5691,6 +5939,39 @@ export async function executeConsentConfigure(
 /**
  * Get consent configure tool input schema
  */
+/**
+ * Helper: Get consent mode settings schema
+ */
+function getConsentModeSettingsSchema(): Record<string, unknown> {
+  return {
+    ad_storage: {
+      type: "string",
+      enum: ["granted", "denied", "pending"],
+      description: "Ad storage consent state",
+    },
+    analytics_storage: {
+      type: "string",
+      enum: ["granted", "denied", "pending"],
+      description: "Analytics storage consent state",
+    },
+    functionality_storage: {
+      type: "string",
+      enum: ["granted", "denied", "pending"],
+      description: "Functionality storage consent state",
+    },
+    personalization_storage: {
+      type: "string",
+      enum: ["granted", "denied", "pending"],
+      description: "Personalization storage consent state",
+    },
+    security_storage: {
+      type: "string",
+      enum: ["granted", "denied", "pending"],
+      description: "Security storage consent state",
+    },
+  };
+}
+
 function getConsentConfigureToolSchema(): {
   type: string;
   properties: Record<string, unknown>;
@@ -5710,33 +5991,7 @@ function getConsentConfigureToolSchema(): {
       settings: {
         type: "object",
         description: "Consent mode settings (ad_storage, analytics_storage, etc.)",
-        properties: {
-          ad_storage: {
-            type: "string",
-            enum: ["granted", "denied", "pending"],
-            description: "Ad storage consent state",
-          },
-          analytics_storage: {
-            type: "string",
-            enum: ["granted", "denied", "pending"],
-            description: "Analytics storage consent state",
-          },
-          functionality_storage: {
-            type: "string",
-            enum: ["granted", "denied", "pending"],
-            description: "Functionality storage consent state",
-          },
-          personalization_storage: {
-            type: "string",
-            enum: ["granted", "denied", "pending"],
-            description: "Personalization storage consent state",
-          },
-          security_storage: {
-            type: "string",
-            enum: ["granted", "denied", "pending"],
-            description: "Security storage consent state",
-          },
-        },
+        properties: getConsentModeSettingsSchema(),
       },
     },
     required: ["path", "enabled"],
@@ -5922,37 +6177,31 @@ function registerConsentGetTool(
 /**
  * Execute API request to update tag sequencing
  */
-async function executeTagSequenceUpdateAPIRequest(
-  validatedRequest: z.infer<typeof tagSequenceUpdateRequestSchema>,
-  gtmClient: GTMClient
-): Promise<z.infer<typeof tagSequenceUpdateResponseSchema>> {
-  await gtmClient.checkRateLimit("gtm", "tag.sequence.update");
-  const tagManagerClient = gtmClient.getTagManagerClient();
-
-  // Get current tag to retrieve fingerprint
+/**
+ * Helper: Get tag fingerprint
+ */
+async function getTagFingerprint(
+  tagManagerClient: ReturnType<GTMClient["getTagManagerClient"]>,
+  path: string
+): Promise<string> {
   const tagResponse = (await (tagManagerClient.accounts.containers.workspaces.tags as unknown as {
     get?: (params: unknown) => Promise<{ data?: { fingerprint?: string } }>;
   }).get?.({
-    path: validatedRequest.path,
+    path,
   })) as { data?: { fingerprint?: string } };
+  return tagResponse.data?.fingerprint || "";
+}
 
-  const fingerprint = tagResponse.data?.fingerprint || "";
+/**
+ * Helper: Build tag sequence update request body
+ */
+function buildTagSequenceUpdateRequestBody(
+  currentTag: z.infer<typeof tagGetResponseSchema> | undefined,
+  fingerprint: string,
+  validatedRequest: z.infer<typeof tagSequenceUpdateRequestSchema>
+): Record<string, unknown> {
+  const requestBody: Record<string, unknown> = { fingerprint };
 
-  // Get full tag data to preserve existing fields
-  const fullTagResponse = (await (tagManagerClient.accounts.containers.workspaces.tags as unknown as {
-    get?: (params: unknown) => Promise<{ data?: z.infer<typeof tagGetResponseSchema> }>;
-  }).get?.({
-    path: validatedRequest.path,
-  })) as { data?: z.infer<typeof tagGetResponseSchema> };
-
-  const currentTag = fullTagResponse.data;
-
-  // Build update request body, preserving existing fields
-  const requestBody: Record<string, unknown> = {
-    fingerprint,
-  };
-
-  // Preserve existing fields
   if (currentTag) {
     if (currentTag.name) requestBody.name = currentTag.name;
     if (currentTag.type) requestBody.type = currentTag.type;
@@ -5960,7 +6209,6 @@ async function executeTagSequenceUpdateAPIRequest(
     if (currentTag.firingTriggerId) requestBody.firingTriggerId = currentTag.firingTriggerId;
   }
 
-  // Update sequencing fields
   if (validatedRequest.blockingTriggerId !== undefined) {
     requestBody.blockingTriggerId = validatedRequest.blockingTriggerId;
   }
@@ -5973,6 +6221,27 @@ async function executeTagSequenceUpdateAPIRequest(
   if (validatedRequest.tagFiringOption !== undefined) {
     requestBody.tagFiringOption = validatedRequest.tagFiringOption;
   }
+
+  return requestBody;
+}
+
+async function executeTagSequenceUpdateAPIRequest(
+  validatedRequest: z.infer<typeof tagSequenceUpdateRequestSchema>,
+  gtmClient: GTMClient
+): Promise<z.infer<typeof tagSequenceUpdateResponseSchema>> {
+  await gtmClient.checkRateLimit("gtm", "tag.sequence.update");
+  const tagManagerClient = gtmClient.getTagManagerClient();
+
+  const fingerprint = await getTagFingerprint(tagManagerClient, validatedRequest.path);
+
+  const fullTagResponse = (await (tagManagerClient.accounts.containers.workspaces.tags as unknown as {
+    get?: (params: unknown) => Promise<{ data?: z.infer<typeof tagGetResponseSchema> }>;
+  }).get?.({
+    path: validatedRequest.path,
+  })) as { data?: z.infer<typeof tagGetResponseSchema> };
+
+  const currentTag = fullTagResponse.data;
+  const requestBody = buildTagSequenceUpdateRequestBody(currentTag, fingerprint, validatedRequest);
 
   const response = (await (tagManagerClient.accounts.containers.workspaces.tags as unknown as {
     update?: (params: unknown) => Promise<{ data?: z.infer<typeof tagSequenceUpdateResponseSchema> }>;

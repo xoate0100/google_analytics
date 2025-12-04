@@ -1085,6 +1085,49 @@ function registerCampaignGetTool(
 /**
  * Execute API request to upsert campaign
  */
+/**
+ * Helper: Execute campaign mutation
+ */
+async function executeCampaignMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaign?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  operation: Record<string, unknown>
+): Promise<{
+  results?: Array<{
+    campaign?: {
+      resourceName?: string;
+      id?: string;
+      name?: string;
+      status?: string;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      campaign?: {
+        resourceName?: string;
+        id?: string;
+        name?: string;
+        status?: string;
+      };
+    }>;
+  };
+}
+
 async function executeCampaignUpsertAPIRequest(
   validatedRequest: z.infer<typeof campaignUpsertRequestSchema>,
   adsClient: AdsClient
@@ -1123,20 +1166,7 @@ async function executeCampaignUpsertAPIRequest(
     validatedRequest,
     customerId
   );
-
-  const response = (await googleAdsClient.mutate?.({
-    customerId,
-    operations: [operation],
-  })) as {
-    results?: Array<{
-      campaign?: {
-        resourceName?: string;
-        id?: string;
-        name?: string;
-        status?: string;
-      };
-    }>;
-  };
+  const response = await executeCampaignMutation(googleAdsClient, customerId, operation);
 
   return transformCampaignUpsertResponse(response, validatedRequest);
 }
@@ -1185,6 +1215,60 @@ export async function executeCampaignUpsert(
 }
 
 /**
+ * Helper: Get campaign upsert tool input schema
+ */
+function getCampaignUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      customerId: {
+        type: "string",
+        description: "Customer ID (numeric or customers/1234567890 format)",
+      },
+      campaignId: {
+        type: "string",
+        description: "Campaign ID for updates (optional for create, uses name for idempotency)",
+      },
+      name: {
+        type: "string",
+        description: "Campaign name",
+      },
+      status: {
+        type: "string",
+        enum: ["ENABLED", "PAUSED", "REMOVED"],
+        description: "Campaign status",
+      },
+      advertisingChannelType: {
+        type: "string",
+        enum: ["SEARCH", "DISPLAY", "VIDEO", "SHOPPING", "HOTEL", "MULTI_CHANNEL", "PERFORMANCE_MAX"],
+        description: "Advertising channel type",
+      },
+      budget: {
+        type: "string",
+        description: "Budget resource name (e.g., customers/1234567890/campaignBudgets/987654321)",
+      },
+      biddingStrategy: {
+        type: "string",
+        description: "Bidding strategy resource name",
+      },
+      adSchedule: {
+        type: "array",
+        description: "Ad schedule configuration",
+      },
+      targeting: {
+        type: "object",
+        description: "Targeting configuration",
+      },
+    },
+    required: ["customerId", "name"],
+  };
+}
+
+/**
  * Register ads.campaign.upsert tool
  */
 function registerCampaignUpsertTool(
@@ -1197,50 +1281,7 @@ function registerCampaignUpsertTool(
   bootstrap.registerTool({
     name: "ads.campaign.upsert",
     description: "Create or update Google Ads campaign",
-    inputSchema: {
-      type: "object",
-      properties: {
-        customerId: {
-          type: "string",
-          description: "Customer ID (numeric or customers/1234567890 format)",
-        },
-        campaignId: {
-          type: "string",
-          description: "Campaign ID for updates (optional for create, uses name for idempotency)",
-        },
-        name: {
-          type: "string",
-          description: "Campaign name",
-        },
-        status: {
-          type: "string",
-          enum: ["ENABLED", "PAUSED", "REMOVED"],
-          description: "Campaign status",
-        },
-        advertisingChannelType: {
-          type: "string",
-          enum: ["SEARCH", "DISPLAY", "VIDEO", "SHOPPING", "HOTEL", "MULTI_CHANNEL", "PERFORMANCE_MAX"],
-          description: "Advertising channel type",
-        },
-        budget: {
-          type: "string",
-          description: "Budget resource name (e.g., customers/1234567890/campaignBudgets/987654321)",
-        },
-        biddingStrategy: {
-          type: "string",
-          description: "Bidding strategy resource name",
-        },
-        adSchedule: {
-          type: "array",
-          description: "Ad schedule configuration",
-        },
-        targeting: {
-          type: "object",
-          description: "Targeting configuration",
-        },
-      },
-      required: ["customerId", "name"],
-    },
+    inputSchema: getCampaignUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeCampaignUpsert(args, adsClient, capabilitiesRegistry, logger);
@@ -1254,6 +1295,88 @@ function registerCampaignUpsertTool(
       }
     },
   });
+}
+
+/**
+ * Helper: Get campaign resource name by ID
+ */
+async function getCampaignResourceName(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaign?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  campaignId: string
+): Promise<string> {
+  const query = `SELECT campaign.id, campaign.resource_name FROM campaign WHERE campaign.id = ${campaignId}`;
+  const searchResponse = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      campaign?: {
+        id?: string;
+        resourceName?: string;
+      };
+    }>;
+  };
+
+  const campaign = searchResponse.results?.[0]?.campaign;
+  if (!campaign) {
+    throw new Error(`Campaign ${campaignId} not found`);
+  }
+
+  return campaign.resourceName || `customers/${customerId.replace(/^customers\//, "")}/campaigns/${campaign.id}`;
+}
+
+/**
+ * Helper: Execute campaign pause mutation
+ */
+async function executeCampaignPauseMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaign?: {
+          id?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  resourceName: string
+): Promise<{
+  results?: Array<{
+    campaign?: {
+      id?: string;
+      status?: string;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [
+      {
+        update: {
+          resourceName,
+          status: "PAUSED",
+        },
+      },
+    ],
+  })) as {
+    results?: Array<{
+      campaign?: {
+        id?: string;
+        status?: string;
+      };
+    }>;
+  };
 }
 
 /**
@@ -1284,48 +1407,68 @@ async function executeCampaignPauseAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Get campaign resource name
-  const searchResponse = (await googleAdsClient.search?.({
+  const resourceName = await getCampaignResourceName(
+    googleAdsClient,
     customerId,
-    query: `SELECT campaign.id, campaign.resource_name FROM campaign WHERE campaign.id = ${validatedRequest.campaignId}`,
-  })) as {
-    results?: Array<{
-      campaign?: {
-        id?: string;
-        resourceName?: string;
-      };
-    }>;
-  };
-
-  const campaign = searchResponse.results?.[0]?.campaign;
-  if (!campaign) {
-    throw new Error(`Campaign ${validatedRequest.campaignId} not found`);
-  }
-
-  const resourceName = campaign.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/campaigns/${campaign.id}`;
-
-  // Pause campaign
-  const response = (await googleAdsClient.mutate?.({
-    customerId,
-    operations: [
-      {
-        update: {
-          resourceName,
-          status: "PAUSED",
-        },
-      },
-    ],
-  })) as {
-    results?: Array<{
-      campaign?: {
-        id?: string;
-        status?: string;
-      };
-    }>;
-  };
+    validatedRequest.campaignId
+  );
+  const response = await executeCampaignPauseMutation(googleAdsClient, customerId, resourceName);
 
   return transformCampaignPauseResponse(response, validatedRequest.campaignId);
+}
+
+
+/**
+ * Execute API request to list keywords
+ */
+async function executeKeywordListAPIRequest(
+  validatedRequest: z.infer<typeof keywordListRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof keywordListResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "keyword.list");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        adGroupCriterion?: {
+          criterion?: {
+            id?: string;
+            keyword?: {
+              text?: string;
+              matchType?: string;
+            };
+          };
+          cpcBid?: {
+            micros?: string;
+          };
+        };
+      }>;
+    }>;
+  };
+
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
+  const query = buildKeywordListQuery(customerId, validatedRequest.adGroupId);
+
+  const response = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      adGroupCriterion?: {
+        criterion?: {
+          id?: string;
+          keyword?: {
+            text?: string;
+            matchType?: string;
+          };
+        };
+        cpcBid?: {
+          micros?: string;
+        };
+      };
+    }>;
+  };
+
+  return transformKeywordListResponse(response);
 }
 
 /**
@@ -1680,6 +1823,130 @@ function registerAdGroupGetTool(
 }
 
 /**
+ * Helper: Find existing ad group by ID or name
+ */
+async function findExistingAdGroup(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        adGroup?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  adGroupId?: string,
+  name?: string,
+  campaignId?: string
+): Promise<{ id?: string; resourceName?: string } | undefined> {
+  if (adGroupId) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT ad_group.id, ad_group.resource_name FROM ad_group WHERE ad_group.id = ${adGroupId}`,
+    })) as {
+      results?: Array<{
+        adGroup?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.adGroup;
+  }
+  if (name && campaignId) {
+    const normalizedCustomerId = customerId.replace(/^customers\//, "");
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT ad_group.id, ad_group.resource_name FROM ad_group WHERE ad_group.name = '${name.replace(/'/g, "''")}' AND ad_group.campaign = 'customers/${normalizedCustomerId}/campaigns/${campaignId}'`,
+    })) as {
+      results?: Array<{
+        adGroup?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.adGroup;
+  }
+  return undefined;
+}
+
+/**
+ * Helper: Build ad group mutation operation
+ */
+function buildAdGroupMutationOperation(
+  existingAdGroup: { id?: string; resourceName?: string } | undefined,
+  validatedRequest: z.infer<typeof adGroupUpsertRequestSchema>,
+  customerId: string
+): Record<string, unknown> {
+  const operation: Record<string, unknown> = {};
+  const normalizedCustomerId = customerId.replace(/^customers\//, "");
+  const campaignResourceName = `customers/${normalizedCustomerId}/campaigns/${validatedRequest.campaignId}`;
+
+  if (existingAdGroup) {
+    operation.update = {
+      resourceName: existingAdGroup.resourceName || `customers/${normalizedCustomerId}/adGroups/${existingAdGroup.id}`,
+      name: validatedRequest.name,
+      status: validatedRequest.status || "ENABLED",
+      ...(validatedRequest.type && { type: validatedRequest.type }),
+    };
+  } else {
+    operation.create = {
+      name: validatedRequest.name,
+      status: validatedRequest.status || "ENABLED",
+      campaign: campaignResourceName,
+      ...(validatedRequest.type && { type: validatedRequest.type }),
+    };
+  }
+  return operation;
+}
+
+/**
+ * Helper: Execute ad group mutation
+ */
+async function executeAdGroupMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        adGroup?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  operation: Record<string, unknown>
+): Promise<{
+  results?: Array<{
+    adGroup?: {
+      resourceName?: string;
+      id?: string;
+      name?: string;
+      status?: string;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      adGroup?: {
+        resourceName?: string;
+        id?: string;
+        name?: string;
+        status?: string;
+      };
+    }>;
+  };
+}
+
+/**
  * Execute API request to upsert ad group
  */
 async function executeAdGroupUpsertAPIRequest(
@@ -1709,77 +1976,19 @@ async function executeAdGroupUpsertAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Check if ad group exists (for idempotency)
-  let existingAdGroup: { id?: string; resourceName?: string } | undefined;
-  if (validatedRequest.adGroupId) {
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT ad_group.id, ad_group.resource_name FROM ad_group WHERE ad_group.id = ${validatedRequest.adGroupId}`,
-    })) as {
-      results?: Array<{
-        adGroup?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingAdGroup = searchResponse.results?.[0]?.adGroup;
-  } else {
-    // Check by name for idempotency
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT ad_group.id, ad_group.resource_name FROM ad_group WHERE ad_group.name = '${validatedRequest.name.replace(/'/g, "''")}' AND ad_group.campaign = 'customers/${validatedRequest.customerId.replace(/^customers\//, "")}/campaigns/${validatedRequest.campaignId}'`,
-    })) as {
-      results?: Array<{
-        adGroup?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingAdGroup = searchResponse.results?.[0]?.adGroup;
-  }
-
-  // Build mutation operation
-  const operation: Record<string, unknown> = {};
-  const campaignResourceName = `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/campaigns/${validatedRequest.campaignId}`;
-
-  if (existingAdGroup) {
-    // Update existing ad group
-    operation.update = {
-      resourceName: existingAdGroup.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/adGroups/${existingAdGroup.id}`,
-      name: validatedRequest.name,
-      status: validatedRequest.status || "ENABLED",
-    };
-    if (validatedRequest.type) {
-      (operation.update as Record<string, unknown>).type = validatedRequest.type;
-    }
-  } else {
-    // Create new ad group
-    operation.create = {
-      name: validatedRequest.name,
-      status: validatedRequest.status || "ENABLED",
-      campaign: campaignResourceName,
-    };
-    if (validatedRequest.type) {
-      (operation.create as Record<string, unknown>).type = validatedRequest.type;
-    }
-  }
-
-  const response = (await googleAdsClient.mutate?.({
+  const existingAdGroup = await findExistingAdGroup(
+    googleAdsClient,
     customerId,
-    operations: [operation],
-  })) as {
-    results?: Array<{
-      adGroup?: {
-        resourceName?: string;
-        id?: string;
-        name?: string;
-        status?: string;
-      };
-    }>;
-  };
+    validatedRequest.adGroupId,
+    validatedRequest.name,
+    validatedRequest.campaignId
+  );
+  const operation = buildAdGroupMutationOperation(
+    existingAdGroup,
+    validatedRequest,
+    customerId
+  );
+  const response = await executeAdGroupMutation(googleAdsClient, customerId, operation);
 
   return transformAdGroupUpsertResponse(response, validatedRequest);
 }
@@ -1828,6 +2037,52 @@ export async function executeAdGroupUpsert(
 }
 
 /**
+ * Helper: Get ad group upsert tool input schema
+ */
+function getAdGroupUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      customerId: {
+        type: "string",
+        description: "Customer ID (numeric or customers/1234567890 format)",
+      },
+      adGroupId: {
+        type: "string",
+        description: "Ad Group ID for updates (optional for create, uses name for idempotency)",
+      },
+      campaignId: {
+        type: "string",
+        description: "Campaign ID",
+      },
+      name: {
+        type: "string",
+        description: "Ad Group name",
+      },
+      status: {
+        type: "string",
+        enum: ["ENABLED", "PAUSED", "REMOVED"],
+        description: "Ad Group status",
+      },
+      type: {
+        type: "string",
+        enum: ["SEARCH_STANDARD", "SEARCH_DYNAMIC_ADS", "DISPLAY_STANDARD", "DISPLAY_ENGAGEMENT", "SHOPPING_PRODUCT_ADS", "HOTEL_ADS", "VIDEO_RESPONSIVE", "VIDEO_TRUE_VIEW_DISCOVERY", "VIDEO_TRUE_VIEW_IN_STREAM", "VIDEO_NON_SKIPPABLE_IN_STREAM", "VIDEO_OUTSTREAM", "VIDEO_SEQUENCE"],
+        description: "Ad Group type",
+      },
+      targeting: {
+        type: "object",
+        description: "Targeting configuration",
+      },
+    },
+    required: ["customerId", "campaignId", "name"],
+  };
+}
+
+/**
  * Register ads.adgroup.upsert tool
  */
 function registerAdGroupUpsertTool(
@@ -1840,42 +2095,7 @@ function registerAdGroupUpsertTool(
   bootstrap.registerTool({
     name: "ads.adgroup.upsert",
     description: "Create or update Google Ads ad group",
-    inputSchema: {
-      type: "object",
-      properties: {
-        customerId: {
-          type: "string",
-          description: "Customer ID (numeric or customers/1234567890 format)",
-        },
-        adGroupId: {
-          type: "string",
-          description: "Ad Group ID for updates (optional for create, uses name for idempotency)",
-        },
-        campaignId: {
-          type: "string",
-          description: "Campaign ID",
-        },
-        name: {
-          type: "string",
-          description: "Ad Group name",
-        },
-        status: {
-          type: "string",
-          enum: ["ENABLED", "PAUSED", "REMOVED"],
-          description: "Ad Group status",
-        },
-        type: {
-          type: "string",
-          enum: ["SEARCH_STANDARD", "SEARCH_DYNAMIC_ADS", "DISPLAY_STANDARD", "DISPLAY_ENGAGEMENT", "SHOPPING_PRODUCT_ADS", "HOTEL_ADS", "VIDEO_RESPONSIVE", "VIDEO_TRUE_VIEW_DISCOVERY", "VIDEO_TRUE_VIEW_IN_STREAM", "VIDEO_NON_SKIPPABLE_IN_STREAM", "VIDEO_OUTSTREAM", "VIDEO_SEQUENCE"],
-          description: "Ad Group type",
-        },
-        targeting: {
-          type: "object",
-          description: "Targeting configuration",
-        },
-      },
-      required: ["customerId", "campaignId", "name"],
-    },
+    inputSchema: getAdGroupUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeAdGroupUpsert(args, adsClient, capabilitiesRegistry, logger);
@@ -1892,61 +2112,18 @@ function registerAdGroupUpsertTool(
 }
 
 /**
- * Execute API request to list keywords
+ * Helper: Build keyword list query
  */
-async function executeKeywordListAPIRequest(
-  validatedRequest: z.infer<typeof keywordListRequestSchema>,
-  adsClient: AdsClient
-): Promise<z.infer<typeof keywordListResponseSchema>> {
-  await adsClient.checkRateLimit("ads", "keyword.list");
-  const googleAdsClient = adsClient.getGoogleAdsClient() as {
-    search?: (params: unknown) => Promise<{
-      results?: Array<{
-        adGroupCriterion?: {
-          criterion?: {
-            id?: string;
-            keyword?: {
-              text?: string;
-              matchType?: string;
-            };
-          };
-          cpcBid?: {
-            micros?: string;
-          };
-        };
-      }>;
-    }>;
-  };
-
-  const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Build GAQL query
+function buildKeywordListQuery(
+  customerId: string,
+  adGroupId?: string
+): string {
   let query = "SELECT ad_group_criterion.criterion_id, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type, ad_group_criterion.cpc_bid_micros FROM ad_group_criterion WHERE ad_group_criterion.type = 'KEYWORD'";
-  if (validatedRequest.adGroupId) {
-    query = `${query} AND ad_group_criterion.ad_group = 'customers/${validatedRequest.customerId.replace(/^customers\//, "")}/adGroups/${validatedRequest.adGroupId}'`;
+  if (adGroupId) {
+    const normalizedCustomerId = customerId.replace(/^customers\//, "");
+    query = `${query} AND ad_group_criterion.ad_group = 'customers/${normalizedCustomerId}/adGroups/${adGroupId}'`;
   }
-
-  const response = (await googleAdsClient.search?.({
-    customerId,
-    query,
-  })) as {
-    results?: Array<{
-      adGroupCriterion?: {
-        criterion?: {
-          id?: string;
-          keyword?: {
-            text?: string;
-            matchType?: string;
-          };
-        };
-        cpcBid?: {
-          micros?: string;
-        };
-      };
-    }>;
-  };
-
-  return transformKeywordListResponse(response);
+  return query;
 }
 
 /**
@@ -2170,6 +2347,51 @@ export async function executeKeywordUpsert(
 }
 
 /**
+ * Helper: Get keyword upsert tool input schema
+ */
+function getKeywordUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      customerId: {
+        type: "string",
+        description: "Customer ID (numeric or customers/1234567890 format)",
+      },
+      adGroupId: {
+        type: "string",
+        description: "Ad Group ID",
+      },
+      keywordId: {
+        type: "string",
+        description: "Keyword ID for updates (optional for create, uses text+matchType for idempotency)",
+      },
+      text: {
+        type: "string",
+        description: "Keyword text",
+      },
+      matchType: {
+        type: "string",
+        enum: ["EXACT", "PHRASE", "BROAD"],
+        description: "Keyword match type",
+      },
+      cpcBid: {
+        type: "number",
+        description: "CPC bid amount",
+      },
+      negative: {
+        type: "boolean",
+        description: "Whether this is a negative keyword",
+      },
+    },
+    required: ["customerId", "adGroupId", "text", "matchType"],
+  };
+}
+
+/**
  * Register ads.keyword.upsert tool
  */
 function registerKeywordUpsertTool(
@@ -2182,41 +2404,7 @@ function registerKeywordUpsertTool(
   bootstrap.registerTool({
     name: "ads.keyword.upsert",
     description: "Create or update Google Ads keyword",
-    inputSchema: {
-      type: "object",
-      properties: {
-        customerId: {
-          type: "string",
-          description: "Customer ID (numeric or customers/1234567890 format)",
-        },
-        adGroupId: {
-          type: "string",
-          description: "Ad Group ID",
-        },
-        keywordId: {
-          type: "string",
-          description: "Keyword ID for updates (optional for create, uses text+matchType for idempotency)",
-        },
-        text: {
-          type: "string",
-          description: "Keyword text",
-        },
-        matchType: {
-          type: "string",
-          enum: ["EXACT", "PHRASE", "BROAD"],
-          description: "Keyword match type",
-        },
-        cpcBid: {
-          type: "number",
-          description: "CPC bid amount",
-        },
-        negative: {
-          type: "boolean",
-          description: "Whether this is a negative keyword",
-        },
-      },
-      required: ["customerId", "adGroupId", "text", "matchType"],
-    },
+    inputSchema: getKeywordUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeKeywordUpsert(args, adsClient, capabilitiesRegistry, logger);
@@ -2230,6 +2418,86 @@ function registerKeywordUpsertTool(
       }
     },
   });
+}
+
+/**
+ * Helper: Get keyword resource name by ID
+ */
+async function getKeywordResourceName(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        adGroupCriterion?: {
+          criterion?: {
+            id?: string;
+            resourceName?: string;
+          };
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  keywordId: string
+): Promise<string> {
+  const query = `SELECT ad_group_criterion.criterion_id, ad_group_criterion.resource_name FROM ad_group_criterion WHERE ad_group_criterion.criterion_id = ${keywordId}`;
+  const searchResponse = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      adGroupCriterion?: {
+        criterion?: {
+          id?: string;
+          resourceName?: string;
+        };
+      };
+    }>;
+  };
+
+  const keyword = searchResponse.results?.[0]?.adGroupCriterion?.criterion;
+  if (!keyword) {
+    throw new Error(`Keyword ${keywordId} not found`);
+  }
+
+  return keyword.resourceName || `customers/${customerId.replace(/^customers\//, "")}/adGroupCriteria/${keyword.id}`;
+}
+
+/**
+ * Helper: Execute keyword delete mutation
+ */
+async function executeKeywordDeleteMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        adGroupCriterion?: {
+          resourceName?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  resourceName: string
+): Promise<{
+  results?: Array<{
+    adGroupCriterion?: {
+      resourceName?: string;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [
+      {
+        remove: resourceName,
+      },
+    ],
+  })) as {
+    results?: Array<{
+      adGroupCriterion?: {
+        resourceName?: string;
+      };
+    }>;
+  };
 }
 
 /**
@@ -2261,44 +2529,12 @@ async function executeKeywordDeleteAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Get keyword resource name
-  const searchResponse = (await googleAdsClient.search?.({
+  const resourceName = await getKeywordResourceName(
+    googleAdsClient,
     customerId,
-    query: `SELECT ad_group_criterion.criterion_id, ad_group_criterion.resource_name FROM ad_group_criterion WHERE ad_group_criterion.criterion_id = ${validatedRequest.keywordId}`,
-  })) as {
-    results?: Array<{
-      adGroupCriterion?: {
-        criterion?: {
-          id?: string;
-          resourceName?: string;
-        };
-      };
-    }>;
-  };
-
-  const keyword = searchResponse.results?.[0]?.adGroupCriterion?.criterion;
-  if (!keyword) {
-    throw new Error(`Keyword ${validatedRequest.keywordId} not found`);
-  }
-
-  const resourceName = keyword.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/adGroupCriteria/${keyword.id}`;
-
-  // Delete keyword
-  const response = (await googleAdsClient.mutate?.({
-    customerId,
-    operations: [
-      {
-        remove: resourceName,
-      },
-    ],
-  })) as {
-    results?: Array<{
-      adGroupCriterion?: {
-        resourceName?: string;
-      };
-    }>;
-  };
+    validatedRequest.keywordId
+  );
+  const response = await executeKeywordDeleteMutation(googleAdsClient, customerId, resourceName);
 
   return transformKeywordDeleteResponse(response, validatedRequest.keywordId);
 }
@@ -2524,6 +2760,77 @@ function registerConversionListTool(
 /**
  * Execute API request to get conversion action
  */
+/**
+ * Helper: Build conversion get query
+ */
+function buildConversionGetQuery(conversionId: string): string {
+  return `SELECT conversion_action.id, conversion_action.name, conversion_action.type, conversion_action.category, conversion_action.status, conversion_action.counting_type, conversion_action.attribution_model, conversion_action.value_settings FROM conversion_action WHERE conversion_action.id = ${conversionId}`;
+}
+
+/**
+ * Helper: Execute conversion get search
+ */
+async function executeConversionGetSearch(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          name?: string;
+          type?: string;
+          category?: string;
+          status?: string;
+          countingType?: string;
+          attributionModel?: string;
+          valueSettings?: {
+            defaultValue?: number;
+            alwaysUseDefaultValue?: boolean;
+          };
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  query: string
+): Promise<{
+  results?: Array<{
+    conversionAction?: {
+      id?: string;
+      name?: string;
+      type?: string;
+      category?: string;
+      status?: string;
+      countingType?: string;
+      attributionModel?: string;
+      valueSettings?: {
+        defaultValue?: number;
+        alwaysUseDefaultValue?: boolean;
+      };
+    };
+  }>;
+}> {
+  return (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        id?: string;
+        name?: string;
+        type?: string;
+        category?: string;
+        status?: string;
+        countingType?: string;
+        attributionModel?: string;
+        valueSettings?: {
+          defaultValue?: number;
+          alwaysUseDefaultValue?: boolean;
+        };
+      };
+    }>;
+  };
+}
+
 async function executeConversionGetAPIRequest(
   validatedRequest: z.infer<typeof conversionGetRequestSchema>,
   adsClient: AdsClient
@@ -2550,31 +2857,10 @@ async function executeConversionGetAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  const query = `SELECT conversion_action.id, conversion_action.name, conversion_action.type, conversion_action.category, conversion_action.status, conversion_action.counting_type, conversion_action.attribution_model, conversion_action.value_settings FROM conversion_action WHERE conversion_action.id = ${validatedRequest.conversionId}`;
-
-  const response = (await googleAdsClient.search?.({
-    customerId,
-    query,
-  })) as {
-    results?: Array<{
-      conversionAction?: {
-        id?: string;
-        name?: string;
-        type?: string;
-        category?: string;
-        status?: string;
-        countingType?: string;
-        attributionModel?: string;
-        valueSettings?: {
-          defaultValue?: number;
-          alwaysUseDefaultValue?: boolean;
-        };
-      };
-    }>;
-  };
-
+  const query = buildConversionGetQuery(validatedRequest.conversionId);
+  const response = await executeConversionGetSearch(googleAdsClient, customerId, query);
   const result = transformConversionGetResponse(response);
+
   if (!result.conversionId) {
     throw new Error(`Conversion ${validatedRequest.conversionId} not found`);
   }
@@ -2667,14 +2953,10 @@ function registerConversionGetTool(
 }
 
 /**
- * Execute API request to upsert conversion action
+ * Helper: Find existing conversion by ID or name
  */
-async function executeConversionUpsertAPIRequest(
-  validatedRequest: z.infer<typeof conversionUpsertRequestSchema>,
-  adsClient: AdsClient
-): Promise<z.infer<typeof conversionUpsertResponseSchema>> {
-  await adsClient.checkRateLimit("ads", "conversion.upsert");
-  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+async function findExistingConversion(
+  googleAdsClient: {
     search?: (params: unknown) => Promise<{
       results?: Array<{
         conversionAction?: {
@@ -2683,26 +2965,15 @@ async function executeConversionUpsertAPIRequest(
         };
       }>;
     }>;
-    mutate?: (params: unknown) => Promise<{
-      results?: Array<{
-        conversionAction?: {
-          resourceName?: string;
-          id?: string;
-          name?: string;
-          status?: string;
-        };
-      }>;
-    }>;
-  };
-
-  const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Check if conversion exists (for idempotency)
-  let existingConversion: { id?: string; resourceName?: string } | undefined;
-  if (validatedRequest.conversionId) {
+  },
+  customerId: string,
+  conversionId?: string,
+  name?: string
+): Promise<{ id?: string; resourceName?: string } | undefined> {
+  if (conversionId) {
     const searchResponse = (await googleAdsClient.search?.({
       customerId,
-      query: `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.id = ${validatedRequest.conversionId}`,
+      query: `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.id = ${conversionId}`,
     })) as {
       results?: Array<{
         conversionAction?: {
@@ -2711,29 +2982,38 @@ async function executeConversionUpsertAPIRequest(
         };
       }>;
     };
-    existingConversion = searchResponse.results?.[0]?.conversionAction;
-  } else {
-    // Check by name for idempotency
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.name = '${validatedRequest.name.replace(/'/g, "''")}'`,
-    })) as {
-      results?: Array<{
-        conversionAction?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingConversion = searchResponse.results?.[0]?.conversionAction;
+    return searchResponse.results?.[0]?.conversionAction;
   }
+  if (name) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.name = '${name.replace(/'/g, "''")}'`,
+    })) as {
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.conversionAction;
+  }
+  return undefined;
+}
 
-  // Build mutation operation
+/**
+ * Helper: Build conversion mutation operation
+ */
+function buildConversionMutationOperation(
+  existingConversion: { id?: string; resourceName?: string } | undefined,
+  validatedRequest: z.infer<typeof conversionUpsertRequestSchema>,
+  customerId: string
+): Record<string, unknown> {
   const operation: Record<string, unknown> = {};
   if (existingConversion) {
     // Update existing conversion
     operation.update = {
-      resourceName: existingConversion.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/conversionActions/${existingConversion.id}`,
+      resourceName: existingConversion.resourceName || `customers/${customerId.replace(/^customers\//, "")}/conversionActions/${existingConversion.id}`,
       name: validatedRequest.name,
       status: validatedRequest.status || "ENABLED",
     };
@@ -2772,22 +3052,50 @@ async function executeConversionUpsertAPIRequest(
       (operation.create as Record<string, unknown>).valueSettings = validatedRequest.valueSettings;
     }
   }
+  return operation;
+}
 
-  const response = (await googleAdsClient.mutate?.({
-    customerId,
-    operations: [operation],
-  })) as {
-    results?: Array<{
-      conversionAction?: {
-        resourceName?: string;
-        id?: string;
-        name?: string;
-        status?: string;
-      };
-    }>;
+/**
+ * Helper: Build conversion value settings
+ */
+function buildConversionValueSettings(
+  valueSettings?: {
+    defaultValue?: number | null | undefined;
+    alwaysUseDefaultValue?: boolean | null | undefined;
+  }
+): {
+  defaultValue?: number;
+  alwaysUseDefaultValue?: boolean;
+} | undefined {
+  if (!valueSettings) return undefined;
+  const result: {
+    defaultValue?: number;
+    alwaysUseDefaultValue?: boolean;
+  } = {};
+  if (valueSettings.defaultValue !== undefined && valueSettings.defaultValue !== null) {
+    result.defaultValue = valueSettings.defaultValue;
+  }
+  if (valueSettings.alwaysUseDefaultValue !== undefined && valueSettings.alwaysUseDefaultValue !== null) {
+    result.alwaysUseDefaultValue = valueSettings.alwaysUseDefaultValue;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/**
+ * Helper: Build conversion request data with optional properties
+ */
+function buildConversionRequestData(
+  validatedRequest: z.infer<typeof conversionUpsertRequestSchema>
+): {
+  type?: string;
+  category?: string;
+  countingType?: string;
+  attributionModel?: string;
+  valueSettings?: {
+    defaultValue?: number;
+    alwaysUseDefaultValue?: boolean;
   };
-
-  // Build request object with only defined properties (exactOptionalPropertyTypes)
+} {
   const requestData: {
     type?: string;
     category?: string;
@@ -2810,21 +3118,103 @@ async function executeConversionUpsertAPIRequest(
   if (validatedRequest.attributionModel !== undefined && validatedRequest.attributionModel !== null) {
     requestData.attributionModel = validatedRequest.attributionModel;
   }
-  if (validatedRequest.valueSettings !== undefined && validatedRequest.valueSettings !== null) {
-    const valueSettings: {
-      defaultValue?: number;
-      alwaysUseDefaultValue?: boolean;
-    } = {};
-    if (validatedRequest.valueSettings.defaultValue !== undefined && validatedRequest.valueSettings.defaultValue !== null) {
-      valueSettings.defaultValue = validatedRequest.valueSettings.defaultValue;
-    }
-    if (validatedRequest.valueSettings.alwaysUseDefaultValue !== undefined && validatedRequest.valueSettings.alwaysUseDefaultValue !== null) {
-      valueSettings.alwaysUseDefaultValue = validatedRequest.valueSettings.alwaysUseDefaultValue;
-    }
-    if (Object.keys(valueSettings).length > 0) {
-      requestData.valueSettings = valueSettings;
-    }
+  const valueSettings = buildConversionValueSettings(validatedRequest.valueSettings);
+  if (valueSettings) {
+    requestData.valueSettings = valueSettings;
   }
+  return requestData;
+}
+
+/**
+ * Helper: Execute conversion mutation
+ */
+async function executeConversionMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  operation: Record<string, unknown>
+): Promise<{
+  results?: Array<{
+    conversionAction?: {
+      resourceName?: string;
+      id?: string;
+      name?: string;
+      status?: string;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        resourceName?: string;
+        id?: string;
+        name?: string;
+        status?: string;
+      };
+    }>;
+  };
+}
+
+/**
+ * Execute API request to upsert conversion action
+ */
+async function executeConversionUpsertAPIRequest(
+  validatedRequest: z.infer<typeof conversionUpsertRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof conversionUpsertResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "conversion.upsert");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  };
+
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
+  const existingConversion = await findExistingConversion(
+    googleAdsClient,
+    customerId,
+    validatedRequest.conversionId,
+    validatedRequest.name
+  );
+  const operation = buildConversionMutationOperation(
+    existingConversion,
+    validatedRequest,
+    customerId
+  );
+  const response = await executeConversionMutation(
+    googleAdsClient,
+    customerId,
+    operation
+  );
+  const requestData = buildConversionRequestData(validatedRequest);
 
   return transformConversionUpsertResponse(response, requestData);
 }
@@ -2873,6 +3263,107 @@ export async function executeConversionUpsert(
 }
 
 /**
+ * Helper: Get conversion upsert tool input schema
+ */
+/**
+ * Helper: Get conversion category enum
+ */
+function getConversionCategoryEnum(): string[] {
+  return ["PURCHASE", "SIGNUP", "LEAD", "VIEW_ITEM", "ADD_TO_CART", "BEGIN_CHECKOUT", "SUBSCRIBE_PAID", "PHONE_CALL_LEAD", "IMPORTED_LEAD", "SUBMIT_LEAD_FORM", "BOOK_APPOINTMENT", "REQUEST_QUOTE", "GET_DIRECTIONS", "OUTBOUND_CLICK", "CALL_TRACKING"];
+}
+
+/**
+ * Helper: Get conversion type enum
+ */
+function getConversionTypeEnum(): string[] {
+  return ["WEBPAGE", "APP", "PHONE_CALL", "IMPORT", "GOOGLE_ANALYTICS"];
+}
+
+/**
+ * Helper: Get conversion status enum
+ */
+function getConversionStatusEnum(): string[] {
+  return ["ENABLED", "REMOVED", "HIDDEN"];
+}
+
+/**
+ * Helper: Get counting type enum
+ */
+function getCountingTypeEnum(): string[] {
+  return ["ONE_PER_CLICK", "MANY_PER_CLICK"];
+}
+
+/**
+ * Helper: Get ads attribution model enum
+ */
+function getAdsAttributionModelEnum(): string[] {
+  return ["DATA_DRIVEN", "LAST_CLICK", "FIRST_CLICK", "LINEAR", "TIME_DECAY", "POSITION_BASED"];
+}
+
+/**
+ * Helper: Get conversion enum properties
+ */
+function getConversionEnumProperties(): Record<string, unknown> {
+  return {
+    type: {
+      type: "string",
+      enum: getConversionTypeEnum(),
+      description: "Conversion type",
+    },
+    category: {
+      type: "string",
+      enum: getConversionCategoryEnum(),
+      description: "Conversion category",
+    },
+    status: {
+      type: "string",
+      enum: getConversionStatusEnum(),
+      description: "Conversion status",
+    },
+    countingType: {
+      type: "string",
+      enum: getCountingTypeEnum(),
+      description: "Counting type",
+    },
+    attributionModel: {
+      type: "string",
+      enum: getAdsAttributionModelEnum(),
+      description: "Attribution model",
+    },
+  };
+}
+
+function getConversionUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      customerId: {
+        type: "string",
+        description: "Customer ID (numeric or customers/1234567890 format)",
+      },
+      conversionId: {
+        type: "string",
+        description: "Conversion ID for updates (optional for create, uses name for idempotency)",
+      },
+      name: {
+        type: "string",
+        description: "Conversion name",
+      },
+      ...getConversionEnumProperties(),
+      valueSettings: {
+        type: "object",
+        description: "Value settings",
+      },
+    },
+    required: ["customerId", "name"],
+  };
+}
+
+/**
  * Register ads.conversion.upsert tool
  */
 function registerConversionUpsertTool(
@@ -2885,53 +3376,7 @@ function registerConversionUpsertTool(
   bootstrap.registerTool({
     name: "ads.conversion.upsert",
     description: "Create or update Google Ads conversion action",
-    inputSchema: {
-      type: "object",
-      properties: {
-        customerId: {
-          type: "string",
-          description: "Customer ID (numeric or customers/1234567890 format)",
-        },
-        conversionId: {
-          type: "string",
-          description: "Conversion ID for updates (optional for create, uses name for idempotency)",
-        },
-        name: {
-          type: "string",
-          description: "Conversion name",
-        },
-        type: {
-          type: "string",
-          enum: ["WEBPAGE", "APP", "PHONE_CALL", "IMPORT", "GOOGLE_ANALYTICS"],
-          description: "Conversion type",
-        },
-        category: {
-          type: "string",
-          enum: ["PURCHASE", "SIGNUP", "LEAD", "VIEW_ITEM", "ADD_TO_CART", "BEGIN_CHECKOUT", "SUBSCRIBE_PAID", "PHONE_CALL_LEAD", "IMPORTED_LEAD", "SUBMIT_LEAD_FORM", "BOOK_APPOINTMENT", "REQUEST_QUOTE", "GET_DIRECTIONS", "OUTBOUND_CLICK", "CALL_TRACKING"],
-          description: "Conversion category",
-        },
-        status: {
-          type: "string",
-          enum: ["ENABLED", "REMOVED", "HIDDEN"],
-          description: "Conversion status",
-        },
-        countingType: {
-          type: "string",
-          enum: ["ONE_PER_CLICK", "MANY_PER_CLICK"],
-          description: "Counting type",
-        },
-        attributionModel: {
-          type: "string",
-          enum: ["DATA_DRIVEN", "LAST_CLICK", "FIRST_CLICK", "LINEAR", "TIME_DECAY", "POSITION_BASED"],
-          description: "Attribution model",
-        },
-        valueSettings: {
-          type: "object",
-          description: "Value settings",
-        },
-      },
-      required: ["customerId", "name"],
-    },
+    inputSchema: getConversionUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeConversionUpsert(args, adsClient, capabilitiesRegistry, logger);
@@ -2945,6 +3390,82 @@ function registerConversionUpsertTool(
       }
     },
   });
+}
+
+/**
+ * Helper: Get conversion resource name by ID
+ */
+async function getConversionResourceName(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  conversionId: string
+): Promise<string> {
+  const query = `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.id = ${conversionId}`;
+  const searchResponse = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        id?: string;
+        resourceName?: string;
+      };
+    }>;
+  };
+
+  const conversion = searchResponse.results?.[0]?.conversionAction;
+  if (!conversion) {
+    throw new Error(`Conversion ${conversionId} not found`);
+  }
+
+  return conversion.resourceName || `customers/${customerId.replace(/^customers\//, "")}/conversionActions/${conversion.id}`;
+}
+
+/**
+ * Helper: Execute conversion delete mutation
+ */
+async function executeConversionDeleteMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          resourceName?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  resourceName: string
+): Promise<{
+  results?: Array<{
+    conversionAction?: {
+      resourceName?: string;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [
+      {
+        remove: resourceName,
+      },
+    ],
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        resourceName?: string;
+      };
+    }>;
+  };
 }
 
 /**
@@ -2974,42 +3495,16 @@ async function executeConversionDeleteAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Get conversion resource name
-  const searchResponse = (await googleAdsClient.search?.({
+  const resourceName = await getConversionResourceName(
+    googleAdsClient,
     customerId,
-    query: `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.id = ${validatedRequest.conversionId}`,
-  })) as {
-    results?: Array<{
-      conversionAction?: {
-        id?: string;
-        resourceName?: string;
-      };
-    }>;
-  };
-
-  const conversion = searchResponse.results?.[0]?.conversionAction;
-  if (!conversion) {
-    throw new Error(`Conversion ${validatedRequest.conversionId} not found`);
-  }
-
-  const resourceName = conversion.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/conversionActions/${conversion.id}`;
-
-  // Delete conversion
-  const response = (await googleAdsClient.mutate?.({
+    validatedRequest.conversionId
+  );
+  const response = await executeConversionDeleteMutation(
+    googleAdsClient,
     customerId,
-    operations: [
-      {
-        remove: resourceName,
-      },
-    ],
-  })) as {
-    results?: Array<{
-      conversionAction?: {
-        resourceName?: string;
-      };
-    }>;
-  };
+    resourceName
+  );
 
   return transformConversionDeleteResponse(response, validatedRequest.conversionId);
 }
@@ -3198,6 +3693,60 @@ export async function executeConversionOfflineImport(
 /**
  * Register ads.conversion.offlineImport tool
  */
+/**
+ * Helper: Get conversion offline import tool schema
+ */
+function getConversionOfflineImportToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      customerId: {
+        type: "string",
+        description: "Customer ID (numeric or customers/1234567890 format)",
+      },
+      conversionId: {
+        type: "string",
+        description: "Conversion action ID",
+      },
+      conversions: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            gclid: {
+              type: "string",
+              description: "Google Click ID",
+            },
+            conversionDateTime: {
+              type: "string",
+              description: "Conversion date and time (YYYY-MM-DD HH:MM:SS format)",
+            },
+            conversionValue: {
+              type: "number",
+              description: "Conversion value",
+            },
+            currencyCode: {
+              type: "string",
+              description: "Currency code (default: USD)",
+            },
+            orderId: {
+              type: "string",
+              description: "Order ID for deduplication",
+            },
+          },
+          required: ["conversionDateTime"],
+        },
+        description: "Array of offline conversions to import",
+      },
+    },
+    required: ["customerId", "conversionId", "conversions"],
+  };
+}
+
 function registerConversionOfflineImportTool(
   bootstrap: MCPServerBootstrap,
   adsClient: AdsClient,
@@ -3208,50 +3757,7 @@ function registerConversionOfflineImportTool(
   bootstrap.registerTool({
     name: "ads.conversion.offlineImport",
     description: "Import offline conversions to Google Ads",
-    inputSchema: {
-      type: "object",
-      properties: {
-        customerId: {
-          type: "string",
-          description: "Customer ID (numeric or customers/1234567890 format)",
-        },
-        conversionId: {
-          type: "string",
-          description: "Conversion action ID",
-        },
-        conversions: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              gclid: {
-                type: "string",
-                description: "Google Click ID",
-              },
-              conversionDateTime: {
-                type: "string",
-                description: "Conversion date and time (YYYY-MM-DD HH:MM:SS format)",
-              },
-              conversionValue: {
-                type: "number",
-                description: "Conversion value",
-              },
-              currencyCode: {
-                type: "string",
-                description: "Currency code (default: USD)",
-              },
-              orderId: {
-                type: "string",
-                description: "Order ID for deduplication",
-              },
-            },
-            required: ["conversionDateTime"],
-          },
-          description: "Array of offline conversions to import",
-        },
-      },
-      required: ["customerId", "conversionId", "conversions"],
-    },
+    inputSchema: getConversionOfflineImportToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeConversionOfflineImport(args, adsClient, capabilitiesRegistry, logger);
@@ -3270,6 +3776,54 @@ function registerConversionOfflineImportTool(
 /**
  * Execute API request to configure enhanced conversions
  */
+/**
+ * Helper: Execute conversion enhanced mutation
+ */
+async function executeConversionEnhancedMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        conversionAction?: {
+          resourceName?: string;
+          id?: string;
+          enhancedConversionsForLeadsEnabled?: boolean;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  resourceName: string,
+  enabled: boolean
+): Promise<{
+  results?: Array<{
+    conversionAction?: {
+      resourceName?: string;
+      id?: string;
+      enhancedConversionsForLeadsEnabled?: boolean;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [
+      {
+        update: {
+          resourceName,
+          enhancedConversionsForLeadsEnabled: enabled,
+        },
+      },
+    ],
+  })) as {
+    results?: Array<{
+      conversionAction?: {
+        resourceName?: string;
+        id?: string;
+        enhancedConversionsForLeadsEnabled?: boolean;
+      };
+    }>;
+  };
+}
+
 async function executeConversionEnhancedAPIRequest(
   validatedRequest: z.infer<typeof conversionEnhancedRequestSchema>,
   adsClient: AdsClient
@@ -3296,47 +3850,17 @@ async function executeConversionEnhancedAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Get conversion resource name
-  const searchResponse = (await googleAdsClient.search?.({
+  const resourceName = await getConversionResourceName(
+    googleAdsClient,
     customerId,
-    query: `SELECT conversion_action.id, conversion_action.resource_name FROM conversion_action WHERE conversion_action.id = ${validatedRequest.conversionId}`,
-  })) as {
-    results?: Array<{
-      conversionAction?: {
-        id?: string;
-        resourceName?: string;
-      };
-    }>;
-  };
-
-  const conversion = searchResponse.results?.[0]?.conversionAction;
-  if (!conversion) {
-    throw new Error(`Conversion ${validatedRequest.conversionId} not found`);
-  }
-
-  const resourceName = conversion.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/conversionActions/${conversion.id}`;
-
-  // Update enhanced conversions setting
-  const response = (await googleAdsClient.mutate?.({
+    validatedRequest.conversionId
+  );
+  const response = await executeConversionEnhancedMutation(
+    googleAdsClient,
     customerId,
-    operations: [
-      {
-        update: {
-          resourceName,
-          enhancedConversionsForLeadsEnabled: validatedRequest.enabled,
-        },
-      },
-    ],
-  })) as {
-    results?: Array<{
-      conversionAction?: {
-        resourceName?: string;
-        id?: string;
-        enhancedConversionsForLeadsEnabled?: boolean;
-      };
-    }>;
-  };
+    resourceName,
+    validatedRequest.enabled
+  );
 
   return transformConversionEnhancedResponse(response, validatedRequest.conversionId, validatedRequest.enabled);
 }
@@ -3572,6 +4096,13 @@ function registerAudienceListTool(
 /**
  * Execute API request to get audience
  */
+/**
+ * Helper: Build audience get query
+ */
+function buildAudienceGetQuery(audienceId: string): string {
+  return `SELECT user_list.id, user_list.name, user_list.type, user_list.status, user_list.membership_status, user_list.membership_life_span, user_list.description FROM user_list WHERE user_list.id = ${audienceId}`;
+}
+
 async function executeAudienceGetAPIRequest(
   validatedRequest: z.infer<typeof audienceGetRequestSchema>,
   adsClient: AdsClient
@@ -3594,8 +4125,7 @@ async function executeAudienceGetAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  const query = `SELECT user_list.id, user_list.name, user_list.type, user_list.status, user_list.membership_status, user_list.membership_life_span, user_list.description FROM user_list WHERE user_list.id = ${validatedRequest.audienceId}`;
+  const query = buildAudienceGetQuery(validatedRequest.audienceId);
 
   const response = (await googleAdsClient.search?.({
     customerId,
@@ -3707,6 +4237,159 @@ function registerAudienceGetTool(
 }
 
 /**
+ * Helper: Find existing audience by ID or name
+ */
+async function findExistingAudience(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        userList?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  audienceId?: string,
+  name?: string
+): Promise<{ id?: string; resourceName?: string } | undefined> {
+  if (audienceId) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT user_list.id, user_list.resource_name FROM user_list WHERE user_list.id = ${audienceId}`,
+    })) as {
+      results?: Array<{
+        userList?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.userList;
+  }
+  if (name) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT user_list.id, user_list.resource_name FROM user_list WHERE user_list.name = '${name.replace(/'/g, "''")}'`,
+    })) as {
+      results?: Array<{
+        userList?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.userList;
+  }
+  return undefined;
+}
+
+/**
+ * Helper: Build audience mutation operation
+ */
+function buildAudienceMutationOperation(
+  existingAudience: { id?: string; resourceName?: string } | undefined,
+  validatedRequest: z.infer<typeof audienceUpsertRequestSchema>,
+  customerId: string
+): Record<string, unknown> {
+  const operation: Record<string, unknown> = {};
+  const optionalFields: Record<string, unknown> = {};
+
+  if (validatedRequest.membershipStatus) {
+    optionalFields.membershipStatus = validatedRequest.membershipStatus;
+  }
+  if (validatedRequest.membershipLifeSpan) {
+    optionalFields.membershipLifeSpan = validatedRequest.membershipLifeSpan;
+  }
+  if (validatedRequest.description) {
+    optionalFields.description = validatedRequest.description;
+  }
+
+  if (existingAudience) {
+    operation.update = {
+      resourceName: existingAudience.resourceName || `customers/${customerId.replace(/^customers\//, "")}/userLists/${existingAudience.id}`,
+      name: validatedRequest.name,
+      status: validatedRequest.status || "ENABLED",
+      ...optionalFields,
+    };
+  } else {
+    operation.create = {
+      name: validatedRequest.name,
+      type: validatedRequest.type || "USER_LIST",
+      status: validatedRequest.status || "ENABLED",
+      ...optionalFields,
+    };
+  }
+  return operation;
+}
+
+/**
+ * Helper: Build audience request data for response transformation
+ */
+function buildAudienceRequestData(
+  validatedRequest: z.infer<typeof audienceUpsertRequestSchema>
+): {
+  type?: string;
+  membershipStatus?: string;
+  membershipLifeSpan?: number;
+  description?: string;
+} {
+  return {
+    ...(validatedRequest.type !== undefined && { type: validatedRequest.type }),
+    ...(validatedRequest.membershipStatus !== undefined && { membershipStatus: validatedRequest.membershipStatus }),
+    ...(validatedRequest.membershipLifeSpan !== undefined && { membershipLifeSpan: validatedRequest.membershipLifeSpan }),
+    ...(validatedRequest.description !== undefined && { description: validatedRequest.description }),
+  };
+}
+
+/**
+ * Execute API request to upsert audience
+ */
+/**
+ * Helper: Execute audience mutation
+ */
+async function executeAudienceMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        userList?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  operation: Record<string, unknown>
+): Promise<{
+  results?: Array<{
+    userList?: {
+      resourceName?: string;
+      id?: string;
+      name?: string;
+      status?: string;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      userList?: {
+        resourceName?: string;
+        id?: string;
+        name?: string;
+        status?: string;
+      };
+    }>;
+  };
+}
+
+/**
  * Execute API request to upsert audience
  */
 async function executeAudienceUpsertAPIRequest(
@@ -3736,94 +4419,21 @@ async function executeAudienceUpsertAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Check if audience exists (for idempotency)
-  let existingAudience: { id?: string; resourceName?: string } | undefined;
-  if (validatedRequest.audienceId) {
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT user_list.id, user_list.resource_name FROM user_list WHERE user_list.id = ${validatedRequest.audienceId}`,
-    })) as {
-      results?: Array<{
-        userList?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingAudience = searchResponse.results?.[0]?.userList;
-  } else {
-    // Check by name for idempotency
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT user_list.id, user_list.resource_name FROM user_list WHERE user_list.name = '${validatedRequest.name.replace(/'/g, "''")}'`,
-    })) as {
-      results?: Array<{
-        userList?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingAudience = searchResponse.results?.[0]?.userList;
-  }
-
-  // Build mutation operation
-  const operation: Record<string, unknown> = {};
-  if (existingAudience) {
-    // Update existing audience
-    operation.update = {
-      resourceName: existingAudience.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/userLists/${existingAudience.id}`,
-      name: validatedRequest.name,
-      status: validatedRequest.status || "ENABLED",
-    };
-    if (validatedRequest.membershipStatus) {
-      (operation.update as Record<string, unknown>).membershipStatus = validatedRequest.membershipStatus;
-    }
-    if (validatedRequest.membershipLifeSpan) {
-      (operation.update as Record<string, unknown>).membershipLifeSpan = validatedRequest.membershipLifeSpan;
-    }
-    if (validatedRequest.description) {
-      (operation.update as Record<string, unknown>).description = validatedRequest.description;
-    }
-  } else {
-    // Create new audience
-    operation.create = {
-      name: validatedRequest.name,
-      type: validatedRequest.type || "USER_LIST",
-      status: validatedRequest.status || "ENABLED",
-    };
-    if (validatedRequest.membershipStatus) {
-      (operation.create as Record<string, unknown>).membershipStatus = validatedRequest.membershipStatus;
-    }
-    if (validatedRequest.membershipLifeSpan) {
-      (operation.create as Record<string, unknown>).membershipLifeSpan = validatedRequest.membershipLifeSpan;
-    }
-    if (validatedRequest.description) {
-      (operation.create as Record<string, unknown>).description = validatedRequest.description;
-    }
-  }
-
-  const response = (await googleAdsClient.mutate?.({
+  const existingAudience = await findExistingAudience(
+    googleAdsClient,
     customerId,
-    operations: [operation],
-  })) as {
-    results?: Array<{
-      userList?: {
-        resourceName?: string;
-        id?: string;
-        name?: string;
-        status?: string;
-      };
-    }>;
-  };
+    validatedRequest.audienceId,
+    validatedRequest.name
+  );
+  const operation = buildAudienceMutationOperation(
+    existingAudience,
+    validatedRequest,
+    customerId
+  );
+  const response = await executeAudienceMutation(googleAdsClient, customerId, operation);
+  const requestData = buildAudienceRequestData(validatedRequest);
 
-  return transformAudienceUpsertResponse(response, {
-    ...(validatedRequest.type !== undefined && { type: validatedRequest.type }),
-    ...(validatedRequest.membershipStatus !== undefined && { membershipStatus: validatedRequest.membershipStatus }),
-    ...(validatedRequest.membershipLifeSpan !== undefined && { membershipLifeSpan: validatedRequest.membershipLifeSpan }),
-    ...(validatedRequest.description !== undefined && { description: validatedRequest.description }),
-  });
+  return transformAudienceUpsertResponse(response, requestData);
 }
 
 /**
@@ -3870,6 +4480,57 @@ export async function executeAudienceUpsert(
 }
 
 /**
+ * Helper: Get audience upsert tool input schema
+ */
+function getAudienceUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      customerId: {
+        type: "string",
+        description: "Customer ID (numeric or customers/1234567890 format)",
+      },
+      audienceId: {
+        type: "string",
+        description: "Audience ID for updates (optional for create, uses name for idempotency)",
+      },
+      name: {
+        type: "string",
+        description: "Audience name",
+      },
+      type: {
+        type: "string",
+        enum: ["USER_LIST", "CUSTOMER_MATCH_USER_LIST", "BASIC_USER_LIST", "LOGICAL_USER_LIST", "SIMILAR_USER_LIST"],
+        description: "Audience type",
+      },
+      status: {
+        type: "string",
+        enum: ["ENABLED", "REMOVED", "HIDDEN"],
+        description: "Audience status",
+      },
+      membershipStatus: {
+        type: "string",
+        enum: ["OPEN", "CLOSED"],
+        description: "Membership status",
+      },
+      membershipLifeSpan: {
+        type: "number",
+        description: "Membership life span in days (1-540)",
+      },
+      description: {
+        type: "string",
+        description: "Audience description",
+      },
+    },
+    required: ["customerId", "name"],
+  };
+}
+
+/**
  * Register ads.audience.upsert tool
  */
 function registerAudienceUpsertTool(
@@ -3882,47 +4543,7 @@ function registerAudienceUpsertTool(
   bootstrap.registerTool({
     name: "ads.audience.upsert",
     description: "Create or update Google Ads audience",
-    inputSchema: {
-      type: "object",
-      properties: {
-        customerId: {
-          type: "string",
-          description: "Customer ID (numeric or customers/1234567890 format)",
-        },
-        audienceId: {
-          type: "string",
-          description: "Audience ID for updates (optional for create, uses name for idempotency)",
-        },
-        name: {
-          type: "string",
-          description: "Audience name",
-        },
-        type: {
-          type: "string",
-          enum: ["USER_LIST", "CUSTOMER_MATCH_USER_LIST", "BASIC_USER_LIST", "LOGICAL_USER_LIST", "SIMILAR_USER_LIST"],
-          description: "Audience type",
-        },
-        status: {
-          type: "string",
-          enum: ["ENABLED", "REMOVED", "HIDDEN"],
-          description: "Audience status",
-        },
-        membershipStatus: {
-          type: "string",
-          enum: ["OPEN", "CLOSED"],
-          description: "Membership status",
-        },
-        membershipLifeSpan: {
-          type: "number",
-          description: "Membership life span in days (1-540)",
-        },
-        description: {
-          type: "string",
-          description: "Audience description",
-        },
-      },
-      required: ["customerId", "name"],
-    },
+    inputSchema: getAudienceUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeAudienceUpsert(args, adsClient, capabilitiesRegistry, logger);
@@ -3936,6 +4557,115 @@ function registerAudienceUpsertTool(
       }
     },
   });
+}
+
+/**
+ * Helper: Check if audience is already attached to campaign
+ */
+async function checkAudienceAttachment(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaignAudienceView?: {
+          campaign?: string;
+          audience?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  campaignId: string,
+  audienceId: string
+): Promise<{ campaign?: string; audience?: string } | undefined> {
+  const normalizedCustomerId = customerId.replace(/^customers\//, "");
+  const query = `SELECT campaign_audience_view.campaign, campaign_audience_view.audience FROM campaign_audience_view WHERE campaign_audience_view.campaign = 'customers/${normalizedCustomerId}/campaigns/${campaignId}' AND campaign_audience_view.audience = 'customers/${normalizedCustomerId}/userLists/${audienceId}'`;
+  const searchResponse = (await googleAdsClient.search?.({
+    customerId,
+    query,
+  })) as {
+    results?: Array<{
+      campaignAudienceView?: {
+        campaign?: string;
+        audience?: string;
+      };
+    }>;
+  };
+  return searchResponse.results?.[0]?.campaignAudienceView;
+}
+
+/**
+ * Helper: Build audience attach mutation operation
+ */
+function buildAudienceAttachOperation(
+  existing: { campaign?: string; audience?: string } | undefined,
+  validatedRequest: z.infer<typeof audienceAttachRequestSchema>,
+  customerId: string
+): Record<string, unknown> {
+  const normalizedCustomerId = customerId.replace(/^customers\//, "");
+  const operation: Record<string, unknown> = {};
+
+  if (existing) {
+    operation.update = {
+      campaign: existing.campaign,
+      audience: existing.audience,
+    };
+    if (validatedRequest.bidModifier !== undefined) {
+      (operation.update as Record<string, unknown>).bidModifier = validatedRequest.bidModifier;
+    }
+  } else {
+    operation.create = {
+      campaign: `customers/${normalizedCustomerId}/campaigns/${validatedRequest.campaignId}`,
+      audience: `customers/${normalizedCustomerId}/userLists/${validatedRequest.audienceId}`,
+    };
+    if (validatedRequest.bidModifier !== undefined) {
+      (operation.create as Record<string, unknown>).bidModifier = validatedRequest.bidModifier;
+    }
+  }
+
+  return operation;
+}
+
+/**
+ * Helper: Execute audience attach mutation
+ */
+async function executeAudienceAttachMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaignAudience?: {
+          resourceName?: string;
+          campaign?: string;
+          audience?: string;
+          bidModifier?: number;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  operation: Record<string, unknown>
+): Promise<{
+  results?: Array<{
+    campaignAudience?: {
+      resourceName?: string;
+      campaign?: string;
+      audience?: string;
+      bidModifier?: number;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      campaignAudience?: {
+        resourceName?: string;
+        campaign?: string;
+        audience?: string;
+        bidModifier?: number;
+      };
+    }>;
+  };
 }
 
 /**
@@ -3968,57 +4698,14 @@ async function executeAudienceAttachAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Check if already attached
-  const searchResponse = (await googleAdsClient.search?.({
+  const existing = await checkAudienceAttachment(
+    googleAdsClient,
     customerId,
-    query: `SELECT campaign_audience_view.campaign, campaign_audience_view.audience FROM campaign_audience_view WHERE campaign_audience_view.campaign = 'customers/${validatedRequest.customerId.replace(/^customers\//, "")}/campaigns/${validatedRequest.campaignId}' AND campaign_audience_view.audience = 'customers/${validatedRequest.customerId.replace(/^customers\//, "")}/userLists/${validatedRequest.audienceId}'`,
-  })) as {
-    results?: Array<{
-      campaignAudienceView?: {
-        campaign?: string;
-        audience?: string;
-      };
-    }>;
-  };
-
-  const existing = searchResponse.results?.[0]?.campaignAudienceView;
-
-  // Build mutation operation
-  const operation: Record<string, unknown> = {};
-  if (existing) {
-    // Update existing attachment
-    operation.update = {
-      campaign: existing.campaign,
-      audience: existing.audience,
-    };
-    if (validatedRequest.bidModifier !== undefined) {
-      (operation.update as Record<string, unknown>).bidModifier = validatedRequest.bidModifier;
-    }
-  } else {
-    // Create new attachment
-    operation.create = {
-      campaign: `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/campaigns/${validatedRequest.campaignId}`,
-      audience: `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/userLists/${validatedRequest.audienceId}`,
-    };
-    if (validatedRequest.bidModifier !== undefined) {
-      (operation.create as Record<string, unknown>).bidModifier = validatedRequest.bidModifier;
-    }
-  }
-
-  const response = (await googleAdsClient.mutate?.({
-    customerId,
-    operations: [operation],
-  })) as {
-    results?: Array<{
-      campaignAudience?: {
-        resourceName?: string;
-        campaign?: string;
-        audience?: string;
-        bidModifier?: number;
-      };
-    }>;
-  };
+    validatedRequest.campaignId,
+    validatedRequest.audienceId
+  );
+  const operation = buildAudienceAttachOperation(existing, validatedRequest, customerId);
+  const response = await executeAudienceAttachMutation(googleAdsClient, customerId, operation);
 
   return transformAudienceAttachResponse(response, {
     campaignId: validatedRequest.campaignId,
@@ -4124,6 +4811,35 @@ function registerAudienceAttachTool(
 /**
  * Execute API request to list budgets
  */
+/**
+ * Helper: Transform budget list response
+ */
+function transformBudgetListResponse(
+  results: Array<{
+    campaignBudget?: {
+      id?: string;
+      name?: string;
+      amountMicros?: string;
+      deliveryMethod?: string;
+      status?: string;
+    };
+  }>
+): z.infer<typeof budgetListResponseSchema> {
+  const budgets = results.map((r) => {
+    const budget = r.campaignBudget;
+    const amountMicros = budget?.amountMicros ? parseInt(budget.amountMicros, 10) : undefined;
+    const amount = amountMicros ? amountMicros / 1000000 : undefined;
+    return {
+      budgetId: budget?.id,
+      name: budget?.name,
+      amount,
+      deliveryMethod: budget?.deliveryMethod as "STANDARD" | "ACCELERATED" | undefined,
+      status: budget?.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+    };
+  });
+  return { budgets };
+}
+
 async function executeBudgetListAPIRequest(
   validatedRequest: z.infer<typeof budgetListRequestSchema>,
   adsClient: AdsClient
@@ -4144,7 +4860,6 @@ async function executeBudgetListAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
   const query = "SELECT campaign_budget.id, campaign_budget.name, campaign_budget.amount_micros, campaign_budget.delivery_method, campaign_budget.status FROM campaign_budget";
 
   const response = (await googleAdsClient.search?.({
@@ -4162,20 +4877,7 @@ async function executeBudgetListAPIRequest(
     }>;
   };
 
-  const budgets = (response.results || []).map((r) => {
-    const budget = r.campaignBudget;
-    const amountMicros = budget?.amountMicros ? parseInt(budget.amountMicros, 10) : undefined;
-    const amount = amountMicros ? amountMicros / 1000000 : undefined;
-    return {
-      budgetId: budget?.id,
-      name: budget?.name,
-      amount,
-      deliveryMethod: budget?.deliveryMethod as "STANDARD" | "ACCELERATED" | undefined,
-      status: budget?.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
-    };
-  });
-
-  return { budgets };
+  return transformBudgetListResponse(response.results || []);
 }
 
 /**
@@ -4260,8 +4962,40 @@ function registerBudgetListTool(
 }
 
 /**
+ * Helper: Build budget get query
+ */
+function buildBudgetGetQuery(budgetId: string): string {
+  return `SELECT campaign_budget.id, campaign_budget.name, campaign_budget.amount_micros, campaign_budget.delivery_method, campaign_budget.status FROM campaign_budget WHERE campaign_budget.id = ${budgetId}`;
+}
+
+/**
+ * Helper: Transform budget response
+ */
+function transformBudgetGetResponse(
+  budget: {
+    id?: string;
+    name?: string;
+    amountMicros?: string;
+    deliveryMethod?: string;
+    status?: string;
+  }
+): z.infer<typeof budgetGetResponseSchema> {
+  const amountMicros = budget.amountMicros ? parseInt(budget.amountMicros, 10) : undefined;
+  const amount = amountMicros ? amountMicros / 1000000 : undefined;
+
+  return {
+    budgetId: budget.id,
+    name: budget.name,
+    amount,
+    deliveryMethod: budget.deliveryMethod as "STANDARD" | "ACCELERATED" | undefined,
+    status: budget.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+  };
+}
+
+/**
  * Execute API request to get budget
  */
+
 async function executeBudgetGetAPIRequest(
   validatedRequest: z.infer<typeof budgetGetRequestSchema>,
   adsClient: AdsClient
@@ -4282,8 +5016,7 @@ async function executeBudgetGetAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  const query = `SELECT campaign_budget.id, campaign_budget.name, campaign_budget.amount_micros, campaign_budget.delivery_method, campaign_budget.status FROM campaign_budget WHERE campaign_budget.id = ${validatedRequest.budgetId}`;
+  const query = buildBudgetGetQuery(validatedRequest.budgetId);
 
   const response = (await googleAdsClient.search?.({
     customerId,
@@ -4301,21 +5034,11 @@ async function executeBudgetGetAPIRequest(
   };
 
   const budget = response.results?.[0]?.campaignBudget;
-
   if (!budget) {
     throw new Error(`Budget ${validatedRequest.budgetId} not found`);
   }
 
-  const amountMicros = budget.amountMicros ? parseInt(budget.amountMicros, 10) : undefined;
-  const amount = amountMicros ? amountMicros / 1000000 : undefined;
-
-  return {
-    budgetId: budget.id,
-    name: budget.name,
-    amount,
-    deliveryMethod: budget.deliveryMethod as "STANDARD" | "ACCELERATED" | undefined,
-    status: budget.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
-  };
+  return transformBudgetGetResponse(budget);
 }
 
 /**
@@ -4404,6 +5127,157 @@ function registerBudgetGetTool(
 }
 
 /**
+ * Helper: Find existing budget by ID or name
+ */
+async function findExistingBudget(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaignBudget?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  budgetId?: string,
+  name?: string
+): Promise<{ id?: string; resourceName?: string } | undefined> {
+  if (budgetId) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT campaign_budget.id, campaign_budget.resource_name FROM campaign_budget WHERE campaign_budget.id = ${budgetId}`,
+    })) as {
+      results?: Array<{
+        campaignBudget?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.campaignBudget;
+  }
+  if (name) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT campaign_budget.id, campaign_budget.resource_name FROM campaign_budget WHERE campaign_budget.name = '${name.replace(/'/g, "''")}'`,
+    })) as {
+      results?: Array<{
+        campaignBudget?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.campaignBudget;
+  }
+  return undefined;
+}
+
+/**
+ * Helper: Build budget mutation operation
+ */
+function buildBudgetMutationOperation(
+  existingBudget: { id?: string; resourceName?: string } | undefined,
+  validatedRequest: z.infer<typeof budgetUpsertRequestSchema>,
+  customerId: string
+): Record<string, unknown> {
+  const operation: Record<string, unknown> = {};
+  const amountMicros = validatedRequest.amount !== undefined
+    ? Math.round(validatedRequest.amount * 1000000).toString()
+    : undefined;
+
+  if (existingBudget) {
+    operation.update = {
+      resourceName: existingBudget.resourceName || `customers/${customerId.replace(/^customers\//, "")}/campaignBudgets/${existingBudget.id}`,
+      name: validatedRequest.name,
+      ...(amountMicros && { amountMicros }),
+      ...(validatedRequest.deliveryMethod && { deliveryMethod: validatedRequest.deliveryMethod }),
+    };
+  } else {
+    operation.create = {
+      name: validatedRequest.name,
+      amountMicros: amountMicros || "0",
+      deliveryMethod: validatedRequest.deliveryMethod || "STANDARD",
+    };
+  }
+  return operation;
+}
+
+/**
+ * Helper: Build budget response
+ */
+function buildBudgetResponse(
+  result: {
+    resourceName?: string;
+    id?: string;
+    name?: string;
+    amountMicros?: string;
+    status?: string;
+  },
+  validatedRequest: z.infer<typeof budgetUpsertRequestSchema>
+): z.infer<typeof budgetUpsertResponseSchema> {
+  const budgetId = result.id || result.resourceName?.split("/").pop();
+  const amountMicros = result.amountMicros ? parseInt(result.amountMicros, 10) : undefined;
+  const amount = amountMicros ? amountMicros / 1000000 : undefined;
+
+  return {
+    budgetId,
+    name: result.name,
+    amount,
+    deliveryMethod: validatedRequest.deliveryMethod || "STANDARD",
+    status: result.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+  };
+}
+
+/**
+ * Helper: Execute budget mutation
+ */
+async function executeBudgetMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        campaignBudget?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          amountMicros?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  operation: Record<string, unknown>
+): Promise<{
+  results?: Array<{
+    campaignBudget?: {
+      resourceName?: string;
+      id?: string;
+      name?: string;
+      amountMicros?: string;
+      status?: string;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      campaignBudget?: {
+        resourceName?: string;
+        id?: string;
+        name?: string;
+        amountMicros?: string;
+        status?: string;
+      };
+    }>;
+  };
+}
+
+/**
  * Execute API request to upsert budget
  */
 async function executeBudgetUpsertAPIRequest(
@@ -4434,93 +5308,25 @@ async function executeBudgetUpsertAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Check if budget exists (for idempotency)
-  let existingBudget: { id?: string; resourceName?: string } | undefined;
-  if (validatedRequest.budgetId) {
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT campaign_budget.id, campaign_budget.resource_name FROM campaign_budget WHERE campaign_budget.id = ${validatedRequest.budgetId}`,
-    })) as {
-      results?: Array<{
-        campaignBudget?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingBudget = searchResponse.results?.[0]?.campaignBudget;
-  } else {
-    // Check by name for idempotency
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT campaign_budget.id, campaign_budget.resource_name FROM campaign_budget WHERE campaign_budget.name = '${validatedRequest.name.replace(/'/g, "''")}'`,
-    })) as {
-      results?: Array<{
-        campaignBudget?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingBudget = searchResponse.results?.[0]?.campaignBudget;
-  }
-
-  // Build mutation operation
-  const operation: Record<string, unknown> = {};
-  if (existingBudget) {
-    // Update existing budget
-    operation.update = {
-      resourceName: existingBudget.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/campaignBudgets/${existingBudget.id}`,
-      name: validatedRequest.name,
-    };
-    if (validatedRequest.amount !== undefined) {
-      (operation.update as Record<string, unknown>).amountMicros = Math.round(validatedRequest.amount * 1000000).toString();
-    }
-    if (validatedRequest.deliveryMethod) {
-      (operation.update as Record<string, unknown>).deliveryMethod = validatedRequest.deliveryMethod;
-    }
-  } else {
-    // Create new budget
-    operation.create = {
-      name: validatedRequest.name,
-      amountMicros: validatedRequest.amount ? Math.round(validatedRequest.amount * 1000000).toString() : "0",
-      deliveryMethod: validatedRequest.deliveryMethod || "STANDARD",
-    };
-  }
-
-  const response = (await googleAdsClient.mutate?.({
+  const existingBudget = await findExistingBudget(
+    googleAdsClient,
     customerId,
-    operations: [operation],
-  })) as {
-    results?: Array<{
-      campaignBudget?: {
-        resourceName?: string;
-        id?: string;
-        name?: string;
-        amountMicros?: string;
-        status?: string;
-      };
-    }>;
-  };
-
+    validatedRequest.budgetId,
+    validatedRequest.name
+  );
+  const operation = buildBudgetMutationOperation(
+    existingBudget,
+    validatedRequest,
+    customerId
+  );
+  const response = await executeBudgetMutation(googleAdsClient, customerId, operation);
   const result = response.results?.[0]?.campaignBudget;
+
   if (!result) {
     throw new Error("Failed to create/update budget");
   }
 
-  // Extract budget ID from resource name
-  const budgetId = result.id || result.resourceName?.split("/").pop();
-  const amountMicros = result.amountMicros ? parseInt(result.amountMicros, 10) : undefined;
-  const amount = amountMicros ? amountMicros / 1000000 : undefined;
-
-  return {
-    budgetId,
-    name: result.name,
-    amount,
-    deliveryMethod: validatedRequest.deliveryMethod || "STANDARD",
-    status: result.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
-  };
+  return buildBudgetResponse(result, validatedRequest);
 }
 
 /**
@@ -4569,6 +5375,43 @@ export async function executeBudgetUpsert(
 /**
  * Register ads.budget.upsert tool
  */
+/**
+ * Helper: Get budget upsert tool schema
+ */
+function getBudgetUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      customerId: {
+        type: "string",
+        description: "Customer ID (numeric or customers/1234567890 format)",
+      },
+      budgetId: {
+        type: "string",
+        description: "Budget ID for updates (optional for create, uses name for idempotency)",
+      },
+      name: {
+        type: "string",
+        description: "Budget name",
+      },
+      amount: {
+        type: "number",
+        description: "Budget amount in currency units (e.g., 100.0 for $100)",
+      },
+      deliveryMethod: {
+        type: "string",
+        enum: ["STANDARD", "ACCELERATED"],
+        description: "Budget delivery method",
+      },
+    },
+    required: ["customerId", "name"],
+  };
+}
+
 function registerBudgetUpsertTool(
   bootstrap: MCPServerBootstrap,
   adsClient: AdsClient,
@@ -4579,33 +5422,7 @@ function registerBudgetUpsertTool(
   bootstrap.registerTool({
     name: "ads.budget.upsert",
     description: "Create or update Google Ads budget",
-    inputSchema: {
-      type: "object",
-      properties: {
-        customerId: {
-          type: "string",
-          description: "Customer ID (numeric or customers/1234567890 format)",
-        },
-        budgetId: {
-          type: "string",
-          description: "Budget ID for updates (optional for create, uses name for idempotency)",
-        },
-        name: {
-          type: "string",
-          description: "Budget name",
-        },
-        amount: {
-          type: "number",
-          description: "Budget amount in currency units (e.g., 100.0 for $100)",
-        },
-        deliveryMethod: {
-          type: "string",
-          enum: ["STANDARD", "ACCELERATED"],
-          description: "Budget delivery method",
-        },
-      },
-      required: ["customerId", "name"],
-    },
+    inputSchema: getBudgetUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeBudgetUpsert(args, adsClient, capabilitiesRegistry, logger);
@@ -4755,40 +5572,104 @@ function registerBiddingStrategyListTool(
 }
 
 /**
+ * Helper: Build bidding strategy get query
+ */
+function buildBiddingStrategyGetQuery(strategyId: string): string {
+  return `SELECT bidding_strategy.id, bidding_strategy.name, bidding_strategy.type, bidding_strategy.status, bidding_strategy.target_cpa.target_cpa_micros, bidding_strategy.target_roas.target_roas, bidding_strategy.target_spend.target_spend_micros FROM bidding_strategy WHERE bidding_strategy.id = ${strategyId}`;
+}
+
+/**
+ * Helper: Transform bidding strategy response
+ */
+function transformBiddingStrategyGetResponse(
+  strategy: {
+    id?: string;
+    name?: string;
+    type?: string;
+    status?: string;
+    targetCpa?: {
+      targetCpaMicros?: string;
+    };
+    targetRoas?: {
+      targetRoas?: number;
+    };
+    targetSpend?: {
+      targetSpendMicros?: string;
+    };
+  }
+): z.infer<typeof biddingStrategyGetResponseSchema> {
+  const targetCpaMicros = strategy.targetCpa?.targetCpaMicros ? parseInt(strategy.targetCpa.targetCpaMicros, 10) : undefined;
+  const targetCpa = targetCpaMicros ? targetCpaMicros / 1000000 : undefined;
+
+  const targetSpendMicros = strategy.targetSpend?.targetSpendMicros ? parseInt(strategy.targetSpend.targetSpendMicros, 10) : undefined;
+  const targetSpend = targetSpendMicros ? targetSpendMicros / 1000000 : undefined;
+
+  return {
+    strategyId: strategy.id,
+    name: strategy.name,
+    type: strategy.type as "MAXIMIZE_CONVERSIONS" | "MAXIMIZE_CONVERSION_VALUE" | "TARGET_CPA" | "TARGET_ROAS" | "TARGET_SPEND" | "TARGET_IMPRESSION_SHARE" | "MANUAL_CPC" | "ENHANCED_CPC" | undefined,
+    status: strategy.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+    targetCpa: targetCpa ? { targetCpaMicros: strategy.targetCpa?.targetCpaMicros } : undefined,
+    targetRoas: strategy.targetRoas,
+    targetSpend: targetSpend ? { targetSpendMicros: strategy.targetSpend?.targetSpendMicros } : undefined,
+  };
+}
+
+/**
  * Execute API request to get bidding strategy
  */
-async function executeBiddingStrategyGetAPIRequest(
-  validatedRequest: z.infer<typeof biddingStrategyGetRequestSchema>,
-  adsClient: AdsClient
-): Promise<z.infer<typeof biddingStrategyGetResponseSchema>> {
-  await adsClient.checkRateLimit("ads", "biddingStrategy.get");
-  const googleAdsClient = adsClient.getGoogleAdsClient() as {
-    search?: (params: unknown) => Promise<{
-      results?: Array<{
-        biddingStrategy?: {
-          id?: string;
-          name?: string;
-          type?: string;
-          status?: string;
-          targetCpa?: {
-            targetCpaMicros?: string;
-          };
-          targetRoas?: {
-            targetRoas?: number;
-          };
-          targetSpend?: {
-            targetSpendMicros?: string;
-          };
+/**
+ * Helper: Get bidding strategy search client type
+ */
+type BiddingStrategySearchClient = {
+  search?: (params: unknown) => Promise<{
+    results?: Array<{
+      biddingStrategy?: {
+        id?: string;
+        name?: string;
+        type?: string;
+        status?: string;
+        targetCpa?: {
+          targetCpaMicros?: string;
         };
-      }>;
+        targetRoas?: {
+          targetRoas?: number;
+        };
+        targetSpend?: {
+          targetSpendMicros?: string;
+        };
+      };
     }>;
-  };
+  }>;
+};
 
-  const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  const query = `SELECT bidding_strategy.id, bidding_strategy.name, bidding_strategy.type, bidding_strategy.status, bidding_strategy.target_cpa.target_cpa_micros, bidding_strategy.target_roas.target_roas, bidding_strategy.target_spend.target_spend_micros FROM bidding_strategy WHERE bidding_strategy.id = ${validatedRequest.strategyId}`;
-
-  const response = (await googleAdsClient.search?.({
+/**
+ * Helper: Execute bidding strategy search
+ */
+async function executeBiddingStrategySearch(
+  googleAdsClient: BiddingStrategySearchClient,
+  customerId: string,
+  query: string
+): Promise<{
+  results?: Array<{
+    biddingStrategy?: {
+      id?: string;
+      name?: string;
+      type?: string;
+      status?: string;
+      targetCpa?: {
+        targetCpaMicros?: string;
+      };
+      targetRoas?: {
+        targetRoas?: number;
+      };
+      targetSpend?: {
+        targetSpendMicros?: string;
+      };
+    };
+  }>;
+}> {
+  return (await googleAdsClient.search?.({
     customerId,
     query,
   })) as {
@@ -4810,28 +5691,25 @@ async function executeBiddingStrategyGetAPIRequest(
       };
     }>;
   };
+}
+
+async function executeBiddingStrategyGetAPIRequest(
+  validatedRequest: z.infer<typeof biddingStrategyGetRequestSchema>,
+  adsClient: AdsClient
+): Promise<z.infer<typeof biddingStrategyGetResponseSchema>> {
+  await adsClient.checkRateLimit("ads", "biddingStrategy.get");
+  const googleAdsClient = adsClient.getGoogleAdsClient() as BiddingStrategySearchClient;
+
+  const customerId = normalizeCustomerId(validatedRequest.customerId);
+  const query = buildBiddingStrategyGetQuery(validatedRequest.strategyId);
+  const response = await executeBiddingStrategySearch(googleAdsClient, customerId, query);
 
   const strategy = response.results?.[0]?.biddingStrategy;
-
   if (!strategy) {
     throw new Error(`Bidding strategy ${validatedRequest.strategyId} not found`);
   }
 
-  const targetCpaMicros = strategy.targetCpa?.targetCpaMicros ? parseInt(strategy.targetCpa.targetCpaMicros, 10) : undefined;
-  const targetCpa = targetCpaMicros ? targetCpaMicros / 1000000 : undefined;
-
-  const targetSpendMicros = strategy.targetSpend?.targetSpendMicros ? parseInt(strategy.targetSpend.targetSpendMicros, 10) : undefined;
-  const targetSpend = targetSpendMicros ? targetSpendMicros / 1000000 : undefined;
-
-  return {
-    strategyId: strategy.id,
-    name: strategy.name,
-    type: strategy.type as "MAXIMIZE_CONVERSIONS" | "MAXIMIZE_CONVERSION_VALUE" | "TARGET_CPA" | "TARGET_ROAS" | "TARGET_SPEND" | "TARGET_IMPRESSION_SHARE" | "MANUAL_CPC" | "ENHANCED_CPC" | undefined,
-    status: strategy.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
-    targetCpa: targetCpa ? { targetCpaMicros: strategy.targetCpa?.targetCpaMicros } : undefined,
-    targetRoas: strategy.targetRoas,
-    targetSpend: targetSpend ? { targetSpendMicros: strategy.targetSpend?.targetSpendMicros } : undefined,
-  };
+  return transformBiddingStrategyGetResponse(strategy);
 }
 
 /**
@@ -4920,6 +5798,169 @@ function registerBiddingStrategyGetTool(
 }
 
 /**
+ * Helper: Find existing bidding strategy by ID or name
+ */
+async function findExistingBiddingStrategy(
+  googleAdsClient: {
+    search?: (params: unknown) => Promise<{
+      results?: Array<{
+        biddingStrategy?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  strategyId?: string,
+  name?: string
+): Promise<{ id?: string; resourceName?: string } | undefined> {
+  if (strategyId) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT bidding_strategy.id, bidding_strategy.resource_name FROM bidding_strategy WHERE bidding_strategy.id = ${strategyId}`,
+    })) as {
+      results?: Array<{
+        biddingStrategy?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.biddingStrategy;
+  }
+  if (name) {
+    const searchResponse = (await googleAdsClient.search?.({
+      customerId,
+      query: `SELECT bidding_strategy.id, bidding_strategy.resource_name FROM bidding_strategy WHERE bidding_strategy.name = '${name.replace(/'/g, "''")}'`,
+    })) as {
+      results?: Array<{
+        biddingStrategy?: {
+          id?: string;
+          resourceName?: string;
+        };
+      }>;
+    };
+    return searchResponse.results?.[0]?.biddingStrategy;
+  }
+  return undefined;
+}
+
+/**
+ * Helper: Build bidding strategy mutation operation
+ */
+function buildBiddingStrategyMutationOperation(
+  existingStrategy: { id?: string; resourceName?: string } | undefined,
+  validatedRequest: z.infer<typeof biddingStrategyUpsertRequestSchema>,
+  customerId: string
+): Record<string, unknown> {
+  const operation: Record<string, unknown> = {};
+  const biddingTargets: Record<string, unknown> = {};
+
+  if (validatedRequest.targetCpa !== undefined) {
+    biddingTargets.targetCpa = {
+      targetCpaMicros: Math.round(validatedRequest.targetCpa * 1000000).toString(),
+    };
+  }
+  if (validatedRequest.targetRoas !== undefined) {
+    biddingTargets.targetRoas = {
+      targetRoas: validatedRequest.targetRoas,
+    };
+  }
+  if (validatedRequest.targetSpend !== undefined) {
+    biddingTargets.targetSpend = {
+      targetSpendMicros: Math.round(validatedRequest.targetSpend * 1000000).toString(),
+    };
+  }
+
+  if (existingStrategy) {
+    operation.update = {
+      resourceName: existingStrategy.resourceName || `customers/${customerId.replace(/^customers\//, "")}/biddingStrategies/${existingStrategy.id}`,
+      name: validatedRequest.name,
+      ...(validatedRequest.type && { type: validatedRequest.type }),
+      ...biddingTargets,
+    };
+  } else {
+    operation.create = {
+      name: validatedRequest.name,
+      type: validatedRequest.type || "MAXIMIZE_CONVERSIONS",
+      ...biddingTargets,
+    };
+  }
+  return operation;
+}
+
+/**
+ * Helper: Build bidding strategy response
+ */
+function buildBiddingStrategyResponse(
+  result: {
+    resourceName?: string;
+    id?: string;
+    name?: string;
+    status?: string;
+  },
+  validatedRequest: z.infer<typeof biddingStrategyUpsertRequestSchema>
+): z.infer<typeof biddingStrategyUpsertResponseSchema> {
+  const strategyId = result.id || result.resourceName?.split("/").pop();
+  return {
+    strategyId,
+    name: result.name,
+    type: validatedRequest.type,
+    status: result.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
+    targetCpa: validatedRequest.targetCpa !== undefined ? { targetCpaMicros: Math.round(validatedRequest.targetCpa * 1000000).toString() } : undefined,
+    targetRoas: validatedRequest.targetRoas !== undefined ? { targetRoas: validatedRequest.targetRoas } : undefined,
+    targetSpend: validatedRequest.targetSpend !== undefined ? { targetSpendMicros: Math.round(validatedRequest.targetSpend * 1000000).toString() } : undefined,
+  };
+}
+
+/**
+ * Execute API request to upsert bidding strategy
+ */
+/**
+ * Helper: Execute bidding strategy mutation
+ */
+async function executeBiddingStrategyMutation(
+  googleAdsClient: {
+    mutate?: (params: unknown) => Promise<{
+      results?: Array<{
+        biddingStrategy?: {
+          resourceName?: string;
+          id?: string;
+          name?: string;
+          status?: string;
+        };
+      }>;
+    }>;
+  },
+  customerId: string,
+  operation: Record<string, unknown>
+): Promise<{
+  results?: Array<{
+    biddingStrategy?: {
+      resourceName?: string;
+      id?: string;
+      name?: string;
+      status?: string;
+    };
+  }>;
+}> {
+  return (await googleAdsClient.mutate?.({
+    customerId,
+    operations: [operation],
+  })) as {
+    results?: Array<{
+      biddingStrategy?: {
+        resourceName?: string;
+        id?: string;
+        name?: string;
+        status?: string;
+      };
+    }>;
+  };
+}
+
+/**
  * Execute API request to upsert bidding strategy
  */
 async function executeBiddingStrategyUpsertAPIRequest(
@@ -4949,118 +5990,25 @@ async function executeBiddingStrategyUpsertAPIRequest(
   };
 
   const customerId = normalizeCustomerId(validatedRequest.customerId);
-
-  // Check if strategy exists (for idempotency)
-  let existingStrategy: { id?: string; resourceName?: string } | undefined;
-  if (validatedRequest.strategyId) {
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT bidding_strategy.id, bidding_strategy.resource_name FROM bidding_strategy WHERE bidding_strategy.id = ${validatedRequest.strategyId}`,
-    })) as {
-      results?: Array<{
-        biddingStrategy?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingStrategy = searchResponse.results?.[0]?.biddingStrategy;
-  } else {
-    // Check by name for idempotency
-    const searchResponse = (await googleAdsClient.search?.({
-      customerId,
-      query: `SELECT bidding_strategy.id, bidding_strategy.resource_name FROM bidding_strategy WHERE bidding_strategy.name = '${validatedRequest.name.replace(/'/g, "''")}'`,
-    })) as {
-      results?: Array<{
-        biddingStrategy?: {
-          id?: string;
-          resourceName?: string;
-        };
-      }>;
-    };
-    existingStrategy = searchResponse.results?.[0]?.biddingStrategy;
-  }
-
-  // Build mutation operation
-  const operation: Record<string, unknown> = {};
-  if (existingStrategy) {
-    // Update existing strategy
-    operation.update = {
-      resourceName: existingStrategy.resourceName || `customers/${validatedRequest.customerId.replace(/^customers\//, "")}/biddingStrategies/${existingStrategy.id}`,
-      name: validatedRequest.name,
-    };
-    if (validatedRequest.type) {
-      (operation.update as Record<string, unknown>).type = validatedRequest.type;
-    }
-    if (validatedRequest.targetCpa !== undefined) {
-      (operation.update as Record<string, unknown>).targetCpa = {
-        targetCpaMicros: Math.round(validatedRequest.targetCpa * 1000000).toString(),
-      };
-    }
-    if (validatedRequest.targetRoas !== undefined) {
-      (operation.update as Record<string, unknown>).targetRoas = {
-        targetRoas: validatedRequest.targetRoas,
-      };
-    }
-    if (validatedRequest.targetSpend !== undefined) {
-      (operation.update as Record<string, unknown>).targetSpend = {
-        targetSpendMicros: Math.round(validatedRequest.targetSpend * 1000000).toString(),
-      };
-    }
-  } else {
-    // Create new strategy
-    operation.create = {
-      name: validatedRequest.name,
-      type: validatedRequest.type || "MAXIMIZE_CONVERSIONS",
-    };
-    if (validatedRequest.targetCpa !== undefined) {
-      (operation.create as Record<string, unknown>).targetCpa = {
-        targetCpaMicros: Math.round(validatedRequest.targetCpa * 1000000).toString(),
-      };
-    }
-    if (validatedRequest.targetRoas !== undefined) {
-      (operation.create as Record<string, unknown>).targetRoas = {
-        targetRoas: validatedRequest.targetRoas,
-      };
-    }
-    if (validatedRequest.targetSpend !== undefined) {
-      (operation.create as Record<string, unknown>).targetSpend = {
-        targetSpendMicros: Math.round(validatedRequest.targetSpend * 1000000).toString(),
-      };
-    }
-  }
-
-  const response = (await googleAdsClient.mutate?.({
+  const existingStrategy = await findExistingBiddingStrategy(
+    googleAdsClient,
     customerId,
-    operations: [operation],
-  })) as {
-    results?: Array<{
-      biddingStrategy?: {
-        resourceName?: string;
-        id?: string;
-        name?: string;
-        status?: string;
-      };
-    }>;
-  };
-
+    validatedRequest.strategyId,
+    validatedRequest.name
+  );
+  const operation = buildBiddingStrategyMutationOperation(
+    existingStrategy,
+    validatedRequest,
+    customerId
+  );
+  const response = await executeBiddingStrategyMutation(googleAdsClient, customerId, operation);
   const result = response.results?.[0]?.biddingStrategy;
+
   if (!result) {
     throw new Error("Failed to create/update bidding strategy");
   }
 
-  // Extract strategy ID from resource name
-  const strategyId = result.id || result.resourceName?.split("/").pop();
-
-  return {
-    strategyId,
-    name: result.name,
-    type: validatedRequest.type,
-    status: result.status as "ENABLED" | "REMOVED" | "UNKNOWN" | undefined,
-    targetCpa: validatedRequest.targetCpa !== undefined ? { targetCpaMicros: Math.round(validatedRequest.targetCpa * 1000000).toString() } : undefined,
-    targetRoas: validatedRequest.targetRoas !== undefined ? { targetRoas: validatedRequest.targetRoas } : undefined,
-    targetSpend: validatedRequest.targetSpend !== undefined ? { targetSpendMicros: Math.round(validatedRequest.targetSpend * 1000000).toString() } : undefined,
-  };
+  return buildBiddingStrategyResponse(result, validatedRequest);
 }
 
 /**
@@ -5109,6 +6057,51 @@ export async function executeBiddingStrategyUpsert(
 /**
  * Register ads.biddingStrategy.upsert tool
  */
+/**
+ * Helper: Get bidding strategy upsert tool schema
+ */
+function getBiddingStrategyUpsertToolSchema(): {
+  type: string;
+  properties: Record<string, unknown>;
+  required: string[];
+} {
+  return {
+    type: "object",
+    properties: {
+      customerId: {
+        type: "string",
+        description: "Customer ID (numeric or customers/1234567890 format)",
+      },
+      strategyId: {
+        type: "string",
+        description: "Strategy ID for updates (optional for create, uses name for idempotency)",
+      },
+      name: {
+        type: "string",
+        description: "Strategy name",
+      },
+      type: {
+        type: "string",
+        enum: ["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS", "TARGET_SPEND", "TARGET_IMPRESSION_SHARE", "MANUAL_CPC", "ENHANCED_CPC"],
+        description: "Bidding strategy type",
+      },
+      targetCpa: {
+        type: "number",
+        description: "Target CPA in currency units (for TARGET_CPA strategy)",
+      },
+      targetRoas: {
+        type: "number",
+        description: "Target ROAS (for TARGET_ROAS strategy)",
+      },
+      targetSpend: {
+        type: "number",
+        description: "Target spend in currency units (for TARGET_SPEND strategy)",
+      },
+    },
+    required: ["customerId", "name"],
+  };
+}
+
 function registerBiddingStrategyUpsertTool(
   bootstrap: MCPServerBootstrap,
   adsClient: AdsClient,
@@ -5119,41 +6112,7 @@ function registerBiddingStrategyUpsertTool(
   bootstrap.registerTool({
     name: "ads.biddingStrategy.upsert",
     description: "Create or update Google Ads bidding strategy",
-    inputSchema: {
-      type: "object",
-      properties: {
-        customerId: {
-          type: "string",
-          description: "Customer ID (numeric or customers/1234567890 format)",
-        },
-        strategyId: {
-          type: "string",
-          description: "Strategy ID for updates (optional for create, uses name for idempotency)",
-        },
-        name: {
-          type: "string",
-          description: "Strategy name",
-        },
-        type: {
-          type: "string",
-          enum: ["MAXIMIZE_CONVERSIONS", "MAXIMIZE_CONVERSION_VALUE", "TARGET_CPA", "TARGET_ROAS", "TARGET_SPEND", "TARGET_IMPRESSION_SHARE", "MANUAL_CPC", "ENHANCED_CPC"],
-          description: "Bidding strategy type",
-        },
-        targetCpa: {
-          type: "number",
-          description: "Target CPA in currency units (for TARGET_CPA strategy)",
-        },
-        targetRoas: {
-          type: "number",
-          description: "Target ROAS (for TARGET_ROAS strategy)",
-        },
-        targetSpend: {
-          type: "number",
-          description: "Target spend in currency units (for TARGET_SPEND strategy)",
-        },
-      },
-      required: ["customerId", "name"],
-    },
+    inputSchema: getBiddingStrategyUpsertToolSchema(),
     handler: async (args: unknown) => {
       try {
         return await executeBiddingStrategyUpsert(args, adsClient, capabilitiesRegistry, logger);
