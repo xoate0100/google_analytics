@@ -51,11 +51,30 @@ export interface CacheResultWithETag<T> {
   cached: boolean; // true if If-None-Match matched (304 Not Modified scenario)
 }
 
+/**
+ * Cache statistics
+ */
+export interface CacheStatistics {
+  hits: number;
+  misses: number;
+  evictions: number;
+  size: number;
+  hitRatio: number;
+}
+
+/**
+ * Data type for adaptive TTL calculation
+ */
+export type CacheDataType = "realtime" | "historical" | "unknown";
+
 export class LRUCache implements ICache {
   private readonly entries: Map<string, CacheEntry<unknown>>;
   private readonly maxSize: number;
   private readonly defaultTTL: number;
   private readonly onWrite: ((key: string) => Promise<void>) | undefined;
+  private hits = 0;
+  private misses = 0;
+  private evictions = 0;
 
   constructor(options: LRUCacheOptions) {
     this.entries = new Map();
@@ -67,17 +86,20 @@ export class LRUCache implements ICache {
   async get<T>(key: string): Promise<T | undefined> {
     const entry = this.entries.get(key);
     if (!entry) {
+      this.misses += 1;
       return Promise.resolve(undefined);
     }
 
     // Check expiration
     if (this.isExpired(entry)) {
       this.entries.delete(key);
+      this.misses += 1;
       return Promise.resolve(undefined);
     }
 
     // Update access time for LRU
     entry.accessTime = getNextAccessTime();
+    this.hits += 1;
     return Promise.resolve(entry.value as T);
   }
 
@@ -180,6 +202,7 @@ export class LRUCache implements ICache {
 
     if (oldestKey) {
       this.entries.delete(oldestKey);
+      this.evictions += 1;
     }
   }
 
@@ -204,17 +227,20 @@ export class LRUCache implements ICache {
   ): Promise<CacheResultWithETag<T> | undefined> {
     const entry = this.entries.get(key);
     if (!entry) {
+      this.misses += 1;
       return Promise.resolve(undefined);
     }
 
     // Check expiration
     if (this.isExpired(entry)) {
       this.entries.delete(key);
+      this.misses += 1;
       return Promise.resolve(undefined);
     }
 
     // Update access time for LRU
     entry.accessTime = getNextAccessTime();
+    this.hits += 1;
 
     // Check ETag match
     const cached = ifNoneMatch !== undefined && entry.etag === ifNoneMatch;
@@ -223,6 +249,46 @@ export class LRUCache implements ICache {
       etag: entry.etag || "",
       cached,
     });
+  }
+
+  /**
+   * Calculate adaptive TTL based on data type
+   */
+  calculateAdaptiveTTL(dataType: CacheDataType, baseTTL: number): number {
+    if (dataType === "realtime") {
+      // Real-time data: shorter TTL (50% of base)
+      return Math.floor(baseTTL * 0.5);
+    }
+    if (dataType === "historical") {
+      // Historical data: longer TTL (200% of base)
+      return Math.floor(baseTTL * 2);
+    }
+    // Unknown: use base TTL
+    return baseTTL;
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getStatistics(): CacheStatistics {
+    const totalRequests = this.hits + this.misses;
+    const hitRatio = totalRequests > 0 ? this.hits / totalRequests : 0;
+    return {
+      hits: this.hits,
+      misses: this.misses,
+      evictions: this.evictions,
+      size: this.entries.size,
+      hitRatio,
+    };
+  }
+
+  /**
+   * Reset cache statistics
+   */
+  resetStatistics(): void {
+    this.hits = 0;
+    this.misses = 0;
+    this.evictions = 0;
   }
 }
 
