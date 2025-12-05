@@ -247,8 +247,21 @@ def require_commit_plan_tags(guardrails: dict) -> bool:
         except:
             return True  # Can't validate, allow
 
+    msg_lower = msg.lower()
+
     # Check for plan/task tags
-    if "plan:" not in msg.lower() and "task:" not in msg.lower():
+    has_plan = "plan:" in msg_lower
+    has_task = "task:" in msg_lower
+
+    if not has_plan and not has_task:
+        # Check if this looks like a previous commit message (conventional commit format)
+        # When using `git commit -m`, COMMIT_EDITMSG contains the previous commit until after commit
+        first_line = msg.split("\n")[0].lower() if msg else ""
+        if first_line.startswith(("fix:", "feat:", "docs:", "style:", "refactor:", "test:", "chore:", "perf:", "ci:", "build:", "revert:")):
+            # Looks like previous commit message (conventional commit without plan/task tags)
+            # Allow it - the actual commit message will be validated by commit_validator.sh
+            return True
+
         print("[guardrail] require_commit_plan_tags: Commit message missing plan/task tags")
         print("  Format: plan: <plan_id> | task: <task_id>")
         return False

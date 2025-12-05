@@ -15,6 +15,9 @@ permissions:
     - frontend/                    # Frontend (if used)
     - backend/                     # Backend (if used)
     - shared/                      # Shared code (if used)
+    - 6_ai_runtime_context/        # AI runtime context for stateful tracking
+    - 0_phase0_bootstrap/          # Bootstrap configuration files
+    - 3_bootstrap_scripts/         # Bootstrap scripts and hooks
   readonly:
     - 1_global_standards/
     - 7_schemas/

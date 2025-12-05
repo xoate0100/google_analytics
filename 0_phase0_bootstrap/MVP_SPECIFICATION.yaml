@@ -322,9 +322,9 @@ DETAILED_SPECIFICATION:
     goal: "A reusable, project-agnostic MCP server that exposes safe, idempotent, full-fidelity tools for Google Ads, Google Tag Manager, and Google Analytics 4 from inside Cursor IDE. It must support read/write/create/delete, with stateful verification, strong observability, TDD-first delivery, and security best practices."
     success_criteria:
       - "One MCP server exposing at least 75+ atomic tools covering full API capabilities:"
-        ga4: "35+ tools (Data API, Admin API, Measurement Protocol, Data Filters, Integrations, Explorations)"
-        gtm: "20+ tools (containers, workspaces, tags, triggers, variables, data layer, versions)"
-        google_ads: "15+ tools (reporting, campaigns, conversions, audiences, budgets)"
+      - ga4: "35+ tools (Data API, Admin API, Measurement Protocol, Data Filters, Integrations, Explorations)"
+      - gtm: "20+ tools (containers, workspaces, tags, triggers, variables, data layer, versions)"
+      - google_ads: "15+ tools (reporting, campaigns, conversions, audiences, budgets)"
       - "Auth once, then seamless access from any repo in Cursor"
       - "All write ops are idempotent, logged, pre/post-validated, and rollbackable"
       - "Route discovery/verification ensures no out-of-scope or deprecated endpoints are exposed"
