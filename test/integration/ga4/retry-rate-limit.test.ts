@@ -7,14 +7,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import nock from "nock";
 import {
   createIntegrationTestContext,
-  mockGA4DataAPI,
   mockOAuthTokenEndpoint,
   GA4_DATA_API_BASE,
   type IntegrationTestContext,
 } from "../helpers/mock-google-apis.js";
 import { registerGA4Tools } from "../../../src/ga4/tools.js";
 import { MCPServerBootstrap } from "../../../src/server/bootstrap.js";
-import { loadFixture } from "../helpers/fixture-loader.js";
 
 describe("GA4 Retry and Rate Limit Test Matrix", () => {
   let context: IntegrationTestContext;
@@ -271,7 +269,7 @@ describe("GA4 Retry and Rate Limit Test Matrix", () => {
           dimensions: [{ name: "country" }],
           metrics: [{ name: "activeUsers" }],
         })
-      );
+      ).filter((req): req is Promise<unknown> => req !== undefined);
 
       await Promise.allSettled(requests);
 
@@ -281,6 +279,7 @@ describe("GA4 Retry and Rate Limit Test Matrix", () => {
 
     it.skip("should transition to half-open state after reset timeout", async () => {
       const propertyId = "properties/123456789";
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       let requestCount = 0;
       let shouldSucceed = false;
 

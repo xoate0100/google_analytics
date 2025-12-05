@@ -65,7 +65,6 @@ describe("GA4 ↔ Ads Conversion Linking Workflow", () => {
 
     vi.spyOn(adsTools, "executeConversionUpsert").mockResolvedValue({
       conversionId: "3333333333",
-      resourceName: "customers/9876543210/conversionActions/3333333333",
       name: "Purchase Conversion",
       type: "GOOGLE_ANALYTICS",
     });
