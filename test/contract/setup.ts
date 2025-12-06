@@ -18,11 +18,13 @@ beforeAll(() => {
   if (!useRealApis) {
     // If not using real APIs, contract tests should be skipped
     // This is the default behavior in CI
-    console.log(
+    // eslint-disable-next-line no-console
+    console.warn(
       "[contract-test] CONTRACT_TEST_USE_REAL_APIS not set to 'true', contract tests will be skipped"
     );
   } else {
-    console.log(
+    // eslint-disable-next-line no-console
+    console.warn(
       "[contract-test] Running contract tests against real APIs (sandbox)"
     );
   }

@@ -7,7 +7,7 @@
  * accidental API calls in CI.
  */
 
-import { describe, it, expect, beforeAll, skipIf } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { createIntegrationTestContext } from "../../integration/helpers/mock-google-apis.js";
 import { registerGA4Tools } from "../../../src/ga4/tools.js";
 import { MCPServerBootstrap } from "../../../src/server/bootstrap.js";
