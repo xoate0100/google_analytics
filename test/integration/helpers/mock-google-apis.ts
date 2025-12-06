@@ -7,6 +7,7 @@ import nock from "nock";
 import type { ILogger, ICache, IRateLimiter, ICapabilitiesRegistry } from "../../../src/core/types.js";
 import type { GA4Client } from "../../../src/ga4/client.js";
 import type { GTMClient } from "../../../src/gtm/client.js";
+import type { AdsClient } from "../../../src/ads/client.js";
 import type { OAuthClient } from "../../../src/core/oauth.js";
 import { LRUCache } from "../../../src/core/cache.js";
 import { TokenBucketLimiter } from "../../../src/core/limiter.js";
@@ -131,6 +132,7 @@ export interface IntegrationTestContext {
   oauthClient: OAuthClient;
   ga4Client: GA4Client;
   gtmClient?: GTMClient;
+  adsClient?: AdsClient;
 }
 
 /**
@@ -166,6 +168,15 @@ export async function createIntegrationTestContext(): Promise<IntegrationTestCon
     oauthClient,
   });
 
+  // Create Ads client
+  const { AdsClient } = await import("../../../src/ads/client.js");
+  const adsClient = new AdsClient({
+    logger,
+    rateLimiter,
+    oauthClient,
+    developerToken: "test-developer-token",
+  });
+
   return {
     logger,
     cache,
@@ -174,6 +185,7 @@ export async function createIntegrationTestContext(): Promise<IntegrationTestCon
     oauthClient,
     ga4Client,
     gtmClient,
+    adsClient,
   };
 }
 

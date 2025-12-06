@@ -1,0 +1,28 @@
+{
+  "results": [
+    {
+      "campaign": {
+        "id": "123",
+        "resourceName": "customers/1234567890/campaigns/123"
+      }
+    }
+  ],
+  "partialFailureError": {
+    "code": 13,
+    "message": "Partial failure",
+    "status": "INTERNAL",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.ads.googleads.v16.errors.GoogleAdsFailure",
+        "errors": [
+          {
+            "errorCode": {
+              "campaignError": "DUPLICATE_CAMPAIGN_NAME"
+            },
+            "message": "Campaign name already exists"
+          }
+        ]
+      }
+    ]
+  }
+}
