@@ -6,6 +6,7 @@
 import nock from "nock";
 import type { ILogger, ICache, IRateLimiter, ICapabilitiesRegistry } from "../../../src/core/types.js";
 import type { GA4Client } from "../../../src/ga4/client.js";
+import type { GTMClient } from "../../../src/gtm/client.js";
 import type { OAuthClient } from "../../../src/core/oauth.js";
 import { LRUCache } from "../../../src/core/cache.js";
 import { TokenBucketLimiter } from "../../../src/core/limiter.js";
@@ -26,6 +27,11 @@ export const GA4_ADMIN_API_BASE = "https://analyticsadmin.googleapis.com";
  * Base URL for Google OAuth API
  */
 export const OAUTH_API_BASE = "https://oauth2.googleapis.com";
+
+/**
+ * Base URL for Google Tag Manager API
+ */
+export const GTM_API_BASE = "https://tagmanager.googleapis.com";
 
 /**
  * Create a mock logger for integration tests
@@ -124,6 +130,7 @@ export interface IntegrationTestContext {
   capabilitiesRegistry: ICapabilitiesRegistry;
   oauthClient: OAuthClient;
   ga4Client: GA4Client;
+  gtmClient?: GTMClient;
 }
 
 /**
@@ -151,6 +158,14 @@ export async function createIntegrationTestContext(): Promise<IntegrationTestCon
     oauthClient,
   });
 
+  // Create GTM client
+  const { GTMClient } = await import("../../../src/gtm/client.js");
+  const gtmClient = new GTMClient({
+    logger,
+    rateLimiter,
+    oauthClient,
+  });
+
   return {
     logger,
     cache,
@@ -158,5 +173,19 @@ export async function createIntegrationTestContext(): Promise<IntegrationTestCon
     capabilitiesRegistry,
     oauthClient,
     ga4Client,
+    gtmClient,
   };
+}
+
+/**
+ * Mock GTM Tag Manager API response
+ */
+export function mockGTMAPI(
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  path: string,
+  status: number,
+  responseBody: unknown
+): nock.Scope {
+  const methodName = method.toLowerCase() as "get" | "post" | "patch" | "delete";
+  return nock(GTM_API_BASE)[methodName](path).reply(status, responseBody as nock.Body);
 }

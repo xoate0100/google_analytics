@@ -1,0 +1,14 @@
+{
+  "error": {
+    "code": 400,
+    "message": "Invalid workspace state",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "INVALID_WORKSPACE_STATE",
+        "domain": "tagmanager.googleapis.com"
+      }
+    ]
+  }
+}
