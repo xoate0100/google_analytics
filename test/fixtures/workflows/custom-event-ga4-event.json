@@ -1,0 +1,10 @@
+{
+  "name": "properties/123456789/eventCreateRules/purchase",
+  "eventName": "purchase",
+  "createEvent": true,
+  "matchingCondition": {
+    "field": "event_name",
+    "comparisonType": "EXACT",
+    "value": "purchase"
+  }
+}
