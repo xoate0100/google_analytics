@@ -1,0 +1,11 @@
+{
+  "valid": true,
+  "errors": null,
+  "warnings": null,
+  "dataLayer": {
+    "event": "purchase",
+    "transactionId": "T12345",
+    "value": 99.99,
+    "currency": "USD"
+  }
+}
