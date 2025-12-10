@@ -149,4 +149,16 @@ describe("MCP Server Bootstrap", () => {
       expect(() => bootstrap.stop()).not.toThrow();
     });
   });
+
+  describe("getServerInfo", () => {
+    it("should return server name and version", () => {
+      const bootstrap = new MCPServerBootstrap(bootstrapOptions);
+      bootstrap.initialize();
+      const info = bootstrap.getServerInfo();
+      expect(info).toEqual({
+        name: "mcp-google-marketing",
+        version: "0.1.0",
+      });
+    });
+  });
 });
