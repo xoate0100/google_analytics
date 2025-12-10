@@ -19,7 +19,7 @@ permissions:
     - 0_phase0_bootstrap/          # Bootstrap configuration files
     - 3_bootstrap_scripts/         # Bootstrap scripts and hooks
     - CHANGELOG.md                 # Changelog file
-    - RELEASE_NOTES*.md            # Release notes files
+    - RELEASE_NOTES_v0.1.0.md      # Release notes file
   readonly:
     - 1_global_standards/
     - 7_schemas/
