@@ -217,9 +217,10 @@ function registerVersionTool(
     },
     handler: async () => {
       logger.info("core.version called");
+      const serverInfo = bootstrap.getServerInfo();
       return Promise.resolve({
-        version: "0.1.0",
-        name: "mcp-google-marketing",
+        version: serverInfo.version,
+        name: serverInfo.name,
       });
     },
   });

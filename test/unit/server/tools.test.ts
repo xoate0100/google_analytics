@@ -174,6 +174,25 @@ describe("Core Utility Tools Registration", () => {
       expect(tool?.name).toBe("core.version");
     });
 
+    it("should return server version from core.version tool", async () => {
+      registerCoreUtilityTools({
+        bootstrap,
+        capabilitiesRegistry: mockCapabilitiesRegistry,
+        oauthClient: mockOAuthClient,
+        tokenStorage: mockTokenStorage,
+        logger: mockLogger,
+      });
+
+      const tool = bootstrap.getRegisteredTools().get("core.version");
+      expect(tool).toBeDefined();
+
+      const result = await tool?.handler({});
+      expect(result).toEqual({
+        version: "0.1.0",
+        name: "mcp-google-marketing",
+      });
+    });
+
     it("should register core.dryRun tool", () => {
       registerCoreUtilityTools({
         bootstrap,
