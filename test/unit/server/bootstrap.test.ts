@@ -56,7 +56,7 @@ describe("MCP Server Bootstrap", () => {
       bootstrap.initialize();
 
       const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls;
-      expect(infoCalls.some((call) => 
+      expect(infoCalls.some((call) =>
         call[0] === "Initializing MCP server"
       )).toBe(true);
     });
@@ -91,8 +91,8 @@ describe("MCP Server Bootstrap", () => {
       bootstrap.registerTool(tool);
 
       const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls;
-      expect(infoCalls.some((call) => 
-        call[0] === "Registering tool" && 
+      expect(infoCalls.some((call) =>
+        call[0] === "Registering tool" &&
         call[1]?.name === "test.tool"
       )).toBe(true);
 
@@ -149,5 +149,16 @@ describe("MCP Server Bootstrap", () => {
       expect(() => bootstrap.stop()).not.toThrow();
     });
   });
-});
 
+  describe("getServerInfo", () => {
+    it("should return server name and version", () => {
+      const bootstrap = new MCPServerBootstrap(bootstrapOptions);
+      bootstrap.initialize();
+      const info = bootstrap.getServerInfo();
+      expect(info).toEqual({
+        name: "mcp-google-marketing",
+        version: "0.1.0",
+      });
+    });
+  });
+});

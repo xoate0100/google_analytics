@@ -1,0 +1,18 @@
+{
+  "tagId": "1",
+  "name": "GA4 Event - purchase",
+  "type": "gaawc",
+  "parameter": [
+    {
+      "type": "template",
+      "key": "eventName",
+      "value": "purchase"
+    },
+    {
+      "type": "template",
+      "key": "measurementIdOverride",
+      "value": "G-XXXXXXXXXX"
+    }
+  ],
+  "firingTriggerId": ["2"]
+}

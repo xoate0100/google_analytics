@@ -210,4 +210,3 @@ describe("MeasurementProtocolClient", () => {
     });
   });
 });
-

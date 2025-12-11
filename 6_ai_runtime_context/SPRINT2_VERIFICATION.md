@@ -294,4 +294,3 @@ Sprint 2 successfully delivered:
 - **TDD approach** followed for all implementations
 
 All success criteria met. Ready for final verification and merge to develop.
-

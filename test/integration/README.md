@@ -24,4 +24,3 @@ pnpm test:integration
 ## Example
 
 See `example.test.ts` for a complete example.
-

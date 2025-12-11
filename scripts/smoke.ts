@@ -2,7 +2,7 @@
 /**
  * Smoke test script
  * Tests basic functionality: auth.status, capabilities.get, one read per product
- * 
+ *
  * Usage:
  *   pnpm smoke
  *   or
@@ -222,4 +222,3 @@ runSmokeTests().catch((error) => {
   print(`Fatal error: ${error instanceof Error ? error.message : String(error)}`, "red");
   process.exit(1);
 });
-

@@ -112,4 +112,3 @@ describe("GA4 Event Parameter Tools", () => {
     });
   });
 });
-

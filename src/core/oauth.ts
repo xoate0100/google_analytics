@@ -196,4 +196,3 @@ export class OAuthClient {
     return this.oauth2Client;
   }
 }
-

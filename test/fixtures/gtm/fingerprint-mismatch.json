@@ -1,0 +1,14 @@
+{
+  "error": {
+    "code": 412,
+    "message": "Fingerprint mismatch",
+    "status": "FAILED_PRECONDITION",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "FINGERPRINT_MISMATCH",
+        "domain": "tagmanager.googleapis.com"
+      }
+    ]
+  }
+}

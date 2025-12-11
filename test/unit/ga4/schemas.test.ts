@@ -302,4 +302,3 @@ describe("GA4 Data API Schemas", () => {
     });
   });
 });
-

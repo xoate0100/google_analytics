@@ -158,4 +158,3 @@ export function createCircuitBreaker(
 ): CircuitBreaker {
   return new CircuitBreaker(options);
 }
-

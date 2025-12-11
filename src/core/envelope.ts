@@ -212,4 +212,3 @@ export class OperationEnvelopeBuilder {
     return { ...this.envelope };
   }
 }
-

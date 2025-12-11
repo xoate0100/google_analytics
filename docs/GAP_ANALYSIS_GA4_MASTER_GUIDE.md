@@ -569,4 +569,3 @@ With the addition of **~25 new tools** covering these gaps, the MCP will support
 2. Prioritize critical gaps for Sprint 1-2
 3. Design API integration patterns for new endpoints
 4. Create test scenarios for each new capability
-

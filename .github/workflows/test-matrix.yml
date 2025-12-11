@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         test-type: [unit, integration, contract]
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -50,4 +50,3 @@ jobs:
           flags: ${{ matrix.test-type }}
           name: ${{ matrix.test-type }}-coverage
         if: always()
-

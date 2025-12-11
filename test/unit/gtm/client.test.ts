@@ -153,4 +153,3 @@ describe("GTM Client", () => {
     });
   });
 });
-

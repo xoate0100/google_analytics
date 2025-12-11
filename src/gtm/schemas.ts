@@ -279,6 +279,40 @@ export const tagDeleteResponseSchema = z.object({
 });
 
 /**
+ * Tag Sequence Update Request Schema
+ */
+export const tagSequenceUpdateRequestSchema = z.object({
+  path: tagPathSchema,
+  blockingTriggerId: z.array(z.string()).optional(),
+  setupTagId: z.array(z.string()).optional(),
+  teardownTagId: z.array(z.string()).optional(),
+  tagFiringOption: z.enum(["UNLIMITED", "ONCE_PER_EVENT", "ONCE_PER_LOAD"]).optional(),
+});
+
+/**
+ * Tag Sequence Update Response Schema
+ */
+export const tagSequenceUpdateResponseSchema = tagGetResponseSchema.extend({
+  setupTagId: z.array(z.string()).optional(),
+  teardownTagId: z.array(z.string()).optional(),
+});
+
+/**
+ * Tag Priority Update Request Schema
+ */
+export const tagPriorityUpdateRequestSchema = z.object({
+  path: tagPathSchema,
+  priority: z.number().int().describe("Tag priority (higher numbers fire first, can be negative)"),
+});
+
+/**
+ * Tag Priority Update Response Schema
+ */
+export const tagPriorityUpdateResponseSchema = tagGetResponseSchema.extend({
+  priority: z.number().int().optional(),
+});
+
+/**
  * Trigger path schema (format: accounts/123456/containers/987654/workspaces/111111/triggers/333333)
  */
 export const triggerPathSchema = z
@@ -494,3 +528,374 @@ export const builtinVariableEnableResponseSchema = z.object({
   type: z.string(),
 });
 
+/**
+ * Data Layer Validation Request Schema
+ */
+export const datalayerValidateRequestSchema = z.object({
+  parent: workspacePathSchema,
+  dataLayer: z.record(z.unknown()), // Data layer object to validate
+  schema: z.record(z.unknown()).optional(), // Optional explicit schema
+});
+
+/**
+ * Data Layer Validation Response Schema
+ */
+export const datalayerValidateResponseSchema = z.object({
+  valid: z.boolean(),
+  errors: z
+    .array(
+      z.object({
+        path: z.string(),
+        message: z.string(),
+        code: z.string().optional(),
+      })
+    )
+    .optional(),
+  warnings: z
+    .array(
+      z.object({
+        path: z.string(),
+        message: z.string(),
+      })
+    )
+    .optional(),
+});
+
+/**
+ * Data Layer Schema Generation Request Schema
+ */
+export const datalayerSchemaGenerateRequestSchema = z.object({
+  parent: workspacePathSchema,
+  includeBuiltIn: z.boolean().optional().default(false),
+});
+
+/**
+ * Data Layer Schema Generation Response Schema
+ */
+export const datalayerSchemaGenerateResponseSchema = z.object({
+  schema: z.record(z.unknown()), // Generated Zod schema structure
+  variables: z.array(
+    z.object({
+      name: z.string(),
+      type: z.string(),
+      required: z.boolean(),
+      description: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Data Layer Monitor Request Schema
+ */
+export const datalayerMonitorRequestSchema = z.object({
+  parent: workspacePathSchema,
+  eventName: z.string().optional(), // Optional event name to monitor
+});
+
+/**
+ * Data Layer Monitor Response Schema
+ */
+export const datalayerMonitorResponseSchema = z.object({
+  monitoring: z.boolean(),
+  eventName: z.string().optional(),
+  alerts: z
+    .array(
+      z.object({
+        type: z.enum(["schema_violation", "missing_field", "type_mismatch"]),
+        message: z.string(),
+        timestamp: z.string().optional(),
+      })
+    )
+    .optional(),
+});
+
+/**
+ * Data Layer Events List Request Schema
+ */
+export const datalayerEventsListRequestSchema = z.object({
+  parent: workspacePathSchema,
+});
+
+/**
+ * Data Layer Events List Response Schema
+ */
+export const datalayerEventsListResponseSchema = z.object({
+  events: z.array(
+    z.object({
+      name: z.string(),
+      triggerName: z.string().optional(),
+      triggerId: z.string().optional(),
+      conditions: z.array(z.unknown()).optional(),
+    })
+  ),
+});
+
+/**
+ * Folder Path Schema (format: accounts/123456/containers/987654/workspaces/111111/folders/1)
+ */
+export const folderPathSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+\/workspaces\/\d+\/folders\/\d+$/,
+    "Folder path must be in format accounts/123456/containers/987654/workspaces/111111/folders/1"
+  );
+
+/**
+ * Folder List Request Schema
+ */
+export const folderListRequestSchema = z.object({
+  parent: workspacePathSchema,
+});
+
+/**
+ * Folder List Response Schema
+ */
+export const folderListResponseSchema = z.object({
+  folders: z.array(
+    z.object({
+      accountId: z.string().optional(),
+      containerId: z.string().optional(),
+      workspaceId: z.string().optional(),
+      folderId: z.string().optional(),
+      name: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Folder Get Request Schema
+ */
+export const folderGetRequestSchema = z.object({
+  path: folderPathSchema,
+});
+
+/**
+ * Folder Get Response Schema
+ */
+export const folderGetResponseSchema = z.object({
+  accountId: z.string().optional(),
+  containerId: z.string().optional(),
+  workspaceId: z.string().optional(),
+  folderId: z.string().optional(),
+  name: z.string().optional(),
+});
+
+/**
+ * Folder Upsert Request Schema
+ */
+export const folderUpsertRequestSchema = z.object({
+  parent: workspacePathSchema,
+  folderId: z.string().optional(), // If provided, update existing folder
+  name: z.string().min(1, "Folder name is required"),
+});
+
+/**
+ * Folder Upsert Response Schema
+ */
+export const folderUpsertResponseSchema = folderGetResponseSchema;
+
+/**
+ * Folder Delete Request Schema
+ */
+export const folderDeleteRequestSchema = z.object({
+  path: folderPathSchema,
+});
+
+/**
+ * Folder Delete Response Schema
+ */
+export const folderDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  path: z.string(),
+});
+
+/**
+ * Container Path Schema (for versions, format: accounts/123456/containers/987654)
+ */
+export const containerPathForVersionSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+$/,
+    "Container path must be in format accounts/123456/containers/987654"
+  );
+
+/**
+ * Version Path Schema (format: accounts/123456/containers/987654/versions/1)
+ */
+export const versionPathSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+\/versions\/\d+$/,
+    "Version path must be in format accounts/123456/containers/987654/versions/1"
+  );
+
+/**
+ * Version List Request Schema
+ */
+export const versionListRequestSchema = z.object({
+  parent: containerPathForVersionSchema,
+});
+
+/**
+ * Version List Response Schema
+ */
+export const versionListResponseSchema = z.object({
+  versions: z.array(
+    z.object({
+      accountId: z.string().optional(),
+      containerId: z.string().optional(),
+      containerVersionId: z.string().optional(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+    })
+  ),
+});
+
+/**
+ * Version Get Request Schema
+ */
+export const versionGetRequestSchema = z.object({
+  path: versionPathSchema,
+});
+
+/**
+ * Version Get Response Schema
+ */
+export const versionGetResponseSchema = z.object({
+  accountId: z.string().optional(),
+  containerId: z.string().optional(),
+  containerVersionId: z.string().optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+});
+
+/**
+ * Version Create Request Schema
+ */
+export const versionCreateRequestSchema = z.object({
+  parent: containerPathForVersionSchema,
+  workspaceId: z.string().min(1, "Workspace ID is required"),
+  name: z.string().min(1, "Version name is required"),
+  notes: z.string().optional(),
+});
+
+/**
+ * Version Create Response Schema
+ */
+export const versionCreateResponseSchema = versionGetResponseSchema;
+
+/**
+ * Version Restore Request Schema
+ */
+export const versionRestoreRequestSchema = z.object({
+  path: versionPathSchema,
+});
+
+/**
+ * Version Restore Response Schema
+ */
+export const versionRestoreResponseSchema = versionGetResponseSchema;
+
+/**
+ * Workspace Publish Request Schema
+ */
+export const workspacePublishRequestSchema = z.object({
+  path: workspacePathSchema,
+  fingerprint: z.string().optional(), // Optional fingerprint for optimistic locking
+});
+
+/**
+ * Workspace Publish Response Schema
+ */
+export const workspacePublishResponseSchema = z.object({
+  accountId: z.string().optional(),
+  containerId: z.string().optional(),
+  containerVersionId: z.string().optional(),
+});
+
+/**
+ * Preview Create Request Schema
+ */
+export const previewCreateRequestSchema = z.object({
+  parent: containerPathForVersionSchema,
+  workspaceId: z.string().min(1, "Workspace ID is required"),
+});
+
+/**
+ * Preview Create Response Schema
+ */
+export const previewCreateResponseSchema = z.object({
+  environmentId: z.string().optional(),
+  authorizationCode: z.string().optional(),
+  containerVersionId: z.string().optional(),
+});
+
+/**
+ * Environment Path Schema (format: accounts/123456/containers/987654/environments/env1)
+ */
+export const environmentPathSchema = z
+  .string()
+  .regex(
+    /^accounts\/\d+\/containers\/\d+\/environments\/[^/]+$/,
+    "Environment path must be in format accounts/123456/containers/987654/environments/env1"
+  );
+
+/**
+ * Preview Get Request Schema
+ */
+export const previewGetRequestSchema = z.object({
+  path: environmentPathSchema,
+});
+
+/**
+ * Preview Get Response Schema
+ */
+export const previewGetResponseSchema = z.object({
+  environmentId: z.string().optional(),
+  name: z.string().optional(),
+  authorizationCode: z.string().optional(),
+  containerVersionId: z.string().optional(),
+});
+
+/**
+ * Consent Mode Settings Schema
+ */
+export const consentModeSettingsSchema = z.object({
+  ad_storage: z.enum(["granted", "denied", "pending"]).optional(),
+  analytics_storage: z.enum(["granted", "denied", "pending"]).optional(),
+  functionality_storage: z.enum(["granted", "denied", "pending"]).optional(),
+  personalization_storage: z.enum(["granted", "denied", "pending"]).optional(),
+  security_storage: z.enum(["granted", "denied", "pending"]).optional(),
+});
+
+/**
+ * Consent Configure Request Schema
+ */
+export const consentConfigureRequestSchema = z.object({
+  path: containerPathSchema,
+  enabled: z.boolean(),
+  settings: consentModeSettingsSchema.optional(),
+});
+
+/**
+ * Consent Configure Response Schema
+ */
+export const consentConfigureResponseSchema = z.object({
+  enabled: z.boolean(),
+  settings: consentModeSettingsSchema.optional(),
+});
+
+/**
+ * Consent Get Request Schema
+ */
+export const consentGetRequestSchema = z.object({
+  path: containerPathSchema,
+});
+
+/**
+ * Consent Get Response Schema
+ */
+export const consentGetResponseSchema = z.object({
+  enabled: z.boolean(),
+  settings: consentModeSettingsSchema.optional(),
+});

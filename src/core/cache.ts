@@ -51,11 +51,30 @@ export interface CacheResultWithETag<T> {
   cached: boolean; // true if If-None-Match matched (304 Not Modified scenario)
 }
 
+/**
+ * Cache performance metrics
+ */
+export interface CacheMetrics {
+  hits: number;
+  misses: number;
+  evictions: number;
+  expirations: number;
+  size: number;
+  maxSize: number;
+  hitRate: number;
+  utilization: number;
+  isMemoryPressure: boolean;
+}
+
 export class LRUCache implements ICache {
   private readonly entries: Map<string, CacheEntry<unknown>>;
   private readonly maxSize: number;
   private readonly defaultTTL: number;
   private readonly onWrite: ((key: string) => Promise<void>) | undefined;
+  private hits = 0;
+  private misses = 0;
+  private evictions = 0;
+  private expirations = 0;
 
   constructor(options: LRUCacheOptions) {
     this.entries = new Map();
@@ -67,17 +86,21 @@ export class LRUCache implements ICache {
   async get<T>(key: string): Promise<T | undefined> {
     const entry = this.entries.get(key);
     if (!entry) {
+      this.misses++;
       return Promise.resolve(undefined);
     }
 
     // Check expiration
     if (this.isExpired(entry)) {
       this.entries.delete(key);
+      this.expirations++;
+      this.misses++;
       return Promise.resolve(undefined);
     }
 
     // Update access time for LRU
     entry.accessTime = getNextAccessTime();
+    this.hits++;
     return Promise.resolve(entry.value as T);
   }
 
@@ -105,6 +128,7 @@ export class LRUCache implements ICache {
     // Check if we need to evict
     if (this.entries.size >= this.maxSize) {
       this.evictLRU();
+      this.evictions++;
     }
 
     // Add new entry
@@ -204,12 +228,15 @@ export class LRUCache implements ICache {
   ): Promise<CacheResultWithETag<T> | undefined> {
     const entry = this.entries.get(key);
     if (!entry) {
+      this.misses++;
       return Promise.resolve(undefined);
     }
 
     // Check expiration
     if (this.isExpired(entry)) {
       this.entries.delete(key);
+      this.expirations++;
+      this.misses++;
       return Promise.resolve(undefined);
     }
 
@@ -218,11 +245,44 @@ export class LRUCache implements ICache {
 
     // Check ETag match
     const cached = ifNoneMatch !== undefined && entry.etag === ifNoneMatch;
+    this.hits++;
     return Promise.resolve({
       value: entry.value as T,
       etag: entry.etag || "",
       cached,
     });
+  }
+
+  /**
+   * Get cache performance metrics
+   */
+  getMetrics(): CacheMetrics {
+    const totalRequests = this.hits + this.misses;
+    const hitRate = totalRequests > 0 ? this.hits / totalRequests : 0;
+    const utilization = this.maxSize > 0 ? this.entries.size / this.maxSize : 0;
+    const isMemoryPressure = utilization >= 0.9;
+
+    return {
+      hits: this.hits,
+      misses: this.misses,
+      evictions: this.evictions,
+      expirations: this.expirations,
+      size: this.entries.size,
+      maxSize: this.maxSize,
+      hitRate,
+      utilization,
+      isMemoryPressure,
+    };
+  }
+
+  /**
+   * Reset all metrics counters
+   */
+  resetMetrics(): void {
+    this.hits = 0;
+    this.misses = 0;
+    this.evictions = 0;
+    this.expirations = 0;
   }
 }
 
@@ -232,4 +292,3 @@ export class LRUCache implements ICache {
 export function createCache(options: LRUCacheOptions): ICache {
   return new LRUCache(options);
 }
-

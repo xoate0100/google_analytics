@@ -162,5 +162,14 @@ export class MCPServerBootstrap {
     // Tools will be registered via registerTool method
     // The server will handle list_tools requests automatically
   }
-}
 
+  /**
+   * Get server information
+   */
+  getServerInfo(): { name: string; version: string } {
+    return {
+      name: this.name,
+      version: this.version,
+    };
+  }
+}

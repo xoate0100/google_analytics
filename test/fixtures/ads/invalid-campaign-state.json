@@ -1,0 +1,20 @@
+{
+  "error": {
+    "code": 400,
+    "message": "Campaign is in REMOVED state and cannot be modified",
+    "status": "INVALID_ARGUMENT",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.ads.googleads.v16.errors.GoogleAdsFailure",
+        "errors": [
+          {
+            "errorCode": {
+              "campaignError": "CAMPAIGN_CANNOT_BE_MODIFIED"
+            },
+            "message": "Campaign is in REMOVED state"
+          }
+        ]
+      }
+    ]
+  }
+}

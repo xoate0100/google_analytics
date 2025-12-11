@@ -237,4 +237,3 @@ describe("GA4 Measurement Protocol Tools", () => {
     });
   });
 });
-

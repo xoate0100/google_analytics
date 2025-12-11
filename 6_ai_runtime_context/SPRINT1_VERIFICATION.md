@@ -90,4 +90,3 @@
 
 1. Merge `feature/sprint1-core` to `develop`
 2. Begin Sprint 2: GTM Tools implementation
-

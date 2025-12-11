@@ -1,0 +1,8 @@
+{
+  "name": "properties/123456789/conversionEvents/purchase",
+  "eventName": "purchase",
+  "countingMethod": "ONCE_PER_EVENT",
+  "valueSettings": {
+    "valueAsInteger": true
+  }
+}

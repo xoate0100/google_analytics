@@ -32,4 +32,3 @@ afterEach(() => {
   }
   nock.cleanAll();
 });
-

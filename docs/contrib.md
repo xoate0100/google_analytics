@@ -76,4 +76,3 @@ Hooks run automatically on commit:
 ## Questions?
 
 See [Documentation Index](DOCUMENTATION_INDEX.md) for more information.
-

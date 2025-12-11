@@ -232,4 +232,3 @@ describe("GA4 Custom Dimension Tools", () => {
     });
   });
 });
-

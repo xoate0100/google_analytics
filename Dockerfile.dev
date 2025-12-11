@@ -30,4 +30,3 @@ EXPOSE 3000
 
 # Start in development mode with watch
 CMD ["pnpm", "dev"]
-

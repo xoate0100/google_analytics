@@ -38,4 +38,3 @@ restoration_plan: |
   2. Set bootstrap_mode: false
   3. Verify all restrictions are restored
   4. Mark bootstrap as complete
-

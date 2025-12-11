@@ -31,4 +31,3 @@ export function assertDefined<T>(
     throw new Error(message || "Value is null or undefined");
   }
 }
-

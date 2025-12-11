@@ -23,4 +23,3 @@ Each tool is documented with:
 ## Status
 
 API reference documentation will be generated as tools are implemented.
-

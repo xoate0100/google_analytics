@@ -200,4 +200,3 @@ describe("GA4 Google Signals Tools", () => {
     });
   });
 });
-

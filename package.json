@@ -5,6 +5,7 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
+    "prepare": "husky install || true",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "docker:build": "docker build -t mcp-google-marketing:latest .",
@@ -70,4 +71,3 @@
     "node": ">=18.0.0"
   }
 }
-

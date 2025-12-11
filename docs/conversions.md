@@ -106,4 +106,3 @@ Include hashed customer data:
 3. Enable enhanced conversions when possible
 4. Import offline conversions promptly
 5. Monitor conversion tracking accuracy
-

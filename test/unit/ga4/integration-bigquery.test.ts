@@ -230,4 +230,3 @@ describe("GA4 BigQuery Integration Tools", () => {
     });
   });
 });
-

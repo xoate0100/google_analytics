@@ -85,28 +85,60 @@ export interface Rollback {
 }
 
 /**
- * Operation envelope
- * Wraps all operations with metadata for observability and idempotency
+ * Operation envelope core metadata
+ * Basic operation identification and context
  */
-export interface OperationEnvelope {
+export interface OperationEnvelopeCore {
   opId: string; // UUID v7
   opName: string; // e.g., "ga4.report.run"
   idempotencyKey: IdempotencyKey;
   timestamp: string; // ISO8601
   actor: string;
   target: OperationTarget;
+}
+
+/**
+ * Operation envelope request data
+ * The operation request payload
+ */
+export interface OperationEnvelopeRequest {
   request: {
     args: Record<string, unknown>;
   };
+}
+
+/**
+ * Operation envelope lifecycle
+ * Pre-check, attempt, result, post-check, and rollback information
+ */
+export interface OperationEnvelopeLifecycle {
   precheck: Precheck;
   attempt: Attempt;
   result: OperationResultStatus;
   postcheck: Postcheck;
   rollback: Rollback;
+}
+
+/**
+ * Operation envelope metrics
+ * Performance and observability metrics
+ */
+export interface OperationEnvelopeMetrics {
   latencyMs: number;
   warnings: string[];
   notes: string;
 }
+
+/**
+ * Operation envelope
+ * Wraps all operations with metadata for observability and idempotency
+ * Composed of smaller, focused interfaces following ISP
+ */
+export interface OperationEnvelope
+  extends OperationEnvelopeCore,
+    OperationEnvelopeRequest,
+    OperationEnvelopeLifecycle,
+    OperationEnvelopeMetrics {}
 
 /**
  * Logger interface (ISP: ≤10 methods)
@@ -180,4 +212,3 @@ export interface ICapabilitiesRegistry {
   ): void;
   refresh(): Promise<void>;
 }
-

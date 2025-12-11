@@ -1771,4 +1771,3 @@ export const dataFilterDeleteRequestSchema = z.object({
   property: propertyIdSchema,
   filterId: dataFilterIdSchema,
 });
-

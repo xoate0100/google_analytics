@@ -18,4 +18,3 @@ export function loadJsonFixture<T>(filename: string): T {
   const content = loadFixture(filename);
   return JSON.parse(content) as T;
 }
-

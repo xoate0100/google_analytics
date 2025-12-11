@@ -240,4 +240,3 @@ describe("GA4 Google Ads Integration Tools", () => {
     });
   });
 });
-
