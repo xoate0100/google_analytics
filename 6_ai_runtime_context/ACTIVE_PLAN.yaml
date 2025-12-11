@@ -968,13 +968,13 @@ sprint4:
     - TDD approach followed
 
 merge_status:
-  merged_to_develop: false
-  merge_commit: ""
-  merge_date: ""
+  merged_to_develop: true
+  merge_commit: "443c319"
+  merge_date: "2024-01-17T14:45:00Z"
   branch: "feature/sprint4-hardening"
-  files_changed: 0
-  insertions: 0
-  deletions: 0
+  files_changed: 309
+  insertions: 30258
+  deletions: 2678
 
 next_sprint: "Sprint 4 - Hardening, Integration & Release (Completed)"
 next_steps:
