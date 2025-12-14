@@ -1007,6 +1007,9 @@ auth_docker_setup:
     - name: "Docker Configuration"
       status: "completed"
       tasks: ["5.1", "5.2", "5.3"]
+    - name: "Cursor MCP Configuration"
+      status: "completed"
+      tasks: ["6.1", "6.2"]
     - name: "Docker Configuration"
       status: "pending"
       tasks: ["5.1", "5.2", "5.3"]
@@ -1062,10 +1065,12 @@ auth_docker_setup:
       outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
     - id: "6.1"
       name: "Create Cursor MCP configuration file and setup documentation"
-      status: "pending"
+      status: "completed"
+      outputs: ["cursor-mcp-config.json.example", "docs/cursor-setup.md", "0_phase0_bootstrap/feature_flags.yml"]
     - id: "6.2"
       name: "Pre-commit validation checkpoint (Phase 6)"
-      status: "pending"
+      status: "completed"
+      outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
     - id: "7.1"
       name: "Add end-to-end authentication tests with mocked OAuth"
       status: "pending"
