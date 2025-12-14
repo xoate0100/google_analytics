@@ -67,6 +67,46 @@ export class OAuthClient {
   }
 
   /**
+   * Handle device code request error
+   */
+  private async handleDeviceCodeError(
+    response: Response
+  ): Promise<never> {
+    const errorData = (await response.json()) as {
+      error?: string;
+      error_description?: string;
+    };
+    throw createAuthError(
+      "invalid_grant",
+      errorData.error_description || `Device flow failed: ${response.statusText}`,
+      { status: response.status, error: errorData.error }
+    );
+  }
+
+  /**
+   * Parse device code response
+   */
+  private parseDeviceCodeResponse(
+    data: {
+      device_code: string;
+      user_code: string;
+      verification_url: string;
+      expires_in: number;
+      interval: number;
+    },
+    scopes: string[]
+  ): DeviceFlowResult {
+    return {
+      deviceCode: data.device_code,
+      userCode: data.user_code,
+      verificationUrl: data.verification_url,
+      expiresIn: data.expires_in,
+      interval: data.interval,
+      scopes,
+    };
+  }
+
+  /**
    * Start OAuth device flow
    * @param scopes - OAuth scopes to request
    * @returns Device flow information
@@ -90,15 +130,7 @@ export class OAuthClient {
       });
 
       if (!response.ok) {
-        const errorData = (await response.json()) as {
-          error?: string;
-          error_description?: string;
-        };
-        throw createAuthError(
-          "invalid_grant",
-          errorData.error_description || `Device flow failed: ${response.statusText}`,
-          { status: response.status, error: errorData.error }
-        );
+        return this.handleDeviceCodeError(response);
       }
 
       const data = (await response.json()) as {
@@ -109,14 +141,7 @@ export class OAuthClient {
         interval: number;
       };
 
-      return {
-        deviceCode: data.device_code,
-        userCode: data.user_code,
-        verificationUrl: data.verification_url,
-        expiresIn: data.expires_in,
-        interval: data.interval,
-        scopes,
-      };
+      return this.parseDeviceCodeResponse(data, scopes);
     } catch (error) {
       if (error instanceof Error && error.name === "AuthError") {
         throw error;
@@ -127,6 +152,70 @@ export class OAuthClient {
         { originalError: error }
       );
     }
+  }
+
+  /**
+   * Handle token polling errors
+   */
+  private handleTokenPollingError(
+    errorCode: string,
+    errorMessage: string,
+    interval: number,
+    status: number
+  ): never {
+    if (errorCode === "authorization_pending") {
+      throw createAuthError(
+        "invalid_grant",
+        "Authorization pending. User has not yet completed authorization.",
+        { error: errorCode, retryAfter: interval }
+      );
+    }
+
+    if (errorCode === "slow_down") {
+      throw createAuthError(
+        "invalid_grant",
+        "Polling too frequently. Increase polling interval.",
+        { error: errorCode, retryAfter: interval + 5 }
+      );
+    }
+
+    if (errorCode === "expired_token") {
+      throw createAuthError(
+        "invalid_grant",
+        "Device code has expired. Please start a new device flow.",
+        { error: errorCode }
+      );
+    }
+
+    throw createAuthError("invalid_grant", errorMessage, {
+      error: errorCode,
+      status,
+    });
+  }
+
+  /**
+   * Parse token response
+   */
+  private parseTokenResponse(data: {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    scope?: string;
+  }): TokenInfo {
+    if (!data.access_token) {
+      throw createAuthError("invalid_grant", "No access token received");
+    }
+
+    const expiresAt = data.expires_in
+      ? Math.floor(Date.now() / 1000) + data.expires_in
+      : undefined;
+
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt,
+      scopes: data.scope?.split(" ") || undefined,
+    };
   }
 
   /**
@@ -171,51 +260,15 @@ export class OAuthClient {
         const errorCode = data.error || "invalid_grant";
         const errorMessage =
           data.error_description || `Token polling failed: ${response.statusText}`;
-
-        if (errorCode === "authorization_pending") {
-          throw createAuthError(
-            "invalid_grant",
-            "Authorization pending. User has not yet completed authorization.",
-            { error: errorCode, retryAfter: interval }
-          );
-        }
-
-        if (errorCode === "slow_down") {
-          throw createAuthError(
-            "invalid_grant",
-            "Polling too frequently. Increase polling interval.",
-            { error: errorCode, retryAfter: interval + 5 }
-          );
-        }
-
-        if (errorCode === "expired_token") {
-          throw createAuthError(
-            "invalid_grant",
-            "Device code has expired. Please start a new device flow.",
-            { error: errorCode }
-          );
-        }
-
-        throw createAuthError("invalid_grant", errorMessage, {
-          error: errorCode,
-          status: response.status,
-        });
+        return this.handleTokenPollingError(
+          errorCode,
+          errorMessage,
+          interval,
+          response.status
+        );
       }
 
-      if (!data.access_token) {
-        throw createAuthError("invalid_grant", "No access token received");
-      }
-
-      const expiresAt = data.expires_in
-        ? Math.floor(Date.now() / 1000) + data.expires_in
-        : undefined;
-
-      return {
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresAt,
-        scopes: data.scope?.split(" ") || undefined,
-      };
+      return this.parseTokenResponse(data);
     } catch (error) {
       if (error instanceof Error && error.name === "AuthError") {
         throw error;
