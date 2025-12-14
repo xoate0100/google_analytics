@@ -25,6 +25,7 @@ permissions:
     - docker-compose.yml           # Development docker-compose
     - docker-compose.prod.yml      # Production docker-compose
     - .env.example                 # Environment variables example
+    - cursor-mcp-config.json.example  # Cursor MCP configuration template
   readonly:
     - 1_global_standards/
     - 7_schemas/
