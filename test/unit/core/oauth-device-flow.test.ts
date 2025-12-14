@@ -270,4 +270,3 @@ describe("OAuth Device Flow", () => {
     });
   });
 });
-
