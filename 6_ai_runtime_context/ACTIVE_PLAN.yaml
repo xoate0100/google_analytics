@@ -999,10 +999,10 @@ auth_docker_setup:
       status: "completed"
       tasks: ["2.1", "2.2", "2.3"]
     - name: "MCP Server Tool Handlers"
-      status: "pending"
+      status: "completed"
       tasks: ["3.1"]
     - name: "Main Server Entry Point"
-      status: "pending"
+      status: "completed"
       tasks: ["4.1", "4.2"]
     - name: "Docker Configuration"
       status: "pending"
@@ -1035,13 +1035,16 @@ auth_docker_setup:
       outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
     - id: "3.1"
       name: "Wire up MCP tool handlers in bootstrap (tools/list, tools/call)"
-      status: "pending"
+      status: "completed"
+      outputs: ["src/server/bootstrap.ts", "test/unit/server/bootstrap-tool-handlers.test.ts"]
     - id: "4.1"
       name: "Create main server entry point (src/server.ts) with full initialization"
-      status: "pending"
+      status: "completed"
+      outputs: ["src/server.ts", "test/unit/server/server.test.ts"]
     - id: "4.2"
       name: "Pre-commit validation checkpoint (Phase 4)"
-      status: "pending"
+      status: "completed"
+      outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
     - id: "5.1"
       name: "Update Dockerfile for production with proper CMD and volume mounts"
       status: "pending"
