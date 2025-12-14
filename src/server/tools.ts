@@ -262,10 +262,74 @@ function registerAuthLoginTool(
   });
 }
 
+/**
+ * Revoke existing tokens if they exist
+ */
+async function revokeExistingTokens(
+  tokenStorage: TokenStorage,
+  oauthClient: OAuthClient,
+  logger: ILogger
+): Promise<void> {
+  const existingTokens = await tokenStorage.getTokens("google");
+
+  if (existingTokens?.refreshToken) {
+    logger.info("Revoking existing refresh token");
+    try {
+      await oauthClient.revokeToken(existingTokens.refreshToken);
+    } catch (error) {
+      logger.warn("Failed to revoke existing token, continuing with rotation", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  } else if (existingTokens?.accessToken) {
+    logger.info("Revoking existing access token");
+    try {
+      await oauthClient.revokeToken(existingTokens.accessToken);
+    } catch (error) {
+      logger.warn("Failed to revoke existing token, continuing with rotation", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  } else {
+    logger.info("No existing tokens to revoke");
+  }
+}
+
+/**
+ * Handle token rotation initiation
+ */
+async function handleTokenRotationInitiation(
+  oauthClient: OAuthClient,
+  tokenStorage: TokenStorage,
+  logger: ILogger
+): Promise<{
+  userCode: string;
+  verificationUrl: string;
+  deviceCode: string;
+  expiresIn: number;
+  message: string;
+  nextStep: string;
+}> {
+  await revokeExistingTokens(tokenStorage, oauthClient, logger);
+
+  const instructions = await startDeviceFlowWithInstructions(
+    oauthClient,
+    logger
+  );
+
+  return {
+    ...instructions,
+    nextStep:
+      "After authorizing, call auth.rotate again with deviceCode parameter",
+  };
+}
+
 function registerAuthRotateTool(
   bootstrap: MCPServerBootstrap,
-  _oauthClient: OAuthClient,
-  _tokenStorage: TokenStorage,
+  oauthClient: OAuthClient,
+  tokenStorage: TokenStorage,
   logger: ILogger
 ): void {
   bootstrap.registerTool({
@@ -273,13 +337,38 @@ function registerAuthRotateTool(
     description: "Rotate authentication tokens",
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        deviceCode: {
+          type: "string",
+          description:
+            "Optional device code from previous auth.rotate call to poll for tokens",
+        },
+      },
     },
-    handler: async () => {
-      logger.info("auth.rotate called");
-      return Promise.resolve({
-        message: "Token rotation not yet implemented",
-      });
+    handler: async (args) => {
+      logger.info("auth.rotate called", { hasDeviceCode: !!args.deviceCode });
+
+      try {
+        if (args.deviceCode) {
+          return await handleTokenPolling(
+            oauthClient,
+            tokenStorage,
+            args.deviceCode as string,
+            logger
+          );
+        }
+
+        return await handleTokenRotationInitiation(
+          oauthClient,
+          tokenStorage,
+          logger
+        );
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        logger.error(`Token rotation failed: ${errorMessage}`);
+        throw error;
+      }
     },
   });
 }
