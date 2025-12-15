@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run pre-commit framework hooks (meta-framework checks)
+if command -v pre-commit >/dev/null 2>&1; then
+  pre-commit run --hook-stage pre-commit || exit 1
+fi
+
+# Run Node.js-specific checks
+pnpm lint || exit 1
+pnpm type-check || exit 1

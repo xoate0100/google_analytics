@@ -1,0 +1,21 @@
+{
+  "valid": false,
+  "errors": [
+    {
+      "path": "event",
+      "message": "Required field 'event' is missing",
+      "code": "required"
+    }
+  ],
+  "warnings": [
+    {
+      "path": "value",
+      "message": "Value should be a number",
+      "code": "type_mismatch"
+    }
+  ],
+  "dataLayer": {
+    "transactionId": "T12345",
+    "value": "invalid"
+  }
+}

@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-google-marketing-prod
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_ADS_DEV_TOKEN=${GOOGLE_ADS_DEV_TOKEN}
+      - LOGIN_CUSTOMER_ID=${LOGIN_CUSTOMER_ID}
+      - GA4_MEASUREMENT_PROTOCOL_SECRET=${GA4_MEASUREMENT_PROTOCOL_SECRET}
+      - MCP_MARKETING_DRY_RUN=${MCP_MARKETING_DRY_RUN:-0}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      # Only mount config directory (read-only in production)
+      - mcp-config:/app/.mcp/google:ro
+    ports:
+      - "3000:3000"
+    healthcheck:
+      # Simple health check - will be enhanced when health endpoint is implemented
+      test: ["CMD", "node", "-e", "console.log('OK')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mcp-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+volumes:
+  mcp-config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${HOME:-${USERPROFILE}}/.mcp/google  # Works on both Unix and Windows
+
+networks:
+  mcp-network:
+    driver: bridge

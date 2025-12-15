@@ -1,0 +1,8 @@
+{
+  "conversionId": "1234567890",
+  "resourceName": "customers/9876543210/conversionActions/1234567890",
+  "name": "Purchase Conversion",
+  "type": "GOOGLE_ANALYTICS",
+  "category": "PURCHASE",
+  "attributionModel": "DATA_DRIVEN"
+}

@@ -1,0 +1,32 @@
+# Development Dockerfile for MCP Google Marketing Ops Server
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm@8
+
+# Copy package files
+COPY package.json pnpm-lock.yaml* .npmrc ./
+
+# Install all dependencies (including dev)
+RUN pnpm install
+
+# Copy source code
+COPY . .
+
+# Create directory for MCP config
+RUN mkdir -p /app/.mcp/google
+
+# Set non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001 && \
+    chown -R nodejs:nodejs /app
+
+USER nodejs
+
+# Expose port
+EXPOSE 3000
+
+# Start in development mode with watch
+CMD ["pnpm", "dev"]
