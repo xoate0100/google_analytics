@@ -17,7 +17,7 @@ GOOGLE_CLIENT_SECRET=your-client-secret
 
 ### Step 2: Run Authentication
 
-Use the `auth.login` tool to start the OAuth flow:
+Use the `auth.login` tool to start the OAuth device flow:
 
 ```bash
 # In Cursor, use the MCP tool:
@@ -25,9 +25,26 @@ auth.login()
 ```
 
 This will:
-1. Open a browser window for Google OAuth consent
-2. Request necessary scopes for GA4, GTM, and Google Ads
-3. Store encrypted refresh tokens in `~/.mcp/google/credentials.enc.json`
+1. Initiate OAuth 2.0 device flow
+2. Display a user code and verification URL
+3. Request necessary scopes for GA4, GTM, and Google Ads
+4. Poll for tokens after user authorization
+5. Store encrypted refresh tokens in `~/.mcp/google/credentials.enc.json`
+
+### Device Flow Implementation
+
+The OAuth device flow is implemented using Google's OAuth 2.0 device flow endpoints:
+
+1. **Device Code Request**: POST to `https://oauth2.googleapis.com/device/code`
+   - Sends `client_id` and `scope` parameters
+   - Returns `device_code`, `user_code`, `verification_url`, `expires_in`, and `interval`
+
+2. **Token Polling**: POST to `https://oauth2.googleapis.com/token`
+   - Sends `device_code`, `client_id`, `client_secret`, and `grant_type=urn:ietf:params:oauth:grant-type:device_code`
+   - Handles `authorization_pending`, `slow_down`, and `expired_token` errors
+   - Returns `access_token`, `refresh_token`, `expires_in`, and `scope` on success
+
+The implementation includes proper error handling for all device flow error conditions and follows OAuth 2.0 device flow best practices.
 
 ## Token Management
 

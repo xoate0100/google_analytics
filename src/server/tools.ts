@@ -5,7 +5,7 @@
 
 import type { MCPServerBootstrap } from "./bootstrap.js";
 import type { ILogger, ICapabilitiesRegistry } from "../core/types.js";
-import type { OAuthClient } from "../core/oauth.js";
+import type { OAuthClient, TokenInfo } from "../core/oauth.js";
 import type { TokenStorage } from "../core/token-storage.js";
 
 /**
@@ -48,17 +48,181 @@ export function registerCoreUtilityTools(
  */
 function registerAuthTools(
   bootstrap: MCPServerBootstrap,
-  _oauthClient: OAuthClient,
+  oauthClient: OAuthClient,
   tokenStorage: TokenStorage,
   logger: ILogger
 ): void {
-  registerAuthLoginTool(bootstrap, logger);
-  registerAuthRotateTool(bootstrap, logger);
+  registerAuthLoginTool(bootstrap, oauthClient, tokenStorage, logger);
+  registerAuthRotateTool(bootstrap, oauthClient, tokenStorage, logger);
   registerAuthStatusTool(bootstrap, tokenStorage, logger);
+}
+
+/**
+ * Start device flow and return user instructions
+ */
+async function startDeviceFlowWithInstructions(
+  oauthClient: OAuthClient,
+  logger: ILogger
+): Promise<{
+  userCode: string;
+  verificationUrl: string;
+  deviceCode: string;
+  expiresIn: number;
+  message: string;
+}> {
+  const scopes = oauthClient.getDefaultScopes();
+  const deviceFlow = await oauthClient.startDeviceFlow(scopes);
+
+  logger.info("Device flow started", {
+    userCode: deviceFlow.userCode,
+    expiresIn: deviceFlow.expiresIn,
+  });
+
+  return {
+    userCode: deviceFlow.userCode,
+    verificationUrl: deviceFlow.verificationUrl,
+    deviceCode: deviceFlow.deviceCode,
+    expiresIn: deviceFlow.expiresIn,
+    message: `Please visit ${deviceFlow.verificationUrl} and enter code: ${deviceFlow.userCode}`,
+  };
+}
+
+/**
+ * Update polling interval based on error
+ */
+function updatePollingInterval(
+  error: unknown,
+  currentInterval: number
+): number {
+  const errorObj = error as {
+    context?: { retryAfter?: number; error?: string };
+  };
+  const errorCode = errorObj.context?.error;
+
+  if (errorCode === "authorization_pending" && errorObj.context?.retryAfter) {
+    return errorObj.context.retryAfter;
+  }
+  if (errorCode === "slow_down" && errorObj.context?.retryAfter) {
+    return errorObj.context.retryAfter;
+  }
+
+  return currentInterval;
+}
+
+/**
+ * Poll for tokens with exponential backoff
+ */
+async function pollForTokensWithRetry(
+  oauthClient: OAuthClient,
+  deviceCode: string,
+  interval: number,
+  maxAttempts: number,
+  logger: ILogger
+): Promise<TokenInfo> {
+  let attempt = 0;
+  let currentInterval = interval;
+
+  while (attempt < maxAttempts) {
+    try {
+      return await oauthClient.pollForTokens(deviceCode, currentInterval);
+    } catch (error) {
+      const errorObj = error as { context?: { error?: string } };
+      if (errorObj.context?.error === "expired_token") {
+        throw error;
+      }
+
+      currentInterval = updatePollingInterval(error, currentInterval);
+      attempt++;
+
+      if (attempt >= maxAttempts) {
+        throw error;
+      }
+
+      logger.info("Polling for tokens, attempt", { attempt, currentInterval });
+      await new Promise((resolve) =>
+        setTimeout(resolve, currentInterval * 1000)
+      );
+    }
+  }
+
+  throw new Error("Max polling attempts reached");
+}
+
+/**
+ * Handle token polling and storage
+ */
+async function handleTokenPolling(
+  oauthClient: OAuthClient,
+  tokenStorage: TokenStorage,
+  deviceCode: string,
+  logger: ILogger
+): Promise<{ message: string; authenticated: boolean }> {
+  const tokens: TokenInfo = await pollForTokensWithRetry(
+    oauthClient,
+    deviceCode,
+    5,
+    60,
+    logger
+  );
+
+  const credentials: {
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt?: number;
+    scopes?: string[];
+  } = {
+    accessToken: tokens.accessToken,
+  };
+
+  if (tokens.refreshToken) {
+    credentials.refreshToken = tokens.refreshToken;
+  }
+  if (tokens.expiresAt !== undefined) {
+    credentials.expiresAt = tokens.expiresAt;
+  }
+  if (tokens.scopes !== undefined) {
+    credentials.scopes = tokens.scopes;
+  }
+
+  await tokenStorage.storeTokens("google", credentials);
+
+  logger.info("Authentication successful, tokens stored");
+  return {
+    message: "Authentication successful! Tokens have been stored.",
+    authenticated: true,
+  };
+}
+
+/**
+ * Handle device flow initiation
+ */
+async function handleDeviceFlowInitiation(
+  oauthClient: OAuthClient,
+  logger: ILogger
+): Promise<{
+  userCode: string;
+  verificationUrl: string;
+  deviceCode: string;
+  expiresIn: number;
+  message: string;
+  nextStep: string;
+}> {
+  const instructions = await startDeviceFlowWithInstructions(
+    oauthClient,
+    logger
+  );
+
+  return {
+    ...instructions,
+    nextStep:
+      "After authorizing, call auth.login again with deviceCode parameter",
+  };
 }
 
 function registerAuthLoginTool(
   bootstrap: MCPServerBootstrap,
+  oauthClient: OAuthClient,
+  tokenStorage: TokenStorage,
   logger: ILogger
 ): void {
   bootstrap.registerTool({
@@ -66,19 +230,106 @@ function registerAuthLoginTool(
     description: "Authenticate with Google services using OAuth device flow",
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        deviceCode: {
+          type: "string",
+          description:
+            "Optional device code from previous auth.login call to poll for tokens",
+        },
+      },
     },
-    handler: async () => {
-      logger.info("auth.login called");
-      return Promise.resolve({
-        message: "Authentication flow not yet implemented",
-      });
+    handler: async (args) => {
+      logger.info("auth.login called", { hasDeviceCode: !!args.deviceCode });
+
+      try {
+        if (args.deviceCode) {
+          return await handleTokenPolling(
+            oauthClient,
+            tokenStorage,
+            args.deviceCode as string,
+            logger
+          );
+        }
+
+        return await handleDeviceFlowInitiation(oauthClient, logger);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        logger.error(`Authentication failed: ${errorMessage}`);
+        throw error;
+      }
     },
   });
 }
 
+/**
+ * Revoke existing tokens if they exist
+ */
+async function revokeExistingTokens(
+  tokenStorage: TokenStorage,
+  oauthClient: OAuthClient,
+  logger: ILogger
+): Promise<void> {
+  const existingTokens = await tokenStorage.getTokens("google");
+
+  if (existingTokens?.refreshToken) {
+    logger.info("Revoking existing refresh token");
+    try {
+      await oauthClient.revokeToken(existingTokens.refreshToken);
+    } catch (error) {
+      logger.warn("Failed to revoke existing token, continuing with rotation", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  } else if (existingTokens?.accessToken) {
+    logger.info("Revoking existing access token");
+    try {
+      await oauthClient.revokeToken(existingTokens.accessToken);
+    } catch (error) {
+      logger.warn("Failed to revoke existing token, continuing with rotation", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  } else {
+    logger.info("No existing tokens to revoke");
+  }
+}
+
+/**
+ * Handle token rotation initiation
+ */
+async function handleTokenRotationInitiation(
+  oauthClient: OAuthClient,
+  tokenStorage: TokenStorage,
+  logger: ILogger
+): Promise<{
+  userCode: string;
+  verificationUrl: string;
+  deviceCode: string;
+  expiresIn: number;
+  message: string;
+  nextStep: string;
+}> {
+  await revokeExistingTokens(tokenStorage, oauthClient, logger);
+
+  const instructions = await startDeviceFlowWithInstructions(
+    oauthClient,
+    logger
+  );
+
+  return {
+    ...instructions,
+    nextStep:
+      "After authorizing, call auth.rotate again with deviceCode parameter",
+  };
+}
+
 function registerAuthRotateTool(
   bootstrap: MCPServerBootstrap,
+  oauthClient: OAuthClient,
+  tokenStorage: TokenStorage,
   logger: ILogger
 ): void {
   bootstrap.registerTool({
@@ -86,13 +337,38 @@ function registerAuthRotateTool(
     description: "Rotate authentication tokens",
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        deviceCode: {
+          type: "string",
+          description:
+            "Optional device code from previous auth.rotate call to poll for tokens",
+        },
+      },
     },
-    handler: async () => {
-      logger.info("auth.rotate called");
-      return Promise.resolve({
-        message: "Token rotation not yet implemented",
-      });
+    handler: async (args) => {
+      logger.info("auth.rotate called", { hasDeviceCode: !!args.deviceCode });
+
+      try {
+        if (args.deviceCode) {
+          return await handleTokenPolling(
+            oauthClient,
+            tokenStorage,
+            args.deviceCode as string,
+            logger
+          );
+        }
+
+        return await handleTokenRotationInitiation(
+          oauthClient,
+          tokenStorage,
+          logger
+        );
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        logger.error(`Token rotation failed: ${errorMessage}`);
+        throw error;
+      }
     },
   });
 }

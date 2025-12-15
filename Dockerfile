@@ -38,6 +38,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 
 # Create directory for MCP config (will be mounted as volume)
+# This directory stores encrypted credentials and configuration
 RUN mkdir -p /app/.mcp/google
 
 # Set non-root user for security
@@ -47,13 +48,16 @@ RUN addgroup -g 1001 -S nodejs && \
 
 USER nodejs
 
-# Expose port (if MCP server needs HTTP endpoint)
+# MCP servers communicate via stdio (stdin/stdout)
+# No HTTP port is needed, but we expose 3000 for potential future use
 EXPOSE 3000
 
-# Health check (will be implemented when health endpoint is available)
-# For now, commented out - will be enabled in implementation phase
-# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-#   CMD node -e "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })" || exit 1
+# Health check - simple process check since MCP uses stdio
+# The server process running indicates health
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD pgrep -f "node.*dist/server.js" > /dev/null || exit 1
 
-# Start the server
+# Start the MCP server
+# The server uses stdio transport, so stdin/stdout must be attached
+# when running the container (e.g., docker run -i or docker-compose with stdin_open: true)
 CMD ["node", "dist/server.js"]

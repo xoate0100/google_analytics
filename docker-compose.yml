@@ -22,9 +22,14 @@ services:
       - ./src:/app/src:ro
       - ./test:/app/test:ro
       # Mount MCP config directory (persists credentials and config)
+      # This stores encrypted OAuth tokens at ~/.mcp/google/credentials.enc.json
       - mcp-config:/app/.mcp/google
       # Mount node_modules to avoid permission issues
       - node-modules:/app/node_modules
+    # MCP servers use stdio, so stdin/stdout must be attached
+    stdin_open: true
+    tty: true
+    # Port 3000 exposed for potential future HTTP endpoints (not currently used)
     ports:
       - "3000:3000"
     healthcheck:
