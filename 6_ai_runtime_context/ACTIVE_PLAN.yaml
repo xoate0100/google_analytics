@@ -1017,7 +1017,7 @@ auth_docker_setup:
       status: "pending"
       tasks: ["6.1", "6.2"]
     - name: "Integration Testing and Final Validation"
-      status: "pending"
+      status: "completed"
       tasks: ["7.1", "7.2", "7.3"]
     - name: "Documentation and Merge"
       status: "pending"
@@ -1073,13 +1073,16 @@ auth_docker_setup:
       outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
     - id: "7.1"
       name: "Add end-to-end authentication tests with mocked OAuth"
-      status: "pending"
+      status: "completed"
+      outputs: ["test/integration/auth-e2e.test.ts"]
     - id: "7.2"
       name: "Add Docker integration tests for container startup and MCP communication"
-      status: "pending"
+      status: "completed"
+      outputs: ["test/integration/docker.test.ts"]
     - id: "7.3"
       name: "Final pre-commit validation checkpoint"
-      status: "pending"
+      status: "completed"
+      outputs: ["test/unit/core/oauth.test.ts", "6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
     - id: "8.1"
       name: "Update authentication documentation and create Cursor setup guide"
       status: "pending"
