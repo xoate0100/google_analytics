@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "MCP server for Google Ads, Google Tag Manager, and Google Analytics 4",
   "type": "module",
-  "main": "dist/server.js",
+  "main": "dist/src/server.js",
   "scripts": {
     "prepare": "husky install || true",
     "dev": "tsx watch src/server.ts",

@@ -12,6 +12,7 @@ services:
       # Environment variables from .env file
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - MCP_ENCRYPTION_KEY=${MCP_ENCRYPTION_KEY:-${GOOGLE_CLIENT_SECRET}}
       - GOOGLE_ADS_DEV_TOKEN=${GOOGLE_ADS_DEV_TOKEN}
       - LOGIN_CUSTOMER_ID=${LOGIN_CUSTOMER_ID}
       - GA4_MEASUREMENT_PROTOCOL_SECRET=${GA4_MEASUREMENT_PROTOCOL_SECRET}
@@ -33,7 +34,8 @@ services:
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD", "node", "-e", "console.log('OK')"]
+      # In dev mode, check for tsx watch process (pnpm dev runs tsx watch src/server.ts)
+      test: ["CMD", "pgrep", "-f", "tsx.*server.ts"]
       interval: 30s
       timeout: 3s
       retries: 3

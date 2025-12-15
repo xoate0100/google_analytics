@@ -80,8 +80,10 @@ async function startContainer(
   const configPath = path.join(tempDir, ".mcp", "google");
   await fs.mkdir(configPath, { recursive: true });
 
+  // MCP servers need stdin attached to stay running, use -i flag
+  // -d detaches but -i keeps stdin open for the process
   await execAsync(
-    `docker run -d --name ${DOCKER_CONTAINER} ${envFlags} -v ${tempDir}/.mcp:/app/.mcp/google:rw ${DOCKER_IMAGE}`
+    `docker run -d -i --name ${DOCKER_CONTAINER} ${envFlags} -v ${tempDir}/.mcp:/app/.mcp/google:rw ${DOCKER_IMAGE}`
   );
 }
 
@@ -146,10 +148,17 @@ describe("Docker Integration", () => {
       return;
     }
 
-    // Clean up
-    await stopContainer();
-    await removeContainer();
-  });
+    // Clean up (with timeout for slow operations)
+    try {
+      await Promise.race([
+        Promise.all([stopContainer(), removeContainer()]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Cleanup timeout')), 5000))
+      ]);
+    } catch (error) {
+      // Ignore cleanup errors/timeouts
+      console.warn('Cleanup warning:', error);
+    }
+  }, 10000);
 
   it("should build Docker image successfully", async () => {
     if (!dockerAvailable) {
@@ -161,9 +170,9 @@ describe("Docker Integration", () => {
       return;
     }
 
-    // Verify image exists
+    // Verify image exists (check repository name, tag may vary)
     const { stdout } = await execAsync(`docker images ${DOCKER_IMAGE} --format "{{.Repository}}"`);
-    expect(stdout.trim()).toBe(DOCKER_IMAGE);
+    expect(stdout.trim()).toBe("mcp-google-marketing");
   });
 
   it("should start container with required environment variables", async () => {
@@ -195,9 +204,10 @@ describe("Docker Integration", () => {
       return;
     }
 
-    // Check that dist/server.js exists
-    const serverExists = await execInContainer("test -f /app/dist/server.js && echo 'exists' || echo 'missing'");
-    expect(serverExists).toBe("exists");
+    // Check that dist/src/server.js exists (TypeScript preserves directory structure)
+    const serverExists = await execInContainer("test -f /app/dist/src/server.js && echo exists || echo missing");
+    // Remove quotes if present (shell may return quoted values)
+    expect(serverExists.replace(/^['"]|['"]$/g, '')).toBe("exists");
 
     // Check that node is available
     const nodeVersion = await execInContainer("node --version");
@@ -261,9 +271,10 @@ describe("Docker Integration", () => {
 
     // Check that MCP config directory exists
     const dirExists = await execInContainer(
-      "test -d /app/.mcp/google && echo 'exists' || echo 'missing'"
+      "test -d /app/.mcp/google && echo exists || echo missing"
     );
-    expect(dirExists).toBe("exists");
+    // Remove quotes if present (shell may return quoted values)
+    expect(dirExists.replace(/^['"]|['"]$/g, '')).toBe("exists");
   }, 30000);
 
   it("should run as non-root user", async () => {
@@ -285,7 +296,9 @@ describe("Docker Integration", () => {
     const { stdout } = await execAsync(
       `docker inspect ${DOCKER_CONTAINER} --format '{{.State.Health.Status}}'`
     );
-    // Health check may be starting, running, or unhealthy
-    expect(["starting", "healthy", "unhealthy"]).toContain(stdout.trim());
+    // Health check may be starting, healthy, or unhealthy
+    // Remove quotes if present (docker inspect may return quoted values)
+    const status = stdout.trim().replace(/^['"]|['"]$/g, '');
+    expect(["starting", "healthy", "unhealthy"]).toContain(status);
   });
 });
