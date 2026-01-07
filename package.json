@@ -39,7 +39,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "google-auth-library": "^9.0.0",
     "googleapis": "^129.0.0",
     "google-ads-api": "^21.0.1",
