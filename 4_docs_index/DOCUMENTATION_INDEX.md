@@ -25,6 +25,7 @@
 | Observability & errors | `docs/observability.md`, `docs/errors.md` |
 | Contrib & testing | `docs/contrib.md`, `docs/testing-without-costs.md` |
 | PR / merge workflow | `CREATE_PR.md`, `PR_DESCRIPTION.md`, `PR_INSTRUCTIONS.md` |
+| Production readiness | `docs/PRODUCTION_READINESS.md` |
 
 ## Archived / deprecated
 
