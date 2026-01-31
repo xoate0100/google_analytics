@@ -2,16 +2,18 @@
 
 current_plan: "mcp-google-marketing-mvp"
 current_sprint: "Post-MVP"
-current_task: "9.2"
+current_task: "10.1"
 status: completed
 last_run: "2025-01-30"
 git_branch: "develop"
 
 # Merge completed
-last_completed_task: "9.1"
-last_completed_task_name: "Release v0.1.0 (tag and release notes)"
+last_completed_task: "9.2"
+last_completed_task_name: "Merge develop to main"
 merge_commit: "039b00b"
 merge_date: "2025-01-30"
+develop_to_main_merge_commit: "a0d0b86"
+develop_to_main_merge_date: "2025-01-30"
 
 # Main plan task completion (Sprints 1–4)
 completed_sprints:
@@ -50,9 +52,9 @@ next_stateful_task:
 
 # Alternative next tasks (choose one flow)
 next_flow_options:
-  - id: "9.2"
-    name: "Merge develop to main"
-    note: "After pushing tag; update protected branch."
   - id: "10.1"
     name: "Post-MVP phase (production hardening)"
     note: "New branch from develop; e.g. monitoring, rate-limit tuning, docs polish."
+  - id: "10.2"
+    name: "Additional tools or integrations"
+    note: "Extend GA4/GTM/Ads tool coverage per roadmap."
