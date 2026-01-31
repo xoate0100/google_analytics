@@ -12,6 +12,7 @@ services:
       # Environment variables from .env file
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - MCP_ENCRYPTION_KEY=${MCP_ENCRYPTION_KEY:-${GOOGLE_CLIENT_SECRET}}
       - GOOGLE_ADS_DEV_TOKEN=${GOOGLE_ADS_DEV_TOKEN}
       - LOGIN_CUSTOMER_ID=${LOGIN_CUSTOMER_ID}
       - GA4_MEASUREMENT_PROTOCOL_SECRET=${GA4_MEASUREMENT_PROTOCOL_SECRET}
@@ -22,13 +23,19 @@ services:
       - ./src:/app/src:ro
       - ./test:/app/test:ro
       # Mount MCP config directory (persists credentials and config)
+      # This stores encrypted OAuth tokens at ~/.mcp/google/credentials.enc.json
       - mcp-config:/app/.mcp/google
       # Mount node_modules to avoid permission issues
       - node-modules:/app/node_modules
+    # MCP servers use stdio, so stdin/stdout must be attached
+    stdin_open: true
+    tty: true
+    # Port 3000 exposed for potential future HTTP endpoints (not currently used)
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD", "node", "-e", "console.log('OK')"]
+      # In dev mode, check for tsx watch process (pnpm dev runs tsx watch src/server.ts)
+      test: ["CMD", "pgrep", "-f", "tsx.*server.ts"]
       interval: 30s
       timeout: 3s
       retries: 3

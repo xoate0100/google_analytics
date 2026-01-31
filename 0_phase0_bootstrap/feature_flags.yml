@@ -20,6 +20,17 @@ permissions:
     - 3_bootstrap_scripts/         # Bootstrap scripts and hooks
     - CHANGELOG.md                 # Changelog file
     - RELEASE_NOTES_v0.1.0.md      # Release notes file
+    - Dockerfile                   # Production Dockerfile
+    - Dockerfile.dev               # Development Dockerfile
+    - docker-compose.yml           # Development docker-compose
+    - docker-compose.prod.yml      # Production docker-compose
+    - .env.example                 # Environment variables example
+    - cursor-mcp-config.json.example  # Cursor MCP configuration template
+    - PR_DESCRIPTION.md            # PR description template
+    - PR_INSTRUCTIONS.md           # PR creation instructions
+    - CREATE_PR.md                 # PR creation guide
+    - package.json                 # Package configuration
+    - pnpm-workspace.yaml          # pnpm workspace configuration
   readonly:
     - 1_global_standards/
     - 7_schemas/

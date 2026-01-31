@@ -1,8 +1,8 @@
 # Release Notes v0.1.0
 
-**Release Date**: January 17, 2024  
+**Release Date**: January 30, 2025  
 **Version**: 0.1.0  
-**Status**: Initial Release
+**Status**: Initial Release (includes Auth & Docker setup and doc organization)
 
 ## Overview
 

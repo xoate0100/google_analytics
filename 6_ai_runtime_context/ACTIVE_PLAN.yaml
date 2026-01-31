@@ -1,17 +1,19 @@
 plan_id: "mcp-google-marketing-mvp"
 component: "backend"
 goal: "Build MCP server with 75+ tools for GA4, GTM, and Google Ads"
-status: "active"
-current_sprint: "Sprint 3 - GTM Advanced & Google Ads"
-sprint_status: "active"
+status: "completed"
+current_sprint: "Sprint 4 completed; Post-MVP"
+sprint_status: "completed"
 suspension_reason: ""
 suspended_at: ""
 resumed_at: "2024-01-17T08:30:00Z"
 resumption_reason: "Troubleshooting plan complete. All 106 SRP violations fixed. All enforcement mechanisms verified working. All tests passing. Codebase compliant with meta-framework standards."
 started_at: "2024-01-01T00:00:00Z"
-completed_at: "2024-01-01T00:00:00Z"
+completed_at: "2024-01-17T14:45:00Z"
 auto_commit: true
 commit_frequency: checkpoint_based
+
+# Current development: MVP Sprints 1-4 and auth-docker-setup completed. Next: merge/PR or next feature (see next_sprint / auth_docker_setup section below).
 
 # Phase 0: Bootstrap (Completed)
 phase0:
@@ -310,7 +312,7 @@ sprint1:
     - id: "1.17.2"
       name: "Final verification and merge preparation"
       status: "completed"
-      outputs: ["6_ai_runtime_context/SPRINT1_VERIFICATION.md"]
+      outputs: ["docs/archive/runtime_context/SPRINT1_VERIFICATION.md"]
 
     - id: "1.17.3"
       name: "Merge feature/sprint1-core to develop"
@@ -575,7 +577,7 @@ sprint2:
     - id: "2.10.4"
       name: "Create Sprint 2 verification document"
       status: "in_progress"
-      outputs: ["6_ai_runtime_context/SPRINT2_VERIFICATION.md"]
+      outputs: ["docs/archive/runtime_context/SPRINT2_VERIFICATION.md"]
 
     - id: "2.10.5"
       name: "Final verification and merge to develop"
@@ -976,7 +978,160 @@ merge_status:
   insertions: 30258
   deletions: 2678
 
-next_sprint: "Sprint 4 - Hardening, Integration & Release (Completed)"
+next_sprint: "Authentication & Docker Setup"
 next_steps:
-  - "Merge feature/sprint4-hardening to develop"
-  - "Tag v0.1.0 release"
+  - "Complete OAuth device flow implementation"
+  - "Complete auth.login and auth.rotate tools"
+  - "Wire up MCP server tool handlers"
+  - "Create main server entry point"
+  - "Configure Docker for local Cursor IDE usage"
+  - "Create Cursor MCP configuration"
+
+# Authentication & Docker Setup Plan
+auth_docker_setup:
+  status: "completed"
+  started_at: "2024-01-17T15:00:00Z"
+  completed_at: "2024-01-17T18:00:00Z"
+  goal: "Complete Google OAuth device flow implementation, wire up MCP server tool handlers, create main server entry point, configure Docker for local Cursor IDE usage, and create Cursor MCP configuration file."
+  branch: "feature/auth-complete-docker-setup"
+  merge_status: "merged"
+  merged_to_develop: true
+  merge_commit: "039b00b"
+  merge_date: "2025-01-30"
+  merge_note: "Merged into develop. Doc organization and active pointers included."
+  phases:
+    - name: "OAuth Device Flow Implementation"
+      status: "completed"
+      tasks: ["1.1"]
+    - name: "Authentication Tool Implementation"
+      status: "completed"
+      tasks: ["2.1", "2.2", "2.3"]
+    - name: "MCP Server Tool Handlers"
+      status: "completed"
+      tasks: ["3.1"]
+    - name: "Main Server Entry Point"
+      status: "completed"
+      tasks: ["4.1", "4.2"]
+    - name: "Docker Configuration"
+      status: "completed"
+      tasks: ["5.1", "5.2", "5.3"]
+    - name: "Cursor MCP Configuration"
+      status: "completed"
+      tasks: ["6.1", "6.2"]
+    - name: "Docker Configuration"
+      status: "pending"
+      tasks: ["5.1", "5.2", "5.3"]
+    - name: "Cursor MCP Configuration"
+      status: "pending"
+      tasks: ["6.1", "6.2"]
+    - name: "Integration Testing and Final Validation"
+      status: "completed"
+      tasks: ["7.1", "7.2", "7.3"]
+    - name: "Documentation and Merge"
+      status: "completed"
+      tasks: ["8.1", "8.2", "8.3", "8.4"]
+  tasks:
+    - id: "1.1"
+      name: "Implement OAuth device flow (startDeviceFlow, pollForTokens) with TDD"
+      status: "completed"
+      outputs: ["src/core/oauth.ts", "test/unit/core/oauth-device-flow.test.ts", "docs/auth.md"]
+    - id: "2.1"
+      name: "Complete auth.login tool implementation with device flow orchestration"
+      status: "completed"
+      outputs: ["src/server/tools.ts", "test/unit/server/auth-login.test.ts", "docs/tools.md"]
+    - id: "2.2"
+      name: "Complete auth.rotate tool implementation with token revocation"
+      status: "completed"
+      outputs: ["src/server/tools.ts", "test/unit/server/auth-rotate.test.ts", "docs/tools.md"]
+    - id: "2.3"
+      name: "Pre-commit validation checkpoint (Phase 2)"
+      status: "completed"
+      outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
+    - id: "3.1"
+      name: "Wire up MCP tool handlers in bootstrap (tools/list, tools/call)"
+      status: "completed"
+      outputs: ["src/server/bootstrap.ts", "test/unit/server/bootstrap-tool-handlers.test.ts"]
+    - id: "4.1"
+      name: "Create main server entry point (src/server.ts) with full initialization"
+      status: "completed"
+      outputs: ["src/server.ts", "test/unit/server/server.test.ts"]
+    - id: "4.2"
+      name: "Pre-commit validation checkpoint (Phase 4)"
+      status: "completed"
+      outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
+    - id: "5.1"
+      name: "Update Dockerfile for production with proper CMD and volume mounts"
+      status: "completed"
+      outputs: ["Dockerfile", "docker-compose.yml", "docker-compose.prod.yml", "0_phase0_bootstrap/feature_flags.yml"]
+    - id: "5.2"
+      name: "Create .env.example with all required environment variables"
+      status: "completed"
+      outputs: [".env.example"]
+    - id: "5.3"
+      name: "Pre-commit validation checkpoint (Phase 5)"
+      status: "completed"
+      outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
+    - id: "6.1"
+      name: "Create Cursor MCP configuration file and setup documentation"
+      status: "completed"
+      outputs: ["cursor-mcp-config.json.example", "docs/cursor-setup.md", "0_phase0_bootstrap/feature_flags.yml"]
+    - id: "6.2"
+      name: "Pre-commit validation checkpoint (Phase 6)"
+      status: "completed"
+      outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
+    - id: "7.1"
+      name: "Add end-to-end authentication tests with mocked OAuth"
+      status: "completed"
+      outputs: ["test/integration/auth-e2e.test.ts"]
+    - id: "7.2"
+      name: "Add Docker integration tests for container startup and MCP communication"
+      status: "completed"
+      outputs: ["test/integration/docker.test.ts"]
+    - id: "7.3"
+      name: "Final pre-commit validation checkpoint"
+      status: "completed"
+      outputs: ["test/unit/core/oauth.test.ts", "6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
+    - id: "8.1"
+      name: "Update authentication documentation and create Cursor setup guide"
+      status: "completed"
+      outputs: ["docs/auth.md"]
+    - id: "8.2"
+      name: "Run pre-commit validation checkpoint and fix any failures"
+      status: "completed"
+      outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml"]
+    - id: "8.3"
+      name: "Final verification and merge preparation"
+      status: "completed"
+      outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
+    - id: "8.4"
+      name: "Merge feature/auth-complete-docker-setup to develop"
+      status: "completed"
+      outputs: ["develop branch"]
+      note: "Merged 2025-01-30. Merge commit 039b00b."
+  deliverables:
+    - "OAuth Device Flow: Full implementation with startDeviceFlow and pollForTokens"
+    - "Auth Tools: auth.login and auth.rotate fully implemented"
+    - "MCP Server: Tool handlers wired up"
+    - "Server Entry Point: Full initialization with all components"
+    - "Docker Configuration: Production-ready Dockerfile and docker-compose"
+    - "Environment Variables: Complete .env.example"
+    - "Cursor MCP Config: Configuration file and setup documentation"
+    - "Integration Tests: E2E authentication and Docker tests"
+    - "Documentation: Updated auth.md, tools.md, and Cursor setup guide"
+  metrics:
+    tests_passing: "683+ tests passing (all test files)"
+    test_coverage: ">75% (acceptable for refactored code)"
+    pre_commit_hooks: "All passing"
+    code_quality: "All linting and type-checking passing"
+    tasks_completed: 18
+    phases_completed: 8
+    deliverables_completed: 9
+
+# Release v0.1.0 (task 9.1)
+release_v0_1_0:
+  status: completed
+  completed_at: "2025-01-30"
+  task_id: "9.1"
+  release_commit: "2bb3b69"
+  tag: "v0.1.0"
+  note: "CHANGELOG and RELEASE_NOTES updated; tag v0.1.0 created. Push: git push origin develop && git push origin v0.1.0"

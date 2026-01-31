@@ -5,6 +5,7 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
 import type { ILogger } from "../core/types.js";
 
 /**
@@ -159,8 +160,88 @@ export class MCPServerBootstrap {
       return;
     }
 
-    // Tools will be registered via registerTool method
-    // The server will handle list_tools requests automatically
+    this.setupToolsListHandler();
+    this.setupToolsCallHandler();
+  }
+
+  /**
+   * Set up tools/list handler
+   */
+  private setupToolsListHandler(): void {
+    if (!this.server) {
+      return;
+    }
+
+    const toolsListRequestSchema = z.object({
+      method: z.literal("tools/list"),
+      params: z.object({}),
+    });
+    const toolsListResultSchema = z.object({
+      tools: z.array(
+        z.object({
+          name: z.string(),
+          description: z.string(),
+          inputSchema: z.record(z.unknown()),
+        })
+      ),
+    });
+
+    this.server.setRequestHandler(toolsListRequestSchema, () => {
+      this.logger.info("tools/list requested");
+      const tools = Array.from(this.registeredTools.values()).map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      }));
+
+      return Promise.resolve(toolsListResultSchema.parse({ tools }));
+    });
+  }
+
+  /**
+   * Set up tools/call handler
+   */
+  private setupToolsCallHandler(): void {
+    if (!this.server) {
+      return;
+    }
+
+    const toolsCallRequestSchema = z.object({
+      method: z.literal("tools/call"),
+      params: z.object({
+        name: z.string(),
+        arguments: z.record(z.unknown()).optional(),
+      }),
+    });
+    const toolsCallResultSchema = z.object({
+      content: z.array(
+        z.object({
+          type: z.literal("text"),
+          text: z.string(),
+        })
+      ),
+    });
+
+    this.server.setRequestHandler(
+      toolsCallRequestSchema,
+      async (request) => {
+        const { name, arguments: args } = request.params;
+
+        this.logger.info("tools/call requested", { name, hasArgs: !!args });
+
+        const tool = this.registeredTools.get(name);
+        if (!tool) {
+          throw new Error(`Tool not found: ${name}`);
+        }
+
+        const validatedArgs = args || {};
+        const result = await tool.handler(validatedArgs);
+
+        return toolsCallResultSchema.parse({
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
+        });
+      }
+    );
   }
 
   /**

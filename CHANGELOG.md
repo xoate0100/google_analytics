@@ -5,9 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2024-01-17
+## [0.1.0] - 2025-01-30
 
 ### Added
+
+#### Authentication & Docker (2025-01-30)
+- **OAuth 2.0 device flow**: Full implementation with `startDeviceFlow` and `pollForTokens`
+- **Auth tools**: `auth.login`, `auth.rotate`, `auth.status` with device flow orchestration
+- **MCP server**: Main entry point (`src/server.ts`), tool handlers wired in bootstrap
+- **Docker**: Production Dockerfile, docker-compose (dev/prod), `.env.example`
+- **Cursor MCP**: `cursor-mcp-config.json.example`, setup guide in `docs/cursor-setup.md`
+- **Testing**: E2E auth tests, Docker integration tests
+
+#### Documentation & project organization (2025-01-30)
+- **Archive**: Deprecated verification, sprint, troubleshooting, and audit docs moved to `docs/archive/`
+- **Meta-framework sync**: `docs/META_FRAMEWORK_SYNC.md`, `scripts/sync_from_project_initializer.sh`, `cli.py sync`
+- **Active pointers**: `6_ai_runtime_context/README.md`, updated DOCUMENTATION_INDEX and active task pointer
 
 #### Core Infrastructure
 - **Error Handling**: Comprehensive error model with typed errors (AuthError, ValidationError, QuotaError, PreconditionError, etc.)

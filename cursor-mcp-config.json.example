@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "google-marketing": {
+      "command": "node",
+      "args": [
+        "dist/server.js"
+      ],
+      "env": {
+        "GOOGLE_CLIENT_ID": "your-google-client-id.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET": "your-google-client-secret",
+        "MCP_ENCRYPTION_KEY": "your-encryption-key-here",
+        "GOOGLE_ADS_DEV_TOKEN": "your-google-ads-developer-token",
+        "LOGIN_CUSTOMER_ID": "1234567890",
+        "GA4_MEASUREMENT_PROTOCOL_SECRET": "your-measurement-protocol-secret",
+        "LOG_LEVEL": "info",
+        "MCP_MARKETING_DRY_RUN": "0",
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
