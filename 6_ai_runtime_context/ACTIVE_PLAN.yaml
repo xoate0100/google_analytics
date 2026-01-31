@@ -1135,3 +1135,11 @@ release_v0_1_0:
   release_commit: "2bb3b69"
   tag: "v0.1.0"
   note: "CHANGELOG and RELEASE_NOTES updated; tag v0.1.0 created. Push: git push origin develop && git push origin v0.1.0"
+
+# Merge develop to main (task 9.2)
+merge_develop_to_main:
+  status: completed
+  completed_at: "2025-01-30"
+  task_id: "9.2"
+  merge_commit: "a0d0b86"
+  note: "develop merged into main. Push: git push origin main && git push origin develop && git push origin v0.1.0"

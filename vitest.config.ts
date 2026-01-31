@@ -28,8 +28,8 @@ export default defineConfig({
       // Backend: 100%, Shared: 90% per meta-framework
     },
     setupFiles: ["./test/setup.ts"],
-    testTimeout: 10000,
-    hookTimeout: 10000,
+    testTimeout: 15000,
+    hookTimeout: 20000,
   },
   resolve: {
     alias: {

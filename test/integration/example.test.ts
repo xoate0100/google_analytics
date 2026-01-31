@@ -36,8 +36,10 @@ describe("Integration Test Framework Example", () => {
       logger: context.logger,
     });
 
-    // Tools should be registered
-    expect(bootstrap).toBeDefined();
+    const tools = bootstrap.getRegisteredTools();
+    expect(tools).toBeDefined();
+    expect(tools.size).toBeGreaterThan(0);
+    expect(tools.has("ga4.report.run")).toBe(true);
   });
 
   it("should mock OAuth token endpoint", async () => {

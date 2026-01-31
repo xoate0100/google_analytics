@@ -20,4 +20,4 @@ metrics:
   last_regenerated: "2025-01-30"
 
 # Current context
-current_context: "develop. v0.1.0 released (tag at 2bb3b69). Next stateful task: 9.2 merge develop→main (optional), or 10.1 post-MVP phase. Push: git push origin develop && git push origin v0.1.0. See ACTIVE_TASK_POINTER.yaml."
+current_context: "develop. v0.1.0 released (tag 2bb3b69). develop merged to main (a0d0b86). Next stateful task: 10.1 Post-MVP phase (branch from develop). Push: git push origin main && git push origin develop && git push origin v0.1.0. See ACTIVE_TASK_POINTER.yaml."
