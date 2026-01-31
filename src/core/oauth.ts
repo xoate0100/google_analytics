@@ -45,6 +45,8 @@ export interface OAuthClientOptions {
 export class OAuthClient {
   private readonly oauth2Client: OAuth2Client;
   private readonly logger: ILogger;
+  private readonly clientId: string;
+  private readonly clientSecret: string;
 
   constructor(options: OAuthClientOptions) {
     if (!options.clientId || !options.clientSecret) {
@@ -55,11 +57,53 @@ export class OAuthClient {
     }
 
     this.logger = options.logger;
+    this.clientId = options.clientId;
+    this.clientSecret = options.clientSecret;
     this.oauth2Client = new OAuth2Client(
       options.clientId,
       options.clientSecret,
       options.redirectUri
     );
+  }
+
+  /**
+   * Handle device code request error
+   */
+  private async handleDeviceCodeError(
+    response: Response
+  ): Promise<never> {
+    const errorData = (await response.json()) as {
+      error?: string;
+      error_description?: string;
+    };
+    throw createAuthError(
+      "invalid_grant",
+      errorData.error_description || `Device flow failed: ${response.statusText}`,
+      { status: response.status, error: errorData.error }
+    );
+  }
+
+  /**
+   * Parse device code response
+   */
+  private parseDeviceCodeResponse(
+    data: {
+      device_code: string;
+      user_code: string;
+      verification_url: string;
+      expires_in: number;
+      interval: number;
+    },
+    scopes: string[]
+  ): DeviceFlowResult {
+    return {
+      deviceCode: data.device_code,
+      userCode: data.user_code,
+      verificationUrl: data.verification_url,
+      expiresIn: data.expires_in,
+      interval: data.interval,
+      scopes,
+    };
   }
 
   /**
@@ -70,36 +114,171 @@ export class OAuthClient {
   async startDeviceFlow(scopes: string[]): Promise<DeviceFlowResult> {
     this.logger.info("Starting OAuth device flow", { scopes });
 
-    // For now, return a stub implementation
-    // This will be replaced with actual device flow in future tasks
-    const deviceCode = `device_${Date.now()}_${Math.random().toString(36)}`;
-    const userCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-
-    return Promise.resolve({
-      deviceCode,
-      userCode,
-      verificationUrl: "https://www.google.com/device",
-      expiresIn: 1800, // 30 minutes
-      interval: 5, // 5 seconds
-      scopes,
+    const deviceCodeUrl = "https://oauth2.googleapis.com/device/code";
+    const requestBody = new URLSearchParams({
+      client_id: this.clientId,
+      scope: scopes.join(" "),
     });
+
+    try {
+      const response = await fetch(deviceCodeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: requestBody.toString(),
+      });
+
+      if (!response.ok) {
+        return this.handleDeviceCodeError(response);
+      }
+
+      const data = (await response.json()) as {
+        device_code: string;
+        user_code: string;
+        verification_url: string;
+        expires_in: number;
+        interval: number;
+      };
+
+      return this.parseDeviceCodeResponse(data, scopes);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AuthError") {
+        throw error;
+      }
+      throw createAuthError(
+        "invalid_grant",
+        `Device flow request failed: ${(error as Error).message}`,
+        { originalError: error }
+      );
+    }
+  }
+
+  /**
+   * Handle token polling errors
+   */
+  private handleTokenPollingError(
+    errorCode: string,
+    errorMessage: string,
+    interval: number,
+    status: number
+  ): never {
+    if (errorCode === "authorization_pending") {
+      throw createAuthError(
+        "invalid_grant",
+        "Authorization pending. User has not yet completed authorization.",
+        { error: errorCode, retryAfter: interval }
+      );
+    }
+
+    if (errorCode === "slow_down") {
+      throw createAuthError(
+        "invalid_grant",
+        "Polling too frequently. Increase polling interval.",
+        { error: errorCode, retryAfter: interval + 5 }
+      );
+    }
+
+    if (errorCode === "expired_token") {
+      throw createAuthError(
+        "invalid_grant",
+        "Device code has expired. Please start a new device flow.",
+        { error: errorCode }
+      );
+    }
+
+    throw createAuthError("invalid_grant", errorMessage, {
+      error: errorCode,
+      status,
+    });
+  }
+
+  /**
+   * Parse token response
+   */
+  private parseTokenResponse(data: {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    scope?: string;
+  }): TokenInfo {
+    if (!data.access_token) {
+      throw createAuthError("invalid_grant", "No access token received");
+    }
+
+    const expiresAt = data.expires_in
+      ? Math.floor(Date.now() / 1000) + data.expires_in
+      : undefined;
+
+    return {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt,
+      scopes: data.scope?.split(" ") || undefined,
+    };
   }
 
   /**
    * Poll for tokens after device flow authorization
    * @param deviceCode - Device code from startDeviceFlow
+   * @param interval - Polling interval in seconds (default: 5)
    * @returns Token information
    */
-  async pollForTokens(deviceCode: string): Promise<TokenInfo> {
-    this.logger.info("Polling for tokens", { deviceCode });
+  async pollForTokens(
+    deviceCode: string,
+    interval: number = 5
+  ): Promise<TokenInfo> {
+    this.logger.info("Polling for tokens", { deviceCode, interval });
 
-    // Stub implementation - will be replaced with actual polling
-    return Promise.reject(
-      createAuthError(
+    const tokenUrl = "https://oauth2.googleapis.com/token";
+    const requestBody = new URLSearchParams({
+      device_code: deviceCode,
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+    });
+
+    try {
+      const response = await fetch(tokenUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: requestBody.toString(),
+      });
+
+      const data = (await response.json()) as {
+        access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+        scope?: string;
+        error?: string;
+        error_description?: string;
+      };
+
+      if (!response.ok || data.error) {
+        const errorCode = data.error || "invalid_grant";
+        const errorMessage =
+          data.error_description || `Token polling failed: ${response.statusText}`;
+        return this.handleTokenPollingError(
+          errorCode,
+          errorMessage,
+          interval,
+          response.status
+        );
+      }
+
+      return this.parseTokenResponse(data);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AuthError") {
+        throw error;
+      }
+      throw createAuthError(
         "invalid_grant",
-        "Device flow polling not yet implemented"
-      )
-    );
+        `Token polling request failed: ${(error as Error).message}`,
+        { originalError: error }
+      );
+    }
   }
 
   /**

@@ -10,45 +10,89 @@ This document provides comprehensive documentation for all MCP tools exposed by 
 
 Authenticate with Google services using OAuth device flow.
 
-**Parameters:** None
-
-**Returns:**
+**Parameters:**
 ```json
 {
-  "message": "Authentication flow not yet implemented"
+  "deviceCode": "optional-device-code-from-previous-call"
 }
 ```
 
-**Status:** Stub implementation (Sprint 1)
+**Returns (initial call):**
+```json
+{
+  "userCode": "ABCD-EFGH",
+  "verificationUrl": "https://www.google.com/device",
+  "deviceCode": "device-code-for-polling",
+  "expiresIn": 1800,
+  "message": "Please visit https://www.google.com/device and enter code: ABCD-EFGH",
+  "nextStep": "After authorizing, call auth.login again with deviceCode parameter"
+}
+```
+
+**Returns (polling call with deviceCode):**
+```json
+{
+  "message": "Authentication successful! Tokens have been stored.",
+  "authenticated": true
+}
+```
+
+**Status:** ✅ Implemented (Sprint 4)
 
 **For AI Agents:**
 - **Intent**: Initiate OAuth 2.0 device flow authentication
-- **Required Args**: None
-- **Safety Checks**: None (stub)
-- **Canonical Example**: `auth.login()`
+- **Required Args**: None (deviceCode optional for polling)
+- **Safety Checks**: None
+- **Canonical Example**:
+  1. First call: `auth.login()` - returns user code and verification URL
+  2. User authorizes at verification URL
+  3. Second call: `auth.login({ deviceCode: "..." })` - polls for tokens and stores them
+- **Note**: The tool handles polling with exponential backoff automatically when deviceCode is provided
 
 ---
 
 #### `auth.rotate`
 
-Rotate authentication tokens.
+Rotate authentication tokens by revoking old tokens and initiating a new device flow.
 
-**Parameters:** None
-
-**Returns:**
+**Parameters:**
 ```json
 {
-  "message": "Token rotation not yet implemented"
+  "deviceCode": "optional-device-code-from-previous-call"
 }
 ```
 
-**Status:** Stub implementation (Sprint 1)
+**Returns (initial call):**
+```json
+{
+  "userCode": "WXYZ-1234",
+  "verificationUrl": "https://www.google.com/device",
+  "deviceCode": "device-code-for-polling",
+  "expiresIn": 1800,
+  "message": "Please visit https://www.google.com/device and enter code: WXYZ-1234",
+  "nextStep": "After authorizing, call auth.rotate again with deviceCode parameter"
+}
+```
+
+**Returns (polling call with deviceCode):**
+```json
+{
+  "message": "Authentication successful! Tokens have been stored.",
+  "authenticated": true
+}
+```
+
+**Status:** ✅ Implemented (Sprint 4)
 
 **For AI Agents:**
-- **Intent**: Rotate OAuth refresh tokens for security
-- **Required Args**: None
-- **Safety Checks**: None (stub)
-- **Canonical Example**: `auth.rotate()`
+- **Intent**: Rotate OAuth refresh tokens for security by revoking old tokens and obtaining new ones
+- **Required Args**: None (deviceCode optional for polling)
+- **Safety Checks**: None
+- **Canonical Example**:
+  1. First call: `auth.rotate()` - revokes old tokens and returns user code
+  2. User authorizes at verification URL
+  3. Second call: `auth.rotate({ deviceCode: "..." })` - polls for tokens and stores them
+- **Note**: The tool automatically revokes existing tokens before starting a new device flow
 
 ---
 
