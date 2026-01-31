@@ -1,3 +1,5 @@
+<!-- DEPRECATED: Archived for reference. See docs/archive/README.md. Current context: 6_ai_runtime_context/ACTIVE_PLAN.yaml -->
+
 # SRP Violations Analysis and Refactoring Plan
 
 **Date**: 2024-01-17  

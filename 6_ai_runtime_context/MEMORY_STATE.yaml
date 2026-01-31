@@ -1,2 +1,21 @@
-recent_plans: []
-metrics: { first_pass_commit_success_rate: 0 }
+# AI runtime memory state – regenerated to match current development
+
+recent_plans:
+  - plan_id: "mcp-google-marketing-mvp"
+    status: completed
+    last_sprint: "Sprint 4"
+    completed_at: "2024-01-17T14:45:00Z"
+  - plan_id: "auth-docker-setup"
+    status: completed
+    last_task: "8.3"
+    completed_at: "2024-01-17T18:00:00Z"
+  - plan_id: "meta-framework-compliance-fix"
+    status: completed
+    note: "Troubleshooting plan; all violations resolved."
+
+metrics:
+  first_pass_commit_success_rate: 0
+  last_regenerated: "2025-01-30"
+
+# Current context
+current_context: "Post-MVP. Sprints 1–4 and auth-docker-setup completed. Next: merge PR or start next feature. Active docs and plans: 6_ai_runtime_context/ACTIVE_PLAN.yaml, 4_docs_index/DOCUMENTATION_INDEX.md. Deprecated docs: docs/archive/."

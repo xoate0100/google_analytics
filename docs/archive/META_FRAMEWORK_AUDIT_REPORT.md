@@ -1,3 +1,5 @@
+<!-- DEPRECATED: Archived for reference. See docs/archive/README.md. Current context: 6_ai_runtime_context/ACTIVE_PLAN.yaml -->
+
 # Meta-Framework Audit Report
 **Date**: 2024-01-17  
 **Status**: CRITICAL ISSUES FOUND - DEVELOPMENT HALTED

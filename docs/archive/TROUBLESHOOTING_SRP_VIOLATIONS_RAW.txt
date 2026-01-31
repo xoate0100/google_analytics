@@ -1,3 +1,4 @@
+DEPRECATED: Archived for reference. See docs/archive/README.md. Current context: 6_ai_runtime_context/ACTIVE_PLAN.yaml
 - src\ads\tools.ts:211 SRP violation: Function 'searchResponse' is 167 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
 - src\ads\tools.ts:378 SRP violation: Function 'response' is 131 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md
 - src\ads\tools.ts:865 SRP violation: Function 'campaigns' is 122 lines (>50). Refactor into smaller functions. See 1_global_standards/SOLID_PRINCIPLES.md

@@ -1,3 +1,4 @@
+# DEPRECATED: Archived for reference. See docs/archive/README.md. Current context: 6_ai_runtime_context/ACTIVE_PLAN.yaml
 plan_id: "meta-framework-compliance-fix"
 component: "backend"
 goal: "Fix all meta-framework violations (SRP, TDD, coverage) to bring codebase into compliance with enforced standards"

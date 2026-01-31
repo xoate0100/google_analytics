@@ -95,7 +95,7 @@ This PR completes the Authentication & Docker Setup plan, implementing OAuth 2.0
 - `docs/cursor-setup.md` - Cursor IDE setup guide
 - `.env.example` - Environment variables template
 - `cursor-mcp-config.json.example` - Cursor MCP configuration template
-- `6_ai_runtime_context/AUTH_DOCKER_SETUP_VERIFICATION.md` - Verification document
+- `docs/archive/runtime_context/AUTH_DOCKER_SETUP_VERIFICATION.md` - Verification document (archived)
 
 ### Modified Files
 - `src/core/oauth.ts` - Device flow implementation
@@ -146,7 +146,7 @@ This PR completes the Authentication & Docker Setup plan, implementing OAuth 2.0
 
 ## Verification
 
-See `6_ai_runtime_context/AUTH_DOCKER_SETUP_VERIFICATION.md` for complete verification checklist.
+See `docs/archive/runtime_context/AUTH_DOCKER_SETUP_VERIFICATION.md` for complete verification checklist (archived).
 
 ### Completed Phases
 1. ✅ OAuth Device Flow Implementation
