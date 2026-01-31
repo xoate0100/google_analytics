@@ -1,12 +1,17 @@
-# Active task pointer – reflects current development state (regenerated)
-# Main plan mcp-google-marketing-mvp: Sprints 1–4 completed. Auth/Docker setup completed.
+# Active task pointer – post-merge (auth-complete-docker-setup merged into develop)
 
 current_plan: "mcp-google-marketing-mvp"
-current_sprint: "Sprint 4"
-current_task: "4.7.4"
+current_sprint: "Post-MVP"
+current_task: "8.4"
 status: completed
-last_run: "2024-01-17T14:45:00Z"
-git_branch: "feature/auth-complete-docker-setup"
+last_run: "2025-01-30"
+git_branch: "develop"
+
+# Merge completed
+last_completed_task: "8.4"
+last_completed_task_name: "Merge feature/auth-complete-docker-setup to develop"
+merge_commit: "039b00b"
+merge_date: "2025-01-30"
 
 # Main plan task completion (Sprints 1–4)
 completed_sprints:
@@ -15,16 +20,35 @@ completed_sprints:
   - "Sprint 3 - GTM Advanced & Google Ads"
   - "Sprint 4 - Hardening, Integration & Release"
 
-last_completed_task: "4.7.4"
-last_completed_task_name: "Final pre-commit validation checkpoint"
-
-# Auth/Docker setup plan (completed)
+# Auth/Docker setup plan (completed and merged)
 auth_docker_setup:
   status: completed
-  last_task: "8.3"
+  last_task: "8.4"
   branch: "feature/auth-complete-docker-setup"
-  merge_status: "ready_for_pr"
+  merge_status: "merged"
+  merged_to_develop: true
+  merge_commit: "039b00b"
 
-# Next actionable
-next_action: "Merge feature/auth-complete-docker-setup to develop via PR, or start next feature per roadmap."
-next_sprint_suggestion: "Post-MVP: merge PR, release v0.1.0, then plan next phase (e.g. production hardening, additional tools)."
+# Next stateful task in development flow
+next_stateful_task:
+  id: "9.1"
+  name: "Release v0.1.0 (tag and release notes)"
+  branch_suggestion: "develop (tag from develop) or feature/release-v0.1.0"
+  scope: |
+    - Ensure CHANGELOG.md and RELEASE_NOTES_v0.1.0.md are current
+    - Tag: git tag -a v0.1.0 -m 'Release v0.1.0'
+    - Push tag: git push origin v0.1.0
+    - Create GitHub release from tag (optional)
+  status: "pending"
+
+# Alternative next tasks (choose one flow)
+next_flow_options:
+  - id: "9.1"
+    name: "Release v0.1.0"
+    note: "Tag from develop; publish release notes."
+  - id: "9.2"
+    name: "Merge develop to main"
+    note: "After release tag; update protected branch."
+  - id: "10.1"
+    name: "Post-MVP phase (production hardening)"
+    note: "New branch from develop; e.g. monitoring, rate-limit tuning, docs polish."

@@ -1,14 +1,16 @@
-# AI runtime memory state – regenerated to match current development
+# AI runtime memory state – post-merge
 
 recent_plans:
+  - plan_id: "auth-docker-setup"
+    status: completed
+    last_task: "8.4"
+    merged_to_develop: true
+    merge_commit: "039b00b"
+    completed_at: "2025-01-30"
   - plan_id: "mcp-google-marketing-mvp"
     status: completed
     last_sprint: "Sprint 4"
     completed_at: "2024-01-17T14:45:00Z"
-  - plan_id: "auth-docker-setup"
-    status: completed
-    last_task: "8.3"
-    completed_at: "2024-01-17T18:00:00Z"
   - plan_id: "meta-framework-compliance-fix"
     status: completed
     note: "Troubleshooting plan; all violations resolved."
@@ -18,4 +20,4 @@ metrics:
   last_regenerated: "2025-01-30"
 
 # Current context
-current_context: "Post-MVP. Sprints 1–4 and auth-docker-setup completed. Next: merge PR or start next feature. Active docs and plans: 6_ai_runtime_context/ACTIVE_PLAN.yaml, 4_docs_index/DOCUMENTATION_INDEX.md. Deprecated docs: docs/archive/."
+current_context: "develop. Auth-complete-docker-setup merged (039b00b). Next stateful task: 9.1 Release v0.1.0 (tag and release notes), or 9.2 merge develop→main, or 10.1 post-MVP phase. See ACTIVE_TASK_POINTER.yaml next_stateful_task and next_flow_options."

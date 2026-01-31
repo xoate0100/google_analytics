@@ -989,13 +989,16 @@ next_steps:
 
 # Authentication & Docker Setup Plan
 auth_docker_setup:
-  status: "ready_for_merge"
+  status: "completed"
   started_at: "2024-01-17T15:00:00Z"
   completed_at: "2024-01-17T18:00:00Z"
   goal: "Complete Google OAuth device flow implementation, wire up MCP server tool handlers, create main server entry point, configure Docker for local Cursor IDE usage, and create Cursor MCP configuration file."
   branch: "feature/auth-complete-docker-setup"
-  merge_status: "ready_for_pr"
-  merge_note: "All tasks completed. Ready for merge via PR to develop branch."
+  merge_status: "merged"
+  merged_to_develop: true
+  merge_commit: "039b00b"
+  merge_date: "2025-01-30"
+  merge_note: "Merged into develop. Doc organization and active pointers included."
   phases:
     - name: "OAuth Device Flow Implementation"
       status: "completed"
@@ -1102,8 +1105,9 @@ auth_docker_setup:
       outputs: ["6_ai_runtime_context/ACTIVE_PLAN.yaml", "6_ai_runtime_context/ACTIVE_TASK_POINTER.yaml"]
     - id: "8.4"
       name: "Merge feature/auth-complete-docker-setup to develop"
-      status: "ready_for_merge"
-      note: "Merge should be performed via PR or manually. All tasks completed, all tests passing, ready for merge."
+      status: "completed"
+      outputs: ["develop branch"]
+      note: "Merged 2025-01-30. Merge commit 039b00b."
   deliverables:
     - "OAuth Device Flow: Full implementation with startDeviceFlow and pollForTokens"
     - "Auth Tools: auth.login and auth.rotate fully implemented"
