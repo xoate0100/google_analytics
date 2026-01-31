@@ -1126,3 +1126,12 @@ auth_docker_setup:
     tasks_completed: 18
     phases_completed: 8
     deliverables_completed: 9
+
+# Release v0.1.0 (task 9.1)
+release_v0_1_0:
+  status: completed
+  completed_at: "2025-01-30"
+  task_id: "9.1"
+  release_commit: "2bb3b69"
+  tag: "v0.1.0"
+  note: "CHANGELOG and RELEASE_NOTES updated; tag v0.1.0 created. Push: git push origin develop && git push origin v0.1.0"

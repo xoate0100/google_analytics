@@ -20,4 +20,4 @@ metrics:
   last_regenerated: "2025-01-30"
 
 # Current context
-current_context: "develop. Auth-complete-docker-setup merged (039b00b). Next stateful task: 9.1 Release v0.1.0 (tag and release notes), or 9.2 merge develop→main, or 10.1 post-MVP phase. See ACTIVE_TASK_POINTER.yaml next_stateful_task and next_flow_options."
+current_context: "develop. v0.1.0 released (tag at 2bb3b69). Next stateful task: 9.2 merge develop→main (optional), or 10.1 post-MVP phase. Push: git push origin develop && git push origin v0.1.0. See ACTIVE_TASK_POINTER.yaml."
