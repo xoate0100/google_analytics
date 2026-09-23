@@ -5,8 +5,8 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-  schedule:
-    - cron: '0 0 * * 0' # Weekly on Sunday
+  # schedule:  # DISABLED task7 fleet-normalization-v1 — Weekly fail since May 2026 on frozen a76f9656; Setup Node/pnpm order broken; logs 410
+    # - cron: '0 0 * * 0' # Weekly on Sunday
   workflow_dispatch:
 
 jobs:
