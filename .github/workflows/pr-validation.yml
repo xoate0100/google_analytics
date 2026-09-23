@@ -52,11 +52,11 @@ jobs:
 
       - name: Security Scan
         run: |
-          pnpm audit --audit-level=moderate || true
+          pnpm audit --audit-level=moderate
           python3 3_bootstrap_scripts/security_scan.sh
 
       - name: Format Check
         run: pnpm format:check
 
       - name: Dead Code Check
-        run: pnpm dead-code:check || true
+        run: pnpm dead-code:check
