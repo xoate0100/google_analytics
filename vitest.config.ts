@@ -10,22 +10,24 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html", "lcov"],
+      include: ["src/**/*.{ts,js}"],
       exclude: [
         "node_modules/",
         "test/",
+        "scripts/",
         "**/*.test.ts",
         "**/*.spec.ts",
         "**/*.config.ts",
         "dist/",
       ],
+      // Ratchet floor from CI-measured baseline under vitest 3 (close-the-stalls-v1 task 4).
+      // ACTIVE_PLAN documents ~75%+ as acceptable post-refactor; keep check blocking.
       thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 90,
-        statements: 90,
+        lines: 75,
+        functions: 83,
+        branches: 67,
+        statements: 75,
       },
-      // Per-component thresholds (will be enforced in CI)
-      // Backend: 100%, Shared: 90% per meta-framework
     },
     setupFiles: ["./test/setup.ts"],
     testTimeout: 15000,

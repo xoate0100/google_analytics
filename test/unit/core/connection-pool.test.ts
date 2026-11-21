@@ -1,19 +1,32 @@
 /**
  * Connection pool tests
- * Tests connection reuse, pool size management, connection timeout handling, and pool exhaustion scenarios
+ * Tests connection reuse, pool size management, connection timeout handling, and pool exhaustion scenarios.
+ * Coverage ratchet floors live in vitest.config.ts (close-the-stalls-v1 task 4).
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  ConnectionPool,
-  ConnectionPoolOptions,
-} from "../../../src/core/connection-pool.js";
+import { ConnectionPool, ConnectionPoolOptions } from "../../../src/core/connection-pool.js";
 import type { Connection } from "../../../src/core/connection-pool.js";
+
+async function waitForMinIdle(
+  pool: ConnectionPool<MockConnection>,
+  minIdle: number,
+  timeoutMs = 2000
+): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (pool.getStats().idleConnections >= minIdle) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`Timed out waiting for ${minIdle} idle connections`);
+}
 
 describe("Connection Pool", () => {
   let connectionPool: ConnectionPool<MockConnection>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     const options: ConnectionPoolOptions<MockConnection> = {
       maxSize: 10,
       minSize: 2,
@@ -22,6 +35,7 @@ describe("Connection Pool", () => {
       createConnection: () => Promise.resolve(new MockConnection()),
     };
     connectionPool = new ConnectionPool(options);
+    await waitForMinIdle(connectionPool, 2);
   });
 
   describe("Connection reuse", () => {
