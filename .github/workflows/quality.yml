@@ -16,30 +16,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Performance Scan
-        run: python3 3_bootstrap_scripts/performance_scan.sh
-        continue-on-error: true
+        run: bash 3_bootstrap_scripts/performance_scan.sh
 
       - name: Complexity Check
         run: python3 3_bootstrap_scripts/complexity_check.py
-        continue-on-error: true
 
       - name: Mutation Testing
         run: |
           echo "Mutation testing will be implemented in future phase"
           echo "Target: 75% kill rate"
-        continue-on-error: true
