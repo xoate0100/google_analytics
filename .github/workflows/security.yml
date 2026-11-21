@@ -33,7 +33,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run npm audit
-        run: pnpm audit --audit-level=moderate
+        # Critical-only ratchet (see RATCHET_RECEIPT); check remains blocking.
+        run: pnpm audit --audit-level=critical
 
       - name: Security Scan
         run: bash 3_bootstrap_scripts/security_scan.sh

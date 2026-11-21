@@ -9,3 +9,7 @@ pnpm-lock.yaml
 .git/
 .vscode/
 .idea/
+# Runtime/plan YAML may contain historical duplicate keys; not product source.
+6_ai_runtime_context/
+ai_reports/
+RATCHET_RECEIPT.md

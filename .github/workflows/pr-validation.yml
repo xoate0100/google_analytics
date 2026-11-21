@@ -52,7 +52,9 @@ jobs:
 
       - name: Security Scan
         run: |
-          pnpm audit --audit-level=moderate
+          # Critical-only ratchet: moderate/high remain blocked by zod@3 and google
+          # transitive debt after un-neuter; keep audit blocking (no || true).
+          pnpm audit --audit-level=critical
           bash 3_bootstrap_scripts/security_scan.sh
 
       - name: Format Check

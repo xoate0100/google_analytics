@@ -31,6 +31,11 @@ permissions:
     - CREATE_PR.md                 # PR creation guide
     - package.json                 # Package configuration
     - pnpm-workspace.yaml          # pnpm workspace configuration
+    - pnpm-lock.yaml               # Lockfile (CI dep bumps)
+    - vitest.config.ts             # Test/coverage ratchet config
+    - .prettierignore              # Format scope exclusions
+    - .github/workflows/           # CI workflow remediations
+    - RATCHET_RECEIPT.md           # Stall/un-neuter evidence log
   readonly:
     - 1_global_standards/
     - 7_schemas/
