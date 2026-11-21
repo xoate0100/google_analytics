@@ -36,10 +36,10 @@ jobs:
         run: pnpm audit --audit-level=moderate
 
       - name: Security Scan
-        run: python3 3_bootstrap_scripts/security_scan.sh
+        run: bash 3_bootstrap_scripts/security_scan.sh
 
       - name: Runtime Security Check
-        run: python3 3_bootstrap_scripts/runtime_security_check.sh
+        run: bash 3_bootstrap_scripts/runtime_security_check.sh
 
       - name: Check for secrets
         uses: trufflesecurity/trufflehog@main

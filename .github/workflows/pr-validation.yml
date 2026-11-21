@@ -53,7 +53,7 @@ jobs:
       - name: Security Scan
         run: |
           pnpm audit --audit-level=moderate
-          python3 3_bootstrap_scripts/security_scan.sh
+          bash 3_bootstrap_scripts/security_scan.sh
 
       - name: Format Check
         run: pnpm format:check

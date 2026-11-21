@@ -31,7 +31,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Performance Scan
-        run: python3 3_bootstrap_scripts/performance_scan.sh
+        run: bash 3_bootstrap_scripts/performance_scan.sh
 
       - name: Complexity Check
         run: python3 3_bootstrap_scripts/complexity_check.py
