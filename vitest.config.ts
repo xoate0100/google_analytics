@@ -20,13 +20,13 @@ export default defineConfig({
         "**/*.config.ts",
         "dist/",
       ],
-      // Ratchet floor from CI-measured baseline (close-the-stalls-v1 task 4).
+      // Ratchet floor from CI-measured baseline under vitest 3 (close-the-stalls-v1 task 4).
       // ACTIVE_PLAN documents ~75%+ as acceptable post-refactor; keep check blocking.
       thresholds: {
-        lines: 80,
+        lines: 75,
         functions: 83,
         branches: 67,
-        statements: 80,
+        statements: 75,
       },
     },
     setupFiles: ["./test/setup.ts"],

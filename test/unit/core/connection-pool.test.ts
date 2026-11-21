@@ -1,6 +1,7 @@
 /**
  * Connection pool tests
- * Tests connection reuse, pool size management, connection timeout handling, and pool exhaustion scenarios
+ * Tests connection reuse, pool size management, connection timeout handling, and pool exhaustion scenarios.
+ * Coverage ratchet floors live in vitest.config.ts (close-the-stalls-v1 task 4).
  */
 
 import { describe, it, expect, beforeEach } from "vitest";

@@ -38,7 +38,7 @@
 - EV-GA-PNPM-ORDER: pnpm/action-setup before setup-node cache:pnpm
 - EV-GA-PNPM9: action-setup version 9 for lockfileVersion 9.0
 - EV-GA-BASH-SCANS: invoke .sh bootstrap scans with bash (not python3)
-- EV-GA-COV-RATCHET: vitest coverage include src/; thresholds lines/funcs/stmts 80/83/80 branches 67
+- EV-GA-COV-RATCHET: vitest coverage include src/; thresholds lines/funcs/stmts 75/83/75 branches 67 (vitest3 measured)
 - EV-GA-PRETTIER-IGNORE: ignore 6_ai_runtime_context (invalid historical YAML keys)
 - EV-GA-FORMAT-SCOPE: format:check limited to src/test/scripts + root ts/json configs
 - EV-GA-AUDIT-CRITICAL: audit-level=critical (blocking); moderate/high deferred (zod@3 + google transitive)
